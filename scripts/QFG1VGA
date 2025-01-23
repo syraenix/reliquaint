@@ -1,0 +1,12 @@
+#! /bin/bash
+
+# Start TiMidity++ in daemon mode
+timidity -iA &
+
+# Wait for TiMidity++ to start
+while ! pgrep -x "timidity" > /dev/null; do
+    sleep 1
+done
+
+# Run Quest for Glory 1 in DosBox Staging
+flatpak run io.github.dosbox-staging -conf ~/dosbox_shortcuts/config/qfg1vga.conf
