@@ -1,6 +1,40 @@
 #! /bin/bash
 set -e
 
+# Default values
+copy_games_dir=false
+create_desktop_icons=false
+
+usage() {
+>&2 cat << EOF
+Usage: $0
+   [ -c | --copy-games-dir ]
+   [ -i | --create-desktop-icons ]
+   [ -h | --help ]
+   <infile> [infiles]
+EOF
+exit 1
+}
+
+args=$(getopt -a -o cih --long copy-games-dir,create-desktop-icons,help -- "$@")
+if [[ $? -gt 0 ]]; then
+  usage
+fi
+
+eval set -- ${args}
+while :
+do
+  case $1 in
+    -c | --copy-games-dir)         copy_games_dir=true           ; shift   ;;
+    -i | --create-desktop-icons)    create_desktop_icons=true    ; shift   ;;
+    -h | --help)                    usage                        ; shift   ;;
+    # -- means the end of the arguments; drop this, and break out of the while loop
+    --) shift; break ;;
+    *) >&2 echo Unsupported option: $1
+       usage ;;
+  esac
+done
+
 # check if game installers are available
 if [ ! -n "$(find ../installers -maxdepth 1 -name "*.exe")" ]; then
    echo "Game installers are missing. Please add installers to the /installers directory."
@@ -55,3 +89,7 @@ if [ ! -d "../games/qfg4" ]; then
 fi
 
 innoextract --exclude-temp --silent --output-dir ../games/qfg4 ../installers/qfg4.exe
+
+# TODO: copy games directory
+# 
+# TODO: create desktop icons
