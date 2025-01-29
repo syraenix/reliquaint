@@ -22,7 +22,7 @@ Once downloaded, you should have 5 installer files; one for each game in the ser
 
 The installer for Quest for Glory 1 includes versions of the game: the original, EGA, version of the game and the VGA remake.
 
-In order to use the [extract-installers](scripts/extract-installers.sh) script, you will need to rename the installers to match the list below. Once the installers are renamed, they should be copied to the `/installers` directory.
+In order to use the [extract-installers](scripts/extract-installers.sh) script, you will need to rename the installers to match the list below. Once the installers are renamed, they should be copied to the [installers](installers) directory.
 
 - Quest for Glory 1 => qfg1.exe
 - Quest for Glory 2 => qfg2.exe
@@ -40,9 +40,31 @@ chmod +x ./extract-installers.sh
 ./extract-installers.sh
 ```
 
-Once the script has finished running, the `/games` directory should contain the extracted games files.
+Once the script has finished running, the [games](games) directory should contain the extracted games files.
 
 ## Installation
+
+We will now open DOSBox Staging to install the games. You can start DOSBox Staging by either pressing the `Super` key and searching for DOSBox Staging or by running the following command:
+
+```bash
+flatpak run io.github.dosbox-staging
+```
+
+![DOSBox Staging](../img/dosbox-staging.png)
+
+> All following commands in the section will be run in the context of DOSBox Staging.
+
+### Mount /games directory
+
+The following command assumes you have cloned this repo into a `/projects` folder in your Home directory. If you cloned to a different location, updated the path, as needed.
+
+```dos
+mount c ~/projects/dos-game-installation-guides/question-for-glory-collection/games
+
+c:
+```
+
+![Mount Games Dir](../img/mount-games-dir.png)
 
 ### Quest for Glory I: So You Want to Be a Hero
 
