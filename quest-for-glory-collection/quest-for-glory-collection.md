@@ -80,7 +80,7 @@ install.exe
 
 ![Run QFG1-EGA installer](img/run-qfg1-ega-installer.png)
 
-You are now in the installer for Questy for Glory 1 EGA.
+You are now in the installer for Quest for Glory 1 EGA.
 
 > You can use your keyboard's arrow keys to make a selection and press the `ENTER` key to move to the next screen.
 
@@ -117,6 +117,34 @@ You are now in the installer for Questy for Glory 1 EGA.
 - The installation is now complete and you can continue on to installing the VGA version of Quest for Glory 1.
 
 ![QFG1-EGA install complete](img/qfg1-ega-install-complete.png)
+
+Next we will run the installer for the VGA version of Quest for Glory 1 by running the following commands in DOSBox Staging:
+
+```dos
+cd ../QFG1-VGA
+
+install.exe
+```
+
+![Run QFG1-VGA installer](img/run-qfg1-vga-installer.png)
+
+You are now in the installer for Quest for Glory 1 VGA.
+
+> You can use your keyboard's arrow keys to make a selection and press the `ENTER` key to move to the next screen.
+
+![QFG1-VGA installler](img/qfg1-vga-installer.png)
+
+- On the next screen, ensure `Music` is set to `General MIDI Sound Driver` and `Speech` is set to `Soundblaster`. All other options can be left at the default selection.
+
+![QFG1-VGA install settings](img/qfg1-vga-install-settings.png)
+
+- Select `Accept these choices and save configuration` and press the `ENTER` key.
+- The next two screens can be skipped by pressing the `ENTER` key.
+- The installation is now complete.
+
+![QFG1-VGA install complete](img/qfg1-vga-install-complete.png)
+
+Installation for both versions of Quest for Glory 1 have been completed. You can now move on to installing Quest for Glory 2.
 
 ### Quest for Glory II: Trial By Fire
 
