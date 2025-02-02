@@ -64,9 +64,59 @@ mount c ~/projects/dos-game-installation-guides/question-for-glory-collection/ga
 c:
 ```
 
-![Mount Games Dir](../img/mount-games-dir.png)
+![Mount Games Dir](img/mount-games-dir.png)
+
+> Leave DOSBox Staging open to complete the installation steps for each game.
 
 ### Quest for Glory I: So You Want to Be a Hero
+
+To install both the EGA (original) and VGA versions Quest for Glory 1, you will need to run the following commands in DOSBox Staging:
+
+```dos
+cd QFG1-EGA
+
+install.exe
+```
+
+![Run QFG1-EGA installer](img/run-qfg1-ega-installer.png)
+
+You are now in the installer for Questy for Glory 1 EGA.
+
+> You can use your keyboard's arrow keys to make a selection and press the `ENTER` key to move to the next screen.
+
+![QFG1-EGA installer](img/qfg1-ega-installer.png)
+
+- On the next screen, select `EGA/VGA with RGB monitor - 16 colors` as it provides the best image quality for this game.
+
+![QFG1-EGA select graphics](img/qfg1-ega-select-graphics.png)
+
+- Next you come to the sound settings. For the best sound, select `AdLib Music Synthesizer Card`.
+
+![QFG1-EGA select audio](img/qfg1-ega-select-audio.png)
+
+- On the next screen, select `IBM or IBM-compatible keyboard`.
+
+![QFG1-EGA select keyboard](img/qfg1-ega-select-keyboard.png)
+
+- This screen is informational and no selections are needed.
+
+![QFG1-EGA num-lock screen](img/qfg1-ega-numlock.png)
+
+- You'll now be asked if you would like to use an IBM compatible joystick. Select `No`.
+
+![QFG1-EGA joystick](img/qfg1-ega-joystick.png)
+
+- On the next screen, select `YES` to use a Micosoft compatible mouse.
+
+![QFG1-EGA mouse](img/qfg1-ega-mouse.png)
+
+- The final screen will ask if you the game to your hard drive. Press `ESC` to decline and finish the installer.
+
+![QFG1-EGA hard disk](img/qfg1-ega-hard-disk.png)
+
+- The installation is now complete and you can continue on to installing the VGA version of Quest for Glory 1.
+
+![QFG1-EGA install complete](img/qfg1-ega-install-complete.png)
 
 ### Quest for Glory II: Trial By Fire
 
