@@ -90,6 +90,18 @@ fi
 
 innoextract --exclude-temp --silent --output-dir ../games/qfg4 ../installers/qfg4.exe
 
-# TODO: copy games directory
-# 
+# copy games to ~/games if -c was passed
+if [ "$copy_games_dir" = true ]; then
+    echo "Copying games to ~/games..."
+    mkdir -p ~/games
+    for gamedir in qfg1-vga qfg1-ega qfg2 qfg3 qfg4; do
+        if [ -d ~/games/$gamedir ]; then
+            echo "  ~/games/$gamedir already exists; skipping (preserves any in-game config)"
+        else
+            cp -r ../games/$gamedir ~/games/
+            echo "  Copied $gamedir to ~/games/$gamedir"
+        fi
+    done
+fi
+
 # TODO: create desktop icons
