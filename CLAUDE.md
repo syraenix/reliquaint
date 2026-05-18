@@ -10,7 +10,7 @@ A documentation repository — not an application. It contains step-by-step Mark
 
 - `README.md`, `docs/prerequisites.md` — top-level entry points. Prerequisites cover the host-side install of DOSBox Staging (Flatpak `io.github.dosbox-staging`), FluidSynth, and `innoextract`.
 - `config/default-dosbox-staging.conf` — reference/baseline DOSBox Staging config.
-- `dos/<game-collection>/` — one directory per game collection. The active one is `dos/quest-for-glory-collection/`. Each collection follows the same shape:
+- `dos/<game-collection>/` — one directory per game collection. The active one is `dos/quest-for-glory/`. Each collection follows the same shape:
   - `<collection>.md` — the user-facing guide; the source of truth that everything else supports.
   - `scripts/extract-installers.sh` — extracts GOG `.exe` installers from `installers/` into `games/` using `innoextract`. The QFG1 installer ships both EGA and VGA — the script extracts to `games/qfg1-vga/` then moves the bundled `EGA/` subdir to `games/qfg1-ega/`. Expects installers renamed to `qfg1.exe`, `qfg2.exe`, etc.
   - `scripts/<game>-run.sh` — launches a single game: starts `fluidsynth` with `FluidR3_GM.sf2` in the background, waits for it, then runs `flatpak run io.github.dosbox-staging -conf ../config/<game>.conf`.
@@ -18,13 +18,6 @@ A documentation repository — not an application. It contains step-by-step Mark
   - `installers/` — user drops GOG `.exe` files here. Gitignored (`*.exe` at repo root).
   - `games/` — extracted game files land here. Gitignored.
   - `img/` — screenshots embedded in the guide.
-
-## Repo is mid-restructure — read git status before assuming paths
-
-The tree was recently reorganized from `quest-for-glory-collection/...` at the root into `dos/quest-for-glory-collection/...`. The working tree currently shows the old paths as deleted and `dos/` as untracked. Two consequences:
-
-- Relative links inside `dos/quest-for-glory-collection/quest-for-glory-collection.md` (e.g. `docs/prerequisites.md`, `scripts/extract-installers.sh`, `../img/dosbox-staging.png`) were written for the old location and may need updating to the new `dos/`-nested location.
-- Before editing, run `git status` and inspect both the staged-deleted paths and the new `dos/` tree so you don't edit a file that's about to be replaced by its moved counterpart.
 
 ## Conventions when editing
 
@@ -35,18 +28,19 @@ The tree was recently reorganized from `quest-for-glory-collection/...` at the r
 
 ## Common operations
 
-- Extract installers (after dropping GOG `.exe` files into `dos/quest-for-glory-collection/installers/`):
+- Extract installers (after dropping GOG `.exe` files into `dos/quest-for-glory/installers/`):
   ```bash
-  cd dos/quest-for-glory-collection/scripts
+  cd dos/quest-for-glory/scripts
   chmod +x ./extract-installers.sh
-  ./extract-installers.sh
+  # -c also copies extracted games into ~/games/, where the run scripts mount them.
+  ./extract-installers.sh -c
   ```
 - Launch a game via its run script:
   ```bash
-  cd dos/quest-for-glory-collection/scripts
+  cd dos/quest-for-glory/scripts
   ./qfg1-ega-run.sh
   ```
 - Launch DOSBox Staging directly with a specific config (useful when iterating on a `.conf`):
   ```bash
-  flatpak run io.github.dosbox-staging -conf dos/quest-for-glory-collection/config/qfg1-ega.conf
+  flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
   ```

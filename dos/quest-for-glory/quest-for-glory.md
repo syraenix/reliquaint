@@ -1,4 +1,4 @@
-# Quest for Glory Collection - DOSBox Staging Guide
+# Quest for Glory - DOSBox Staging Guide
 
 [Quest for Glory](https://en.wikipedia.org/wiki/Quest_for_Glory) is a series of hybrid adventure/role-playing video games, which were designed by Corey and Lori Ann Cole for [Sierra Entertainment](https://en.wikipedia.org/wiki/Sierra_Entertainment).
 
@@ -56,10 +56,10 @@ flatpak run io.github.dosbox-staging
 
 ### Mount /games directory
 
-The following command assumes you have cloned this repo into a `/projects` folder in your Home directory. If you cloned to a different location, updated the path, as needed.
+This step assumes you ran `./extract-installers.sh -c` in the previous section so the game directories live under `~/games/`.
 
 ```dos
-mount c ~/projects/dos-game-installation-guides/question-for-glory-collection/games
+mount c ~/games
 
 c:
 ```
@@ -73,7 +73,7 @@ c:
 To install both the EGA (original) and VGA versions Quest for Glory 1, you will need to run the following commands in DOSBox Staging:
 
 ```dos
-cd QFG1-EGA
+cd qfg1-ega
 
 install.exe
 ```
@@ -121,7 +121,7 @@ You are now in the installer for Quest for Glory 1 EGA.
 Next we will run the installer for the VGA version of Quest for Glory 1 by running the following commands in DOSBox Staging:
 
 ```dos
-cd ../QFG1-VGA
+cd ../qfg1-vga
 
 install.exe
 ```
@@ -151,7 +151,7 @@ Installation for both versions of Quest for Glory 1 have been completed. You can
 To install Quest for Glory 2, you will need to run the following commands in DOSBox Staging:
 
 ```dos
-cd ../QFG2
+cd ../qfg2
 
 inst.exe
 ```
