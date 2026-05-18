@@ -9,4 +9,4 @@ while ! pgrep -x "fluidsynth" > /dev/null; do
 done
 
 # Run Quest for Glory 1 VGA in DosBox Staging
-flatpak run io.github.dosbox-staging -conf ../config/qfg-1vga.conf
+flatpak run io.github.dosbox-staging -conf ../config/qfg1-vga.conf
