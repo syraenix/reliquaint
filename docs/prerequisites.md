@@ -6,8 +6,6 @@ In order to finish this guide, you will need to install several prequisites. Thi
 
 [DOSBox Staging](https://www.dosbox-staging.org/) is a modern continuation of DOSBox. Existing DOSBox configurations will continue to work as expected.
 
-> DOSBox Staging was due to a [known issue with arrow keys not working] correctly in DOSBox.
-
 [Flatpak](https://flatpak.org/setup/Debian) is the easiest way to install DOSBox Staging. If you do not have Flatpak setup, follow the [Debian quick setup guide](https://flatpak.org/setup/Debian).
 
 Once Flatpak is configured, you can install DOSBox Staging by running the following command:
