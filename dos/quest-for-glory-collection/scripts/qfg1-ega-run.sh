@@ -9,4 +9,4 @@ while ! pgrep -x "fluidsynth" > /dev/null; do
 done
 
 # Run Quest for Glory 1 EGA in DosBox Staging
-flatpak run io.github.dosbox-staging -conf ../config/qfg1ega.conf
+flatpak run io.github.dosbox-staging -conf ../config/qfg1-ega.conf

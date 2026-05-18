@@ -36,11 +36,11 @@ cd scripts/
 
 # make the `extract-installers` script executable
 chmod +x ./extract-installers.sh
-# run the script
-./extract-installers.sh
+# run the script (pass -c to also copy games into ~/games, where the run scripts expect them)
+./extract-installers.sh -c
 ```
 
-Once the script has finished running, the [games](games) directory should contain the extracted games files.
+Once the script has finished running, the [games](games) directory should contain the extracted games files. If you passed `-c`, the same game directories will also be copied under `~/games/` for the run scripts to use.
 
 ## Installation
 
@@ -201,3 +201,21 @@ Installation for Quest for Glory 2 have been completed. You can now move on to i
 ## Configuration
 
 ## Running the games
+
+Each game has a launch script in [scripts](scripts) that starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
+
+```bash
+cd scripts/
+
+# make the run scripts executable (only needed once)
+chmod +x ./*-run.sh
+
+# launch a game
+./qfg1-vga-run.sh
+./qfg1-ega-run.sh
+./qfg2-run.sh
+./qfg3-run.sh
+./qfg4-run.sh
+```
+
+The run scripts expect the games to live at `~/games/<game>`. Run `./extract-installers.sh -c` once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
