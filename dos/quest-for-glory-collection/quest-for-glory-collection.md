@@ -50,7 +50,7 @@ We will now open DOSBox Staging to install the games. You can start DOSBox Stagi
 flatpak run io.github.dosbox-staging
 ```
 
-![DOSBox Staging](../img/dosbox-staging.png)
+![DOSBox Staging](../../img/dosbox-staging.png)
 
 > All following commands in the section will be run in the context of DOSBox Staging.
 
