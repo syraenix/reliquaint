@@ -1,6 +1,6 @@
 # Prerequisites
 
-In order to finish this guide, you will need to install several prequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
+In order to finish this guide, you will need to install several prerequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
 
 ## DOSBox Staging
 

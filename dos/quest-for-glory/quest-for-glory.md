@@ -132,7 +132,7 @@ You are now in the installer for Quest for Glory 1 VGA.
 
 > You can use your keyboard's arrow keys to make a selection and press the `ENTER` key to move to the next screen.
 
-![QFG1-VGA installler](img/qfg1-vga-installer.png)
+![QFG1-VGA installer](img/qfg1-vga-installer.png)
 
 - On the next screen, ensure `Music` is set to `General MIDI Sound Driver` and `Speech` is set to `Soundblaster`. All other options can be left at the default selection.
 
