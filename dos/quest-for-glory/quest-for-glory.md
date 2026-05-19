@@ -36,11 +36,12 @@ cd scripts/
 
 # make the `extract-installers` script executable
 chmod +x ./extract-installers.sh
-# run the script (pass -c to also copy games into ~/games, where the run scripts expect them)
-./extract-installers.sh -c
+# run the script (extracts game files directly into ~/games/)
+./extract-installers.sh
 ```
 
-Once the script has finished running, the [games](games) directory should contain the extracted games files. If you passed `-c`, the same game directories will also be copied under `~/games/` for the run scripts to use.
+Once the script has finished running, the game files will be extracted directly to `~/games/` for the run scripts to use.
+
 
 ## Running the games
 
@@ -60,4 +61,4 @@ chmod +x ./*-run.sh
 ./qfg4-run.sh
 ```
 
-The run scripts expect the games to live at `~/games/<game>`. Run `./extract-installers.sh -c` once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
+The run scripts expect the games to live at `~/games/<game>`. Run `./extract-installers.sh` once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
