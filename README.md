@@ -10,4 +10,5 @@ Follow the steps in the [prerequisites guide](docs/prerequisites.md) to install 
 
 The individual games guides include instructions and scripts for downloading, extracting, configuring, and running the games.
 
+- [King's Quest](dos/kings-quest/kings-quest.md)
 - [Quest for Glory](dos/quest-for-glory/quest-for-glory.md)
