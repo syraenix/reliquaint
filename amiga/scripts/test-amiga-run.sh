@@ -6,8 +6,8 @@
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/amiga-run.sh"
-TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
 
 PASS=0
 FAIL=0
@@ -40,13 +40,13 @@ test_help() {
 # Test 3: nonexistent file → exit 2
 test_missing_file() {
     local out
-    out=$("$SCRIPT" "$TMPDIR/nope.adf" 2>&1); local ec=$?
+    out=$("$SCRIPT" "$WORK_DIR/nope.adf" 2>&1); local ec=$?
     [[ $ec -eq 2 && "$out" == *"not found"* ]]
 }
 
 # Test 4: unsupported extension → exit 2
 test_bad_extension() {
-    local f="$TMPDIR/foo.zip"; touch "$f"
+    local f="$WORK_DIR/foo.zip"; touch "$f"
     local out
     out=$("$SCRIPT" "$f" 2>&1); local ec=$?
     [[ $ec -eq 2 && "$out" == *unsupported* ]]
@@ -54,7 +54,7 @@ test_bad_extension() {
 
 # Test 5: --dry-run with .adf → exit 0, prints fs-uae cmd with --floppy_drive_0
 test_dry_run_adf() {
-    local f="$TMPDIR/game.adf"; touch "$f"
+    local f="$WORK_DIR/game.adf"; touch "$f"
     local out
     out=$("$SCRIPT" --dry-run "$f" 2>&1); local ec=$?
     [[ $ec -eq 0 && "$out" == *fs-uae* && "$out" == *floppy_drive_0* && "$out" == *a500.fs-uae* ]]
@@ -62,7 +62,7 @@ test_dry_run_adf() {
 
 # Test 6: --dry-run with .rp9 → exit 0, prints fs-uae cmd without --floppy_drive_0
 test_dry_run_rp9() {
-    local f="$TMPDIR/game.rp9"; touch "$f"
+    local f="$WORK_DIR/game.rp9"; touch "$f"
     local out
     out=$("$SCRIPT" --dry-run "$f" 2>&1); local ec=$?
     [[ $ec -eq 0 && "$out" == *fs-uae* && "$out" != *floppy_drive_0* ]]
@@ -70,7 +70,7 @@ test_dry_run_rp9() {
 
 # Test 7: --model override with .adf → uses specified model config
 test_dry_run_model_override() {
-    local f="$TMPDIR/game.adf"; touch "$f"
+    local f="$WORK_DIR/game.adf"; touch "$f"
     local out
     out=$("$SCRIPT" --dry-run --model a1200 "$f" 2>&1); local ec=$?
     [[ $ec -eq 0 && "$out" == *a1200.fs-uae* ]]

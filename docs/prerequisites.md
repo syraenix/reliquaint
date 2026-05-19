@@ -44,4 +44,4 @@ FS-UAE can be installed by running the following command:
 $ sudo apt install fs-uae
 ```
 
-FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are required to boot most Amiga software. You must supply your own legally obtained Kickstart ROMs. The Amiga collection guide explains where FS-UAE expects them.
+FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are required to boot most Amiga software. You must supply your own legally obtained Kickstart ROMs. The [Amiga collection guide](../amiga/amiga.md) explains where FS-UAE expects them.
