@@ -33,3 +33,15 @@ innoextract can be installed by running the following command:
 ```bash
 $ sudo apt install innoextract
 ```
+
+## FS-UAE
+
+[FS-UAE](https://fs-uae.net/) is a cross-platform Amiga emulator based on WinUAE. It is used for the Amiga collection.
+
+FS-UAE can be installed by running the following command:
+
+```bash
+$ sudo apt install fs-uae
+```
+
+FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are required to boot most Amiga software. You must supply your own legally obtained Kickstart ROMs. The Amiga collection guide explains where FS-UAE expects them.
