@@ -67,7 +67,7 @@ fi
 
 FILE_ABS="$(readlink -f "$FILE")"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONFIG_DIR="$SCRIPT_DIR/../config"
+CONFIG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/config"
 
 case "$FILE_ABS" in
     *.rp9)
