@@ -8,6 +8,6 @@ Follow the steps in the [prerequisites guide](docs/prerequisites.md) to install 
 
 ## Game Guides
 
-The individual games guides include instructions and scripts for downloading, extracting, cofiguring, and running the games.
+The individual games guides include instructions and scripts for downloading, extracting, configuring, and running the games.
 
 - [Quest for Glory](dos/quest-for-glory/quest-for-glory.md)
