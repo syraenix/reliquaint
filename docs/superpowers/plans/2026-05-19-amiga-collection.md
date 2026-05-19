@@ -160,10 +160,9 @@ amiga_model = A500
 chip_memory = 512
 slow_memory = 512
 fullscreen = 0
-video_format = PAL
 ```
 
-Keep the set of options minimal — anything beyond these (audio buffers, volume, etc.) gets added later only when a real need surfaces. FS-UAE's defaults are sensible.
+PAL is FS-UAE's default video standard; no explicit setting needed. Keep the set of options minimal — anything beyond these (audio buffers, volume, etc.) gets added later only when a real need surfaces. FS-UAE's defaults are sensible.
 
 - [ ] **Step 2: Verify FS-UAE parses without error**
 
@@ -208,8 +207,9 @@ amiga_model = A1200
 chip_memory = 2048
 fast_memory = 8192
 fullscreen = 0
-video_format = PAL
 ```
+
+PAL is FS-UAE's default video standard; no explicit setting needed.
 
 - [ ] **Step 2: Verify FS-UAE parses without error**
 
