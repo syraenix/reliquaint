@@ -9,4 +9,4 @@
 amiga_model = A1200
 chip_memory = 2048
 fast_memory = 8192
-fullscreen = 0
+fullscreen = 1

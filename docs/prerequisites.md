@@ -41,7 +41,9 @@ $ sudo apt install innoextract
 FS-UAE can be installed by running the following command:
 
 ```bash
-$ sudo apt install fs-uae
+$ sudo apt install fs-uae unzip
 ```
+
+`unzip` is used by the Amiga launcher script to read RetroPlatform `.rp9` bundles. It is preinstalled on most Debian systems; the command above is a no-op if it's already present.
 
 FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are required to boot most Amiga software. You must supply your own legally obtained Kickstart ROMs. The [Amiga collection guide](../amiga/amiga.md) explains where FS-UAE expects them.

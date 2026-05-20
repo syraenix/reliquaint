@@ -24,7 +24,7 @@ For the A500 config template, FS-UAE expects a Kickstart 1.3 ROM. For the A1200 
 | Format | What it is | How the launcher handles it |
 |---|---|---|
 | `.adf` | Raw Amiga floppy disk image (single disk). | Paired with a model config (default: A500); inserted into floppy drive 0. |
-| `.rp9` | RetroPlatform bundle — self-contained zip with config, ROMs metadata, and disk images. | Passed directly to FS-UAE, which reads model + config from the bundle. |
+| `.rp9` | RetroPlatform bundle — a zip containing an `rp9-manifest.xml`, optional FS-UAE config, and one or more disk images. | Unpacked to a temp directory. If the bundle ships a `.fs-uae` config, that is used directly. Otherwise the first inner `.adf` is paired with the selected model config (`--model`, default `a500`), same as a raw `.adf` file. The `rp9-manifest.xml` is not parsed. |
 
 WHDLoad (`.hdf`, `.lha`) and multi-disk games requiring disk swapping are not covered by Phase 1 of this collection.
 
@@ -53,10 +53,18 @@ For an A1200-targeted game:
 ./amiga-run.sh --model a1200 ../games/pinball-illusions.adf
 ```
 
-For an `.rp9` bundle (the model flag is ignored — the bundle drives the config):
+For an `.rp9` bundle:
 
 ```bash
 ./amiga-run.sh ../games/turrican.rp9
+```
+
+If the bundle doesn't ship its own FS-UAE config, the launcher falls back to the selected model config (default `a500`); pass `--model a1200` for AGA bundles, same as for raw `.adf` files.
+
+The launcher opens FS-UAE fullscreen by default. To run in a window, add `--windowed`:
+
+```bash
+./amiga-run.sh --windowed ../games/lemmings.adf
 ```
 
 To preview the FS-UAE command without launching:
@@ -72,7 +80,7 @@ To preview the FS-UAE command without launching:
 | `amiga/config/a500.fs-uae` | A500 | 1.3 (OCS) | Most late-80s Amiga games. |
 | `amiga/config/a1200.fs-uae` | A1200 | 3.1 (AGA) | Early/mid-90s AGA-required games. |
 
-To tweak a template (e.g. enable fullscreen, change audio settings), edit the file directly. Changes apply on the next launch.
+Both templates default to fullscreen. To tweak a template (e.g. change audio settings, switch back to windowed), edit the file directly. Changes apply on the next launch.
 
 ## Troubleshooting
 

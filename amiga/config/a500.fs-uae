@@ -9,4 +9,4 @@
 amiga_model = A500
 chip_memory = 512
 slow_memory = 512
-fullscreen = 0
+fullscreen = 1
