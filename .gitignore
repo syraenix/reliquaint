@@ -5,3 +5,6 @@
 
 # Local Claude Code settings
 .claude/
+
+# Rust build output
+/launcher/target

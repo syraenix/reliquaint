@@ -59,21 +59,21 @@ Starting cycle values are picked to roughly match each game's target hardware. I
 
 ## Running the games
 
-Each game has a launch script in [scripts](scripts) that starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
+`classic-launcher` starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
 
 ```bash
-cd scripts/
-
-# make the run scripts executable (only needed once)
-chmod +x ./*-run.sh
-
-# launch a game
-./kq1sci-run.sh
-./kq2-run.sh
-./kq3-run.sh
-./kq4-run.sh
-./kq5-run.sh
-./kq6-run.sh
+classic-launcher run kq1sci
+classic-launcher run kq2
+classic-launcher run kq3
+classic-launcher run kq4
+classic-launcher run kq5
+classic-launcher run kq6
 ```
 
-The run scripts expect the games to live at `~/games/<game>`. Copy the game files from Steam directly into `~/games/<game>` (see [Copying game files to ~/games](#copying-game-files-to-games)) before launching.
+The games must live at `~/games/<game>`. Copy the game files from Steam directly into `~/games/<game>` (see [Copying game files to ~/games](#copying-game-files-to-games)) before launching.
+
+To preview the commands that would be run without launching anything:
+
+```bash
+classic-launcher run kq1sci --dry-run
+```

@@ -45,20 +45,20 @@ Once the script has finished running, the game files will be extracted directly 
 
 ## Running the games
 
-Each game has a launch script in [scripts](scripts) that starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
+`classic-launcher` starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
 
 ```bash
-cd scripts/
-
-# make the run scripts executable (only needed once)
-chmod +x ./*-run.sh
-
-# launch a game
-./qfg1-vga-run.sh
-./qfg1-ega-run.sh
-./qfg2-run.sh
-./qfg3-run.sh
-./qfg4-run.sh
+classic-launcher run qfg1-vga
+classic-launcher run qfg1-ega
+classic-launcher run qfg2
+classic-launcher run qfg3
+classic-launcher run qfg4
 ```
 
-The run scripts expect the games to live at `~/games/<game>`. Run `./extract-installers.sh` once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
+The games must live at `~/games/<game>`. Run `./scripts/extract-installers.sh` once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
+
+To preview the commands that would be run without launching anything:
+
+```bash
+classic-launcher run qfg1-ega --dry-run
+```

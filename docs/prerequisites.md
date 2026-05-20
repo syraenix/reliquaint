@@ -47,3 +47,33 @@ $ sudo apt install fs-uae unzip
 `unzip` is used by the Amiga launcher script to read RetroPlatform `.rp9` bundles. It is preinstalled on most Debian systems; the command above is a no-op if it's already present.
 
 FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are required to boot most Amiga software. You must supply your own legally obtained Kickstart ROMs. The [Amiga collection guide](../amiga/amiga.md) explains where FS-UAE expects them.
+
+## Rust toolchain
+
+`classic-launcher` is a Rust binary that replaces the per-game shell scripts. You need the Rust toolchain to build and install it.
+
+Install [rustup](https://rustup.rs/) (the Rust toolchain installer):
+
+```bash
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Accept the defaults. After installation, source the environment or open a new shell:
+
+```bash
+$ source "$HOME/.cargo/env"
+```
+
+You also need a C linker (required by the Rust compiler):
+
+```bash
+$ sudo apt install gcc
+```
+
+Build and install `classic-launcher`:
+
+```bash
+$ cargo install --path launcher/src-tauri
+```
+
+This places `classic-launcher` in `~/.cargo/bin/`. Ensure `~/.cargo/bin` is on your `PATH` (rustup adds this automatically when you source the env file).

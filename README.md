@@ -8,7 +8,7 @@ Follow the steps in the [prerequisites guide](docs/prerequisites.md) to install 
 
 ## Game Guides
 
-The individual games guides include instructions and scripts for downloading, extracting, configuring, and running the games.
+The individual game guides include instructions for downloading, extracting, configuring, and running the games via `classic-launcher`.
 
 - [Amiga](amiga/amiga.md)
 - [King's Quest](dos/kings-quest/kings-quest.md)

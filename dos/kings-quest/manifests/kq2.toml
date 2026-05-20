@@ -1,0 +1,12 @@
+id         = "kq2"
+title      = "King's Quest 2: Romancing the Throne"
+platform   = "dos"
+collection = "kings-quest"
+
+[runtime]
+emulator = "dosbox-staging"
+config   = "../config/kq2.conf"
+sidecars = ["fluidsynth"]
+
+[install]
+expects_dir = "~/games/kq2"
