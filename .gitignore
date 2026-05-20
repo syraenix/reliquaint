@@ -2,3 +2,6 @@
 *.adf
 *.rp9
 *.hdf
+
+# Local Claude Code settings
+.claude/
