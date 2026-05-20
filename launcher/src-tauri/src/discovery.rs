@@ -14,11 +14,16 @@ pub fn find_repo_root(start: &Path) -> Option<PathBuf> {
 }
 
 pub fn discover(repo_root: &Path) -> Vec<(PathBuf, Manifest)> {
-    let scan_dirs = [
-        repo_root.join("dos/quest-for-glory/manifests"),
-        repo_root.join("dos/kings-quest/manifests"),
-        repo_root.join("amiga/manifests"),
-    ];
+    let mut scan_dirs: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(repo_root.join("dos")) {
+        for entry in entries.flatten() {
+            let manifests = entry.path().join("manifests");
+            if manifests.is_dir() {
+                scan_dirs.push(manifests);
+            }
+        }
+    }
+    scan_dirs.push(repo_root.join("amiga/manifests"));
 
     let mut results = Vec::new();
     for dir in &scan_dirs {

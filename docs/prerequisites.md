@@ -77,3 +77,34 @@ $ cargo install --path launcher/src-tauri
 ```
 
 This places `classic-launcher` in `~/.cargo/bin/`. Ensure `~/.cargo/bin` is on your `PATH` (rustup adds this automatically when you source the env file).
+
+## Node.js and pnpm (GUI only)
+
+Required only to build or run the `classic-launcher` GUI. Skip this section if you only need the CLI.
+
+Install Node.js (LTS) via NodeSource:
+
+```bash
+$ curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+$ sudo apt install nodejs
+```
+
+Install pnpm:
+
+```bash
+$ npm install -g pnpm
+```
+
+Install Tauri's Linux system libraries (Debian 12 / Ubuntu 22.04 or later):
+
+```bash
+$ sudo apt install pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+```
+
+> **Note:** Tauri 2 requires `libwebkit2gtk-4.1-dev` (not `4.0`). Only Debian 12 (Bookworm) and Ubuntu 22.04+ ship the `4.1` version.
+
+Once all dependencies are installed, run the GUI in development mode:
+
+```bash
+$ cd launcher && pnpm install && pnpm tauri dev
+```

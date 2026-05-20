@@ -1,6 +1,8 @@
 pub mod cli;
+pub mod commands;
 pub mod discovery;
 pub mod doctor;
+pub mod gui;
 pub mod manifest;
 pub mod paths;
 pub mod runner;
