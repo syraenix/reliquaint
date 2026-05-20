@@ -1,6 +1,6 @@
-# DOSBox Staging Guides
+# Classic Game Installation Guides
 
-This repo contains guides for configuring and running various DOS games using DOSBox Staging.
+This repo contains guides for configuring and running classic games on Linux — DOS games via DOSBox Staging and Amiga games via FS-UAE.
 
 ## Prerequisites
 

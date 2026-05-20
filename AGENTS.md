@@ -4,7 +4,7 @@
 
 This repository is a documentation project for running classic DOS games with DOSBox Staging. Top-level docs live in `README.md` and `docs/prerequisites.md`. Shared DOSBox configuration lives in `config/default-dosbox-staging.conf`, and shared images live in `img/`.
 
-Game-specific content is organized under `dos/<game-collection>/`. The current collection, `dos/quest-for-glory/`, contains the user guide, per-game DOSBox `.conf` files in `config/`, helper scripts in `scripts/`, screenshots in `img/`, ignored installer files in `installers/`, and ignored extracted game files in `games/`.
+Game-specific content is organized under `dos/<game-collection>/`. Active collections are `dos/quest-for-glory/` (GOG offline installers, extracted with `innoextract`) and `dos/kings-quest/` (Steam, files copied directly from the Steam install). Both follow the same layout: user guide, per-game DOSBox `.conf` files in `config/`, run scripts in `scripts/`, screenshots in `img/`, and gitignored source files in `installers/` (QFG) or `games/` (KQ).
 
 ## Build, Test, and Development Commands
 
@@ -13,7 +13,7 @@ There is no application build, package manifest, or automated test suite. Useful
 ```bash
 git status --short
 find . -path './.git' -prune -o -type f -print | sort
-cd dos/quest-for-glory/scripts && ./extract-installers.sh -c
+cd dos/quest-for-glory/scripts && ./extract-installers.sh
 cd dos/quest-for-glory/scripts && ./qfg1-ega-run.sh
 flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
 ```
