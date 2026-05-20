@@ -1,0 +1,12 @@
+id         = "kq5"
+title      = "King's Quest 5: Absence Makes the Heart Go Yonder"
+platform   = "dos"
+collection = "kings-quest"
+
+[runtime]
+emulator = "dosbox-staging"
+config   = "../config/kq5.conf"
+sidecars = ["fluidsynth"]
+
+[install]
+expects_dir = "~/games/kq5"

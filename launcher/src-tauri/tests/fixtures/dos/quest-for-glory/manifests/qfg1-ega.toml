@@ -1,0 +1,12 @@
+id         = "qfg1-ega"
+title      = "Quest for Glory 1 (EGA)"
+platform   = "dos"
+collection = "quest-for-glory"
+
+[runtime]
+emulator = "dosbox-staging"
+config   = "../config/qfg1-ega.conf"
+sidecars = ["fluidsynth"]
+
+[install]
+expects_dir = "~/games/qfg1-ega"
