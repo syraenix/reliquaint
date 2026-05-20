@@ -1,0 +1,12 @@
+id         = "qfg2"
+title      = "Quest for Glory 2: Trial by Fire"
+platform   = "dos"
+collection = "quest-for-glory"
+
+[runtime]
+emulator = "dosbox-staging"
+config   = "../config/qfg2.conf"
+sidecars = ["fluidsynth"]
+
+[install]
+expects_dir = "~/games/qfg2"

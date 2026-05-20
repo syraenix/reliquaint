@@ -4,7 +4,7 @@
 
 This repository is a documentation project for running classic DOS games with DOSBox Staging. Top-level docs live in `README.md` and `docs/prerequisites.md`. Shared DOSBox configuration lives in `config/default-dosbox-staging.conf`, and shared images live in `img/`.
 
-Game-specific content is organized under `dos/<game-collection>/`. Active collections are `dos/quest-for-glory/` (GOG offline installers, extracted with `innoextract`) and `dos/kings-quest/` (Steam, files copied directly from the Steam install). Both follow the same layout: user guide, per-game DOSBox `.conf` files in `config/`, run scripts in `scripts/`, screenshots in `img/`, and gitignored source files in `installers/` (QFG) or `games/` (KQ).
+Game-specific content is organized under `dos/<game-collection>/`. Active collections are `dos/quest-for-glory/` (GOG offline installers, extracted with `innoextract`) and `dos/kings-quest/` (Steam, files copied directly from the Steam install). Both follow the same layout: user guide, per-game DOSBox `.conf` files in `config/`, per-game TOML manifests in `manifests/`, screenshots in `img/`, and gitignored source files in `installers/` (QFG) or `games/` (KQ). The `dos/quest-for-glory/scripts/` directory still holds `extract-installers.sh`.
 
 ## Build, Test, and Development Commands
 
@@ -14,7 +14,8 @@ There is no application build, package manifest, or automated test suite. Useful
 git status --short
 find . -path './.git' -prune -o -type f -print | sort
 cd dos/quest-for-glory/scripts && ./extract-installers.sh
-cd dos/quest-for-glory/scripts && ./qfg1-ega-run.sh
+classic-launcher run qfg1-ega --dry-run
+classic-launcher run qfg1-ega
 flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
 ```
 
@@ -24,7 +25,7 @@ Use `extract-installers.sh` only after placing renamed GOG installers such as `q
 
 Keep Markdown concise and task-oriented. Use relative links that match the current `dos/<collection>/` nesting, and keep guide commands synchronized with script names, config filenames, and output directories.
 
-For shell scripts, use Bash, preserve executable script names like `<game>-run.sh`, and keep assumptions consistent across scripts. Current run scripts expect FluidSynth and `/usr/share/sounds/sf2/FluidR3_GM.sf2` on Debian-based Linux. Use lowercase, hyphenated names for game directories, scripts, and config files, for example `qfg1-vga-run.sh` and `qfg1-vga.conf`.
+Games are launched via `classic-launcher run <id>` (installed from `launcher/src-tauri`). The manifest for each game lives at `dos/<collection>/manifests/<id>.toml` or `amiga/manifests/<id>.toml`. Use lowercase, hyphenated names for game directories, manifest IDs, and config files, for example `qfg1-vga` and `qfg1-vga.conf`. FluidSynth and `/usr/share/sounds/sf2/FluidR3_GM.sf2` remain the Debian-assumed MIDI path; keep that consistent in any new manifests.
 
 ## Testing Guidelines
 

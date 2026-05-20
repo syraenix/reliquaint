@@ -1,0 +1,12 @@
+id         = "qfg3"
+title      = "Quest for Glory 3: Wages of War"
+platform   = "dos"
+collection = "quest-for-glory"
+
+[runtime]
+emulator = "dosbox-staging"
+config   = "../config/qfg3.conf"
+sidecars = ["fluidsynth"]
+
+[install]
+expects_dir = "~/games/qfg3"
