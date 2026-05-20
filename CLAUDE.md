@@ -4,13 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A documentation repository with step-by-step Markdown guides, DOSBox Staging `.conf` files, TOML game manifests, and a Rust CLI (`classic-launcher`) for installing and running classic DOS and Amiga games on Debian-based Linux. Active collections: Quest for Glory 1–4, King's Quest 1–6 (DOS via DOSBox Staging), and Amiga games (via FS-UAE).
+A documentation repository with step-by-step Markdown guides, DOSBox Staging `.conf` files, TOML game manifests, a Rust CLI (`classic-launcher`), and a Tauri 2 GUI for installing and running classic DOS and Amiga games on Debian-based Linux. Active collections: Quest for Glory 1–4, King's Quest 1–6 (DOS via DOSBox Staging), and Amiga games (via FS-UAE).
 
 ## Repository layout
 
 - `README.md`, `docs/prerequisites.md` — top-level entry points. Prerequisites cover DOSBox Staging (Flatpak), FluidSynth, innoextract, FS-UAE, and the Rust toolchain.
 - `config/default-dosbox-staging.conf` — reference/baseline DOSBox Staging config.
-- `launcher/` — Rust workspace for `classic-launcher`. Build with `cargo build` from `launcher/`; install with `cargo install --path launcher/src-tauri`.
+- `launcher/` — Rust workspace + Svelte/Tauri frontend for `classic-launcher`. CLI build: `cargo build` from `launcher/`; GUI build: `pnpm tauri dev` or `pnpm tauri build` from `launcher/`. Install CLI: `cargo install --path launcher/src-tauri`.
+  - `launcher/src-tauri/` — Rust crate (CLI + Tauri backend). Modules: `cli`, `commands`, `discovery`, `doctor`, `manifest`, `paths`, `runner`, `gui` (feature-gated).
+  - `launcher/src/` — Svelte frontend components.
+  - `launcher/src-tauri/tauri.conf.json` — Tauri 2 configuration.
+  - Tauri is always compiled in. Running with no args opens the GUI; running with a subcommand (list/run/doctor) stays CLI.
 - `dos/<game-collection>/` — one directory per DOS game collection. Active: `dos/quest-for-glory/` and `dos/kings-quest/`. Each follows this shape:
   - `<collection>.md` — the user-facing guide; source of truth that everything else supports.
   - `manifests/<id>.toml` — per-game TOML manifest (id, title, platform, config path, sidecars, expects_dir).
@@ -57,7 +61,15 @@ A documentation repository with step-by-step Markdown guides, DOSBox Staging `.c
   ```bash
   flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
   ```
-- Run the launcher test suite:
+- Run the launcher test suite (no Node.js required):
   ```bash
   cd launcher && cargo test
+  ```
+- Run the GUI in development mode (requires Node.js + pnpm + Tauri system libs):
+  ```bash
+  cd launcher && pnpm install && pnpm tauri dev
+  ```
+- Build the GUI for release:
+  ```bash
+  cd launcher && pnpm tauri build
   ```
