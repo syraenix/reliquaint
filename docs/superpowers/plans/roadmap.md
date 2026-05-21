@@ -102,6 +102,8 @@ Framework choice for the web frontend is deferred to the launcher's own implemen
 
 ### Phase 1 — Amiga collection (no launcher yet)
 
+**Status:** Complete (commit `0b98722`).
+
 **Why first:** Self-contained, gives you a playable second platform quickly, and lets the manifest format be validated against two emulators before the launcher commits to it. Phase 1 deliberately uses one bash-style run script (`amiga-run.sh <file>`) — a deliberately throwaway intermediate that retires in Phase 2.
 
 **Deliverables:**
@@ -119,6 +121,8 @@ Framework choice for the web frontend is deferred to the launcher's own implemen
 - Repeat with an `.rp9`.
 
 ### Phase 2 — Manifest schema + Rust CLI engine
+
+**Status:** Complete (commit `53c66b9`).
 
 **Why next:** Lock the manifest contract by using it for both platforms before any UI exists. Shipping a CLI first means the engine is debuggable from the terminal and the GUI is a thin frontend over a proven core.
 
@@ -143,6 +147,8 @@ Framework choice for the web frontend is deferred to the launcher's own implemen
 
 ### Phase 3 — Tauri GUI shell
 
+**Status:** Complete (commit `e2dbf34`).
+
 **Deliverables:**
 - Flesh out the Tauri app: pick a web framework (Svelte recommended for solo-dev simplicity), wire up the Rust commands as Tauri invokes.
 - Game grid, platform filter, detail view, Launch button.
@@ -154,6 +160,8 @@ Framework choice for the web frontend is deferred to the launcher's own implemen
 - Add a new `.adf` to `amiga/games/`, refocus the window, see it appear.
 
 ### Phase 4 — Dependency wizard
+
+**Status:** Complete (commit `222a135`).
 
 **Deliverables:**
 - "Setup" page in the GUI, sourced from the same probes that back `classic-launcher doctor`.
