@@ -5,6 +5,7 @@
   import GameGrid from "./components/GameGrid.svelte";
   import GameDetail from "./components/GameDetail.svelte";
   import DoctorPanel from "./components/DoctorPanel.svelte";
+  import InstallPanel from "./components/InstallPanel.svelte";
 
   let games = [];
   let filter = "all";
@@ -12,6 +13,17 @@
   let loading = true;
   let error = null;
   let doctorOpen = false;
+  let installOpen = false;
+
+  function toggleDoctor() {
+    doctorOpen = !doctorOpen;
+    if (doctorOpen) installOpen = false;
+  }
+
+  function toggleInstall() {
+    installOpen = !installOpen;
+    if (installOpen) doctorOpen = false;
+  }
 
   async function loadGames() {
     loading = true;
@@ -39,7 +51,10 @@
     <h1>Classic Launcher</h1>
     <div class="header-actions">
       <FilterBar bind:filter />
-      <button class="doctor-btn" on:click={() => (doctorOpen = !doctorOpen)}>
+      <button class="doctor-btn" on:click={toggleInstall}>
+        {installOpen ? "✕ Install" : "↓ Install"}
+      </button>
+      <button class="doctor-btn" on:click={toggleDoctor}>
         {doctorOpen ? "✕ Doctor" : "⚕ Doctor"}
       </button>
     </div>
@@ -47,6 +62,8 @@
 
   {#if doctorOpen}
     <DoctorPanel />
+  {:else if installOpen}
+    <InstallPanel />
   {:else if selectedGame}
     <GameDetail
       game={selectedGame}

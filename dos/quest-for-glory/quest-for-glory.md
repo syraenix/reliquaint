@@ -22,14 +22,18 @@ Once downloaded, you should have 5 installer files; one for each game in the ser
 
 The installer for Quest for Glory 1 includes versions of the game: the original, EGA, version of the game and the VGA remake.
 
-In order to use the [extract-installers](scripts/extract-installers.sh) script, you will need to rename the installers to match the list below. Once the installers are renamed, they should be copied to the [installers](installers) directory.
+You will need to rename the installers to match the list below, and copy them to the [installers](installers) directory.
 
 - Quest for Glory 1 => qfg1.exe
 - Quest for Glory 2 => qfg2.exe
 - Quest for Glory 3 => qfg3.exe
 - Quest for Glory 4 => qfg4.exe
 
-Extract the game files with the following commands:
+#### Using the launcher GUI (recommended)
+
+Open `classic-launcher` (run it with no arguments), click the **Install** button in the header, and select the **Quest for Glory** tab. The launcher defaults to this collection's `installers/` directory; clicking **Install selected** runs `innoextract` for each game and streams the output inline. After completion, every Quest for Glory entry in the **Doctor** panel turns green.
+
+#### Terminal alternative
 
 ```bash
 cd scripts/
@@ -40,7 +44,7 @@ chmod +x ./extract-installers.sh
 ./extract-installers.sh
 ```
 
-Once the script has finished running, the game files will be extracted directly to `~/games/` for the run scripts to use.
+Once the script has finished running, the game files will be extracted directly to `~/games/` for the launcher to use.
 
 
 ## Running the games
@@ -55,7 +59,7 @@ classic-launcher run qfg3
 classic-launcher run qfg4
 ```
 
-The games must live at `~/games/<game>`. Run `./scripts/extract-installers.sh` once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
+The games must live at `~/games/<game>`. Use the launcher's **Install** panel — or run `./scripts/extract-installers.sh` — once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
 
 To preview the commands that would be run without launching anything:
 
