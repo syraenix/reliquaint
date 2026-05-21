@@ -1,6 +1,5 @@
 use crate::discovery::discover_catalog;
-use crate::manifest::Platform;
-use crate::paths::expand_tilde;
+use crate::paths::games_dir;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -29,8 +28,8 @@ pub struct ProbeResult {
     pub kind: ProbeKind,
 }
 
-pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
-    let results = vec![
+pub fn run_all(repo_root: &Path, games_base: &Path) -> Vec<ProbeResult> {
+    let mut results = vec![
         probe_flatpak_dosbox(),
         probe_which("fluidsynth", ProbeKind::Fluidsynth),
         probe_soundfont(),
@@ -40,11 +39,18 @@ pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
     ];
 
     for (_, manifest) in discover_catalog(repo_root) {
-        if manifest.platform != Platform::Dos {
-            continue;
-        }
-        // TODO(task5): check ~/games/{id} via paths::games_dir
-        let _ = &manifest;
+        let dir = games_dir(games_base, &manifest.id);
+        let status = if dir.exists() {
+            ProbeStatus::Ok
+        } else {
+            ProbeStatus::Missing
+        };
+        results.push(ProbeResult {
+            name: format!("{} install dir", manifest.id),
+            status,
+            detail: Some(dir.display().to_string()),
+            kind: ProbeKind::GameInstallDir(manifest.id.clone()),
+        });
     }
 
     results
@@ -115,9 +121,7 @@ mod tests {
         let game_dir = temp.path().join("mygame");
         std::fs::create_dir(&game_dir).unwrap();
 
-        let dir_str = game_dir.to_str().unwrap().to_string();
-        let dir = expand_tilde(&dir_str);
-        let status = if dir.exists() {
+        let status = if game_dir.exists() {
             ProbeStatus::Ok
         } else {
             ProbeStatus::Missing
@@ -129,9 +133,7 @@ mod tests {
     fn install_dir_missing_when_absent() {
         let temp = tempfile::tempdir().unwrap();
         let game_dir = temp.path().join("nonexistent");
-        let dir_str = game_dir.to_str().unwrap().to_string();
-        let dir = expand_tilde(&dir_str);
-        let status = if dir.exists() {
+        let status = if game_dir.exists() {
             ProbeStatus::Ok
         } else {
             ProbeStatus::Missing
@@ -142,7 +144,8 @@ mod tests {
     #[test]
     fn run_all_includes_host_probes() {
         let root = fixture_root();
-        let results = run_all(&root);
+        let games_base = tempfile::tempdir().unwrap();
+        let results = run_all(&root, games_base.path());
         let names: Vec<&str> = results.iter().map(|r| r.name.as_str()).collect();
         assert!(names.contains(&"dosbox-staging (flatpak)"));
         assert!(names.contains(&"fluidsynth"));
@@ -153,9 +156,37 @@ mod tests {
     }
 
     #[test]
+    fn run_all_includes_manifest_dir_checks() {
+        let root = fixture_root();
+        let games_base = tempfile::tempdir().unwrap();
+        let results = run_all(&root, games_base.path());
+        assert!(results.iter().any(|r| r.name.contains("install dir")));
+    }
+
+    #[test]
+    fn install_dir_probe_kind_carries_id() {
+        let root = fixture_root();
+        let games_base = tempfile::tempdir().unwrap();
+        let results = run_all(&root, games_base.path());
+        let ids: Vec<String> = results
+            .iter()
+            .filter_map(|r| {
+                if let ProbeKind::GameInstallDir(id) = &r.kind {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(ids.contains(&"qfg1-ega".to_string()));
+        assert!(ids.contains(&"kq1sci".to_string()));
+    }
+
+    #[test]
     fn host_probes_carry_expected_kinds() {
         let root = fixture_root();
-        let results = run_all(&root);
+        let games_base = tempfile::tempdir().unwrap();
+        let results = run_all(&root, games_base.path());
         let kind_for = |name: &str| -> ProbeKind {
             results
                 .iter()
@@ -170,5 +201,4 @@ mod tests {
         assert_eq!(kind_for("fs-uae"), ProbeKind::FsUae);
         assert_eq!(kind_for("unzip"), ProbeKind::Unzip);
     }
-
 }

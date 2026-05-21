@@ -80,8 +80,8 @@ pub fn games_from_repo(repo_root: &Path) -> Vec<GameEntry> {
         .collect()
 }
 
-pub fn doctor_from_repo(repo_root: &Path) -> Vec<DoctorResult> {
-    run_all(repo_root)
+pub fn doctor_from_repo(repo_root: &Path, games_base: &Path) -> Vec<DoctorResult> {
+    run_all(repo_root, games_base)
         .into_iter()
         .map(|r| DoctorResult {
             name: r.name,
@@ -122,7 +122,8 @@ pub async fn launch_game(id: String, state: State<'_, AppState>) -> Result<(), S
 
 #[tauri::command]
 pub fn run_doctor(state: State<'_, AppState>) -> Vec<DoctorResult> {
-    doctor_from_repo(&state.repo_root)
+    let games_base = crate::paths::expand_tilde("~/games");
+    doctor_from_repo(&state.repo_root, &games_base)
 }
 
 #[derive(Serialize, Clone)]

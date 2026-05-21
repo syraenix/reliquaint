@@ -91,7 +91,8 @@ fn cmd_run(repo_root: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCod
 }
 
 fn cmd_doctor(repo_root: &Path) -> ExitCode {
-    let results = run_all(repo_root);
+    let games_base = crate::paths::expand_tilde("~/games");
+    let results = run_all(repo_root, &games_base);
     let mut any_missing = false;
     for r in &results {
         let label = match r.status {
