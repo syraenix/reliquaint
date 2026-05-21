@@ -6,6 +6,3 @@ collection = "kings-quest"
 [runtime]
 emulator = "dosbox-staging"
 config   = "../config/kq1sci.conf"
-
-[install]
-expects_dir = "~/games/kq1sci"

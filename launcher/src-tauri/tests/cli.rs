@@ -93,13 +93,3 @@ fn doctor_runs_without_panic() {
     let code = output.status.code().unwrap_or(-1);
     assert!(code == 0 || code == 2, "doctor exits 0 or 2, got {code}");
 }
-
-#[test]
-fn doctor_shows_install_dir_checks() {
-    let output = launcher().arg("doctor").output().unwrap();
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        stdout.contains("install dir"),
-        "doctor should show per-manifest install dir checks"
-    );
-}

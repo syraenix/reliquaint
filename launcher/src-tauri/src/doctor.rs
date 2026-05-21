@@ -30,7 +30,7 @@ pub struct ProbeResult {
 }
 
 pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
-    let mut results = vec![
+    let results = vec![
         probe_flatpak_dosbox(),
         probe_which("fluidsynth", ProbeKind::Fluidsynth),
         probe_soundfont(),
@@ -153,16 +153,6 @@ mod tests {
     }
 
     #[test]
-    fn run_all_includes_manifest_dir_checks() {
-        let root = fixture_root();
-        let results = run_all(&root);
-        let has_install_check = results
-            .iter()
-            .any(|r| r.name.contains("install dir"));
-        assert!(has_install_check);
-    }
-
-    #[test]
     fn host_probes_carry_expected_kinds() {
         let root = fixture_root();
         let results = run_all(&root);
@@ -181,21 +171,4 @@ mod tests {
         assert_eq!(kind_for("unzip"), ProbeKind::Unzip);
     }
 
-    #[test]
-    fn install_dir_probe_kind_carries_id() {
-        let root = fixture_root();
-        let results = run_all(&root);
-        let install_kinds: Vec<&ProbeKind> = results
-            .iter()
-            .filter(|r| matches!(r.kind, ProbeKind::GameInstallDir(_)))
-            .map(|r| &r.kind)
-            .collect();
-        assert!(!install_kinds.is_empty());
-        for k in install_kinds {
-            match k {
-                ProbeKind::GameInstallDir(id) => assert!(!id.is_empty()),
-                _ => unreachable!(),
-            }
-        }
-    }
 }
