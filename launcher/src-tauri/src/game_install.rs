@@ -119,6 +119,14 @@ pub fn build_kq_commands(entry: &InstallerEntry) -> Vec<Vec<String>> {
     ]
 }
 
+pub fn build_amiga_copy_commands(source: &Path, target_dir: &Path) -> Vec<Vec<String>> {
+    let target = target_dir.to_string_lossy().to_string();
+    vec![
+        vec!["mkdir".into(), "-p".into(), target.clone()],
+        vec!["cp".into(), "--".into(), source.to_string_lossy().to_string(), target],
+    ]
+}
+
 pub fn install_order(entries: Vec<InstallerEntry>) -> Vec<InstallerEntry> {
     let mut sorted = entries;
     sorted.sort_by_key(|e| match e.game_id.as_str() {
@@ -317,5 +325,19 @@ mod tests {
         };
         let result = validate_collection_membership(Collection::QuestForGlory, &[entry]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn build_amiga_copy_commands_creates_dir_and_copies() {
+        let source = Path::new("/downloads/lemmings.adf");
+        let target = Path::new("/home/user/games/lemmings");
+        let cmds = build_amiga_copy_commands(source, target);
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0][0], "mkdir");
+        assert!(cmds[0].contains(&"-p".to_string()));
+        assert_eq!(cmds[0].last().unwrap(), "/home/user/games/lemmings");
+        assert_eq!(cmds[1][0], "cp");
+        assert!(cmds[1].contains(&"/downloads/lemmings.adf".to_string()));
+        assert_eq!(cmds[1].last().unwrap(), "/home/user/games/lemmings");
     }
 }
