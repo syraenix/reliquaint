@@ -2,6 +2,8 @@
 
 In order to finish this guide, you will need to install several prerequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
 
+> **Tip:** Once `classic-launcher` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. The manual steps below remain the source of truth and the fallback for non-Debian distros.
+
 ## DOSBox Staging
 
 [DOSBox Staging](https://www.dosbox-staging.org/) is a modern continuation of DOSBox. Existing DOSBox configurations will continue to work as expected.

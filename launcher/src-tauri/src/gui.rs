@@ -14,6 +14,7 @@ pub fn run_gui() {
             crate::commands::list_games,
             crate::commands::launch_game,
             crate::commands::run_doctor,
+            crate::commands::install_dependency,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri application");

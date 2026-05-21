@@ -1,10 +1,12 @@
 use crate::discovery::{discover, find_by_id};
-use crate::doctor::{run_all, ProbeStatus};
+use crate::doctor::{run_all, ProbeKind, ProbeStatus};
+use crate::installer::run_install;
 use crate::runner::{run, RunOpts};
+use crate::setup::{action_for, build_commands, detect_distro};
 use serde::Serialize;
 use std::path::Path;
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize, Clone)]
 pub struct GameEntry {
@@ -20,6 +22,33 @@ pub struct DoctorResult {
     pub name: String,
     pub status: String,
     pub detail: Option<String>,
+    pub kind: String,
+}
+
+pub fn kind_tag(kind: &ProbeKind) -> String {
+    match kind {
+        ProbeKind::DosboxFlatpak => "dosbox-flatpak".into(),
+        ProbeKind::Fluidsynth => "fluidsynth".into(),
+        ProbeKind::Soundfont => "soundfont".into(),
+        ProbeKind::Innoextract => "innoextract".into(),
+        ProbeKind::FsUae => "fs-uae".into(),
+        ProbeKind::Unzip => "unzip".into(),
+        ProbeKind::GameInstallDir(id) => format!("game-install-dir:{id}"),
+    }
+}
+
+pub fn parse_kind_tag(tag: &str) -> Option<ProbeKind> {
+    match tag {
+        "dosbox-flatpak" => Some(ProbeKind::DosboxFlatpak),
+        "fluidsynth" => Some(ProbeKind::Fluidsynth),
+        "soundfont" => Some(ProbeKind::Soundfont),
+        "innoextract" => Some(ProbeKind::Innoextract),
+        "fs-uae" => Some(ProbeKind::FsUae),
+        "unzip" => Some(ProbeKind::Unzip),
+        other => other
+            .strip_prefix("game-install-dir:")
+            .map(|id| ProbeKind::GameInstallDir(id.to_string())),
+    }
 }
 
 pub struct AppState {
@@ -62,6 +91,7 @@ pub fn doctor_from_repo(repo_root: &Path) -> Vec<DoctorResult> {
                 ProbeStatus::Unknown => "unknown".into(),
             },
             detail: r.detail,
+            kind: kind_tag(&r.kind),
         })
         .collect()
 }
@@ -93,4 +123,58 @@ pub async fn launch_game(id: String, state: State<'_, AppState>) -> Result<(), S
 #[tauri::command]
 pub fn run_doctor(state: State<'_, AppState>) -> Vec<DoctorResult> {
     doctor_from_repo(&state.repo_root)
+}
+
+#[derive(Serialize, Clone)]
+struct InstallOutputPayload {
+    kind: String,
+    line: String,
+    stream: String,
+}
+
+#[derive(Serialize, Clone)]
+struct InstallFinishedPayload {
+    kind: String,
+    exit_code: i32,
+}
+
+#[tauri::command]
+pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, String> {
+    let parsed =
+        parse_kind_tag(&kind).ok_or_else(|| format!("unknown dependency kind: {kind}"))?;
+    let distro = detect_distro();
+    let action = action_for(&parsed, distro)
+        .ok_or_else(|| "no install action available for this dependency on this distro".to_string())?;
+    let cmds = build_commands(&action);
+    if cmds.is_empty() {
+        return Err("this dependency cannot be installed automatically".to_string());
+    }
+
+    let kind_for_emit = kind.clone();
+    let app_for_emit = app.clone();
+
+    let exit_code = tauri::async_runtime::spawn_blocking(move || {
+        let emit_kind = kind_for_emit.clone();
+        let emit_app = app_for_emit.clone();
+        run_install(cmds, move |line, is_err| {
+            let payload = InstallOutputPayload {
+                kind: emit_kind.clone(),
+                line: line.to_string(),
+                stream: if is_err { "stderr".into() } else { "stdout".into() },
+            };
+            let _ = emit_app.emit("install-output", payload);
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let _ = app.emit(
+        "install-finished",
+        InstallFinishedPayload {
+            kind: kind.clone(),
+            exit_code,
+        },
+    );
+
+    Ok(exit_code)
 }
