@@ -1,5 +1,9 @@
 use crate::discovery::{discover, find_by_id};
 use crate::doctor::{run_all, ProbeKind, ProbeStatus};
+use crate::game_install::{
+    build_kq_commands, build_qfg_commands, discover_qfg, install_order, make_kq_entry,
+    validate_collection_membership, Collection, InstallerEntry,
+};
 use crate::installer::run_install;
 use crate::runner::{run, RunOpts};
 use crate::setup::{action_for, build_commands, detect_distro};
@@ -175,6 +179,127 @@ pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, Str
             exit_code,
         },
     );
+
+    Ok(exit_code)
+}
+
+#[derive(Serialize, Clone)]
+struct GameInstallStartedPayload {
+    game_id: String,
+}
+
+#[derive(Serialize, Clone)]
+struct GameInstallOutputPayload {
+    game_id: String,
+    line: String,
+    stream: String,
+}
+
+#[derive(Serialize, Clone)]
+struct GameInstallFinishedPayload {
+    game_id: String,
+    exit_code: i32,
+}
+
+#[derive(Serialize, Clone)]
+struct GameInstallAbortedPayload {
+    game_id: String,
+    exit_code: i32,
+}
+
+#[tauri::command]
+pub fn default_installers_dir(
+    collection: String,
+    state: State<'_, AppState>,
+) -> Option<String> {
+    match Collection::parse(&collection) {
+        Some(Collection::QuestForGlory) => {
+            let p = state.repo_root.join("dos/quest-for-glory/installers");
+            p.is_dir().then(|| p.to_string_lossy().into_owned())
+        }
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub fn discover_qfg_installers(directory: String) -> Result<Vec<InstallerEntry>, String> {
+    let dir = PathBuf::from(&directory);
+    if !dir.is_dir() {
+        return Err(format!("not a directory: {directory}"));
+    }
+    Ok(discover_qfg(&dir))
+}
+
+#[tauri::command]
+pub fn build_kq_entry(game_id: String, directory: String) -> Result<InstallerEntry, String> {
+    let dir = PathBuf::from(&directory);
+    make_kq_entry(&game_id, &dir)
+}
+
+#[tauri::command]
+pub async fn install_games(
+    collection: String,
+    entries: Vec<InstallerEntry>,
+    app: AppHandle,
+) -> Result<i32, String> {
+    let parsed = Collection::parse(&collection)
+        .ok_or_else(|| format!("unknown collection: {collection}"))?;
+    validate_collection_membership(parsed, &entries)?;
+    if entries.is_empty() {
+        return Err("no entries to install".to_string());
+    }
+
+    let ordered = install_order(entries);
+
+    let app_for_task = app.clone();
+    let exit_code = tauri::async_runtime::spawn_blocking(move || -> Result<i32, String> {
+        for entry in ordered {
+            let cmds = match parsed {
+                Collection::QuestForGlory => build_qfg_commands(&entry),
+                Collection::KingsQuest => build_kq_commands(&entry),
+            };
+
+            let _ = app_for_task.emit(
+                "game-install-started",
+                GameInstallStartedPayload {
+                    game_id: entry.game_id.clone(),
+                },
+            );
+
+            let game_id_for_lines = entry.game_id.clone();
+            let app_for_lines = app_for_task.clone();
+            let game_exit = run_install(cmds, move |line, is_err| {
+                let payload = GameInstallOutputPayload {
+                    game_id: game_id_for_lines.clone(),
+                    line: line.to_string(),
+                    stream: if is_err { "stderr".into() } else { "stdout".into() },
+                };
+                let _ = app_for_lines.emit("game-install-output", payload);
+            })?;
+
+            let _ = app_for_task.emit(
+                "game-install-finished",
+                GameInstallFinishedPayload {
+                    game_id: entry.game_id.clone(),
+                    exit_code: game_exit,
+                },
+            );
+
+            if game_exit != 0 {
+                let _ = app_for_task.emit(
+                    "game-install-aborted",
+                    GameInstallAbortedPayload {
+                        game_id: entry.game_id.clone(),
+                        exit_code: game_exit,
+                    },
+                );
+                return Ok(game_exit);
+            }
+        }
+        Ok(0)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     Ok(exit_code)
 }

@@ -30,7 +30,7 @@ Each bundle installs to a folder such as `Kings Quest 1+2+3/` or `Kings Quest 4+
 
 ### Copying game files to ~/games
 
-Copy the contents of each game's Steam folder directly into `~/games/` using the folder names below. The DOSBox configs and run scripts depend on these exact names:
+Each game ends up at `~/games/<id>` using the folder names below. The DOSBox configs and the launcher depend on these exact names:
 
 - King's Quest 1 (SCI remake) => `~/games/kq1sci/`
 - King's Quest 2 => `~/games/kq2/`
@@ -39,7 +39,15 @@ Copy the contents of each game's Steam folder directly into `~/games/` using the
 - King's Quest 5 => `~/games/kq5/`
 - King's Quest 6 => `~/games/kq6/`
 
-> The exact path of the DOS files inside the Steam folder varies by game — some Steam packages put them at the top level, others bury them in a subfolder. Check that the destination ends up containing the game's `.EXE`/`.COM` launcher and resource files directly (e.g. `~/games/kq5/SCIKQ5.EXE`, not `~/games/kq5/somesubfolder/SCIKQ5.EXE`).
+> The exact path of the DOS files inside the Steam folder varies by game — some Steam packages put them at the top level, others bury them in a subfolder. The source you pick (or copy) must contain the game's `.EXE`/`.COM` launcher and resource files at its top level (e.g. the folder that holds `SCIKQ5.EXE`, not its parent).
+
+#### Using the launcher GUI (recommended)
+
+Open `classic-launcher` (run it with no arguments), click the **Install** button in the header, and select the **King's Quest** tab. For each game, click **Pick folder…** and navigate into the appropriate Steam bundle (`Kings Quest 1+2+3/` or `Kings Quest 4+5+6/`) to select the subfolder that contains that game's DOS files. Once you've picked at least one game, click **Install** — the launcher copies each picked folder into `~/games/<id>/` and streams progress inline.
+
+#### Terminal alternative
+
+Manually `cp -r` each game's Steam folder into `~/games/<id>` (using the id list above). Make sure the destination ends up containing the game's executable directly.
 
 
 ## Configuration

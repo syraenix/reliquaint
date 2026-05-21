@@ -23,6 +23,7 @@ shellexpand = "3.1"
 zip         = "0.6"
 tempfile    = "3.10"
 tauri       = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
