@@ -1,10 +1,11 @@
-use crate::discovery::{discover_catalog, find_by_id};
+use crate::discovery::{discover_catalog, discover_installed, find_by_id};
 use crate::doctor::{run_all, ProbeKind, ProbeStatus};
 use crate::game_install::{
-    build_kq_commands, build_qfg_commands, discover_qfg, install_order, make_kq_entry,
-    validate_collection_membership, Collection, InstallerEntry,
+    build_amiga_copy_commands, build_kq_commands, build_qfg_commands, discover_qfg, install_order,
+    make_kq_entry, validate_collection_membership, Collection, InstallerEntry,
 };
 use crate::installer::run_install;
+use crate::paths::games_dir;
 use crate::runner::{run, RunOpts};
 use crate::setup::{action_for, build_commands, detect_distro};
 use serde::Serialize;
@@ -57,25 +58,18 @@ pub fn parse_kind_tag(tag: &str) -> Option<ProbeKind> {
 
 pub struct AppState {
     pub repo_root: PathBuf,
+    pub games_base: PathBuf,
 }
 
-pub fn games_from_repo(repo_root: &Path) -> Vec<GameEntry> {
-    let mut games = discover_catalog(repo_root);
-    games.sort_by(|(_, a), (_, b)| a.id.cmp(&b.id));
-    games
+pub fn games_from_repo(repo_root: &Path, games_base: &Path) -> Vec<GameEntry> {
+    discover_installed(repo_root, games_base)
         .into_iter()
-        .map(|(path, m)| {
-            let artwork_path: Option<String> = {
-                let _ = &path; // TODO(task8): wire artwork detection from discovery
-                None
-            };
-            GameEntry {
-                id: m.id,
-                title: m.title,
-                platform: format!("{:?}", m.platform).to_lowercase(),
-                collection: m.collection,
-                artwork_path,
-            }
+        .map(|e| GameEntry {
+            id: e.manifest.id,
+            title: e.manifest.title,
+            platform: format!("{:?}", e.manifest.platform).to_lowercase(),
+            collection: e.manifest.collection,
+            artwork_path: e.artwork_path.map(|p| p.to_string_lossy().into_owned()),
         })
         .collect()
 }
@@ -98,20 +92,52 @@ pub fn doctor_from_repo(repo_root: &Path, games_base: &Path) -> Vec<DoctorResult
 
 #[tauri::command]
 pub fn list_games(state: State<'_, AppState>) -> Result<Vec<GameEntry>, String> {
-    Ok(games_from_repo(&state.repo_root))
+    Ok(games_from_repo(&state.repo_root, &state.games_base))
+}
+
+#[derive(Serialize, Clone)]
+pub struct GameCatalogEntry {
+    pub id: String,
+    pub title: String,
+    pub platform: String,
+    pub collection: String,
+    pub installed: bool,
+}
+
+pub fn games_catalog(repo_root: &Path, games_base: &Path) -> Vec<GameCatalogEntry> {
+    let installed_ids: std::collections::HashSet<String> =
+        discover_installed(repo_root, games_base)
+            .into_iter()
+            .map(|e| e.manifest.id)
+            .collect();
+
+    let mut entries: Vec<GameCatalogEntry> = discover_catalog(repo_root)
+        .into_iter()
+        .map(|(_, m)| GameCatalogEntry {
+            installed: installed_ids.contains(&m.id),
+            id: m.id,
+            title: m.title,
+            platform: format!("{:?}", m.platform).to_lowercase(),
+            collection: m.collection,
+        })
+        .collect();
+
+    entries.sort_by(|a, b| a.id.cmp(&b.id));
+    entries
+}
+
+#[tauri::command]
+pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<GameCatalogEntry>, String> {
+    Ok(games_catalog(&state.repo_root, &state.games_base))
 }
 
 #[tauri::command]
 pub async fn launch_game(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let repo_root = state.repo_root.clone();
+    let games_base = state.games_base.clone();
     let (path, manifest) = find_by_id(&repo_root, &id)
         .ok_or_else(|| format!("no manifest found for id '{id}'"))?;
-    let opts = RunOpts {
-        dry_run: false,
-        windowed: false,
-    };
-
-    let games_base = crate::paths::expand_tilde("~/games");
+    let opts = RunOpts { dry_run: false, windowed: false };
     tauri::async_runtime::spawn_blocking(move || {
         run(&path, &manifest, &repo_root, &games_base, &opts)
             .map(|_| ())
@@ -123,8 +149,7 @@ pub async fn launch_game(id: String, state: State<'_, AppState>) -> Result<(), S
 
 #[tauri::command]
 pub fn run_doctor(state: State<'_, AppState>) -> Vec<DoctorResult> {
-    let games_base = crate::paths::expand_tilde("~/games");
-    doctor_from_repo(&state.repo_root, &games_base)
+    doctor_from_repo(&state.repo_root, &state.games_base)
 }
 
 #[derive(Serialize, Clone)]
@@ -178,6 +203,43 @@ pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, Str
         },
     );
 
+    Ok(exit_code)
+}
+
+#[tauri::command]
+pub async fn install_amiga_game(
+    game_id: String,
+    source_path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<i32, String> {
+    let source = PathBuf::from(&source_path);
+    if !source.is_file() {
+        return Err(format!("source file not found: {source_path}"));
+    }
+    let target_dir = games_dir(&state.games_base, &game_id);
+    let cmds = build_amiga_copy_commands(&source, &target_dir);
+
+    let _ = app.emit("game-install-started", GameInstallStartedPayload { game_id: game_id.clone() });
+
+    let game_id_for_lines = game_id.clone();
+    let app_for_lines = app.clone();
+    let exit_code = tauri::async_runtime::spawn_blocking(move || {
+        run_install(cmds, move |line, is_err| {
+            let _ = app_for_lines.emit("game-install-output", GameInstallOutputPayload {
+                game_id: game_id_for_lines.clone(),
+                line: line.to_string(),
+                stream: if is_err { "stderr".into() } else { "stdout".into() },
+            });
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let _ = app.emit("game-install-finished", GameInstallFinishedPayload { game_id: game_id.clone(), exit_code });
+    if exit_code != 0 {
+        let _ = app.emit("game-install-aborted", GameInstallAbortedPayload { game_id: game_id.clone(), exit_code });
+    }
     Ok(exit_code)
 }
 
