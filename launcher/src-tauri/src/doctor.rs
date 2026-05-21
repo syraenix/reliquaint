@@ -11,21 +11,33 @@ pub enum ProbeStatus {
     Unknown,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProbeKind {
+    DosboxFlatpak,
+    Fluidsynth,
+    Soundfont,
+    Innoextract,
+    FsUae,
+    Unzip,
+    GameInstallDir(String),
+}
+
 pub struct ProbeResult {
     pub name: String,
     pub status: ProbeStatus,
     pub detail: Option<String>,
+    pub kind: ProbeKind,
 }
 
 pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
-    let mut results = Vec::new();
-
-    results.push(probe_flatpak_dosbox());
-    results.push(probe_which("fluidsynth"));
-    results.push(probe_soundfont());
-    results.push(probe_which("innoextract"));
-    results.push(probe_which("fs-uae"));
-    results.push(probe_which("unzip"));
+    let mut results = vec![
+        probe_flatpak_dosbox(),
+        probe_which("fluidsynth", ProbeKind::Fluidsynth),
+        probe_soundfont(),
+        probe_which("innoextract", ProbeKind::Innoextract),
+        probe_which("fs-uae", ProbeKind::FsUae),
+        probe_which("unzip", ProbeKind::Unzip),
+    ];
 
     for (_, manifest) in discover(repo_root) {
         if manifest.platform != Platform::Dos {
@@ -42,6 +54,7 @@ pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
                 name: format!("{} install dir", manifest.id),
                 status,
                 detail: Some(dir.display().to_string()),
+                kind: ProbeKind::GameInstallDir(manifest.id.clone()),
             });
         }
     }
@@ -63,10 +76,11 @@ fn probe_flatpak_dosbox() -> ProbeResult {
             Err(_) => ProbeStatus::Unknown,
         },
         detail: None,
+        kind: ProbeKind::DosboxFlatpak,
     }
 }
 
-fn probe_which(cmd: &str) -> ProbeResult {
+fn probe_which(cmd: &str, kind: ProbeKind) -> ProbeResult {
     let status = Command::new("which")
         .arg(cmd)
         .stdout(Stdio::null())
@@ -80,6 +94,7 @@ fn probe_which(cmd: &str) -> ProbeResult {
             Err(_) => ProbeStatus::Unknown,
         },
         detail: None,
+        kind,
     }
 }
 
@@ -93,6 +108,7 @@ fn probe_soundfont() -> ProbeResult {
             ProbeStatus::Missing
         },
         detail: Some(path.to_string()),
+        kind: ProbeKind::Soundfont,
     }
 }
 
@@ -156,5 +172,42 @@ mod tests {
             .iter()
             .any(|r| r.name.contains("install dir"));
         assert!(has_install_check);
+    }
+
+    #[test]
+    fn host_probes_carry_expected_kinds() {
+        let root = fixture_root();
+        let results = run_all(&root);
+        let kind_for = |name: &str| -> ProbeKind {
+            results
+                .iter()
+                .find(|r| r.name == name)
+                .map(|r| r.kind.clone())
+                .unwrap_or_else(|| panic!("missing probe {name}"))
+        };
+        assert_eq!(kind_for("dosbox-staging (flatpak)"), ProbeKind::DosboxFlatpak);
+        assert_eq!(kind_for("fluidsynth"), ProbeKind::Fluidsynth);
+        assert_eq!(kind_for("soundfont"), ProbeKind::Soundfont);
+        assert_eq!(kind_for("innoextract"), ProbeKind::Innoextract);
+        assert_eq!(kind_for("fs-uae"), ProbeKind::FsUae);
+        assert_eq!(kind_for("unzip"), ProbeKind::Unzip);
+    }
+
+    #[test]
+    fn install_dir_probe_kind_carries_id() {
+        let root = fixture_root();
+        let results = run_all(&root);
+        let install_kinds: Vec<&ProbeKind> = results
+            .iter()
+            .filter(|r| matches!(r.kind, ProbeKind::GameInstallDir(_)))
+            .map(|r| &r.kind)
+            .collect();
+        assert!(!install_kinds.is_empty());
+        for k in install_kinds {
+            match k {
+                ProbeKind::GameInstallDir(id) => assert!(!id.is_empty()),
+                _ => unreachable!(),
+            }
+        }
     }
 }
