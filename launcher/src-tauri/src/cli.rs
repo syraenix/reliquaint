@@ -1,4 +1,4 @@
-use crate::discovery::{discover, find_by_id, find_repo_root};
+use crate::discovery::{discover_catalog, find_by_id, find_repo_root};
 use crate::doctor::{run_all, ProbeStatus};
 use crate::runner::{run as launch, RunOpts};
 use clap::{Parser, Subcommand};
@@ -59,7 +59,7 @@ fn resolve_repo_root() -> Option<PathBuf> {
 }
 
 fn cmd_list(repo_root: &Path) -> ExitCode {
-    let mut manifests = discover(repo_root);
+    let mut manifests = discover_catalog(repo_root);
     manifests.sort_by(|(_, a), (_, b)| a.id.cmp(&b.id));
     for (_, m) in &manifests {
         let platform = format!("{:?}", m.platform).to_lowercase();

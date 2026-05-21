@@ -1,4 +1,4 @@
-use crate::discovery::discover;
+use crate::discovery::discover_catalog;
 use crate::manifest::Platform;
 use crate::paths::expand_tilde;
 use std::path::Path;
@@ -39,7 +39,7 @@ pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
         probe_which("unzip", ProbeKind::Unzip),
     ];
 
-    for (_, manifest) in discover(repo_root) {
+    for (_, manifest) in discover_catalog(repo_root) {
         if manifest.platform != Platform::Dos {
             continue;
         }

@@ -1,4 +1,4 @@
-use crate::discovery::{discover, find_by_id};
+use crate::discovery::{discover_catalog, find_by_id};
 use crate::doctor::{run_all, ProbeKind, ProbeStatus};
 use crate::game_install::{
     build_kq_commands, build_qfg_commands, discover_qfg, install_order, make_kq_entry,
@@ -60,7 +60,7 @@ pub struct AppState {
 }
 
 pub fn games_from_repo(repo_root: &Path) -> Vec<GameEntry> {
-    let mut games = discover(repo_root);
+    let mut games = discover_catalog(repo_root);
     games.sort_by(|(_, a), (_, b)| a.id.cmp(&b.id));
     games
         .into_iter()
