@@ -43,20 +43,8 @@ pub fn run_all(repo_root: &Path) -> Vec<ProbeResult> {
         if manifest.platform != Platform::Dos {
             continue;
         }
-        if let Some(install) = &manifest.install {
-            let dir = expand_tilde(&install.expects_dir);
-            let status = if dir.exists() {
-                ProbeStatus::Ok
-            } else {
-                ProbeStatus::Missing
-            };
-            results.push(ProbeResult {
-                name: format!("{} install dir", manifest.id),
-                status,
-                detail: Some(dir.display().to_string()),
-                kind: ProbeKind::GameInstallDir(manifest.id.clone()),
-            });
-        }
+        // TODO(task5): check ~/games/{id} via paths::games_dir
+        let _ = &manifest;
     }
 
     results

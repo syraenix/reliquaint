@@ -65,14 +65,10 @@ pub fn games_from_repo(repo_root: &Path) -> Vec<GameEntry> {
     games
         .into_iter()
         .map(|(path, m)| {
-            let artwork_path = m
-                .ui
-                .as_ref()
-                .and_then(|ui| ui.artwork.as_deref())
-                .map(|rel| {
-                    let base = path.parent().unwrap_or(Path::new("."));
-                    base.join(rel).to_string_lossy().into_owned()
-                });
+            let artwork_path: Option<String> = {
+                let _ = &path; // TODO(task8): wire artwork detection from discovery
+                None
+            };
             GameEntry {
                 id: m.id,
                 title: m.title,
