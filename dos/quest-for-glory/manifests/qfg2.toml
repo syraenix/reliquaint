@@ -8,5 +8,3 @@ emulator = "dosbox-staging"
 config   = "../config/qfg2.conf"
 sidecars = ["fluidsynth"]
 
-[install]
-expects_dir = "~/games/qfg2"
