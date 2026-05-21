@@ -5,7 +5,7 @@
   import GameGrid from "./components/GameGrid.svelte";
   import GameDetail from "./components/GameDetail.svelte";
   import DoctorPanel from "./components/DoctorPanel.svelte";
-  import InstallPanel from "./components/InstallPanel.svelte";
+  import CatalogPanel from "./components/CatalogPanel.svelte";
 
   let games = [];
   let filter = "all";
@@ -13,16 +13,16 @@
   let loading = true;
   let error = null;
   let doctorOpen = false;
-  let installOpen = false;
+  let catalogOpen = false;
 
   function toggleDoctor() {
     doctorOpen = !doctorOpen;
-    if (doctorOpen) installOpen = false;
+    if (doctorOpen) catalogOpen = false;
   }
 
-  function toggleInstall() {
-    installOpen = !installOpen;
-    if (installOpen) doctorOpen = false;
+  function toggleCatalog() {
+    catalogOpen = !catalogOpen;
+    if (catalogOpen) doctorOpen = false;
   }
 
   async function loadGames() {
@@ -51,8 +51,8 @@
     <h1>Classic Launcher</h1>
     <div class="header-actions">
       <FilterBar bind:filter />
-      <button class="doctor-btn" on:click={toggleInstall}>
-        {installOpen ? "✕ Install" : "↓ Install"}
+      <button class="doctor-btn" on:click={toggleCatalog}>
+        {catalogOpen ? "✕ Add Game" : "+ Add Game"}
       </button>
       <button class="doctor-btn" on:click={toggleDoctor}>
         {doctorOpen ? "✕ Doctor" : "⚕ Doctor"}
@@ -62,22 +62,18 @@
 
   {#if doctorOpen}
     <DoctorPanel />
-  {:else if installOpen}
-    <InstallPanel />
+  {:else if catalogOpen}
+    <CatalogPanel />
   {:else if selectedGame}
-    <GameDetail
-      game={selectedGame}
-      on:back={() => (selectedGame = null)}
-    />
+    <GameDetail game={selectedGame} on:back={() => (selectedGame = null)} />
   {:else if loading}
     <div class="status">Loading games…</div>
   {:else if error}
     <div class="status error">Error loading games: {error}</div>
+  {:else if games.length === 0}
+    <div class="status">No games installed. Click <strong>+ Add Game</strong> to install one.</div>
   {:else}
-    <GameGrid
-      games={filtered}
-      on:select={(e) => (selectedGame = e.detail)}
-    />
+    <GameGrid games={filtered} on:select={(e) => (selectedGame = e.detail)} />
   {/if}
 </div>
 
