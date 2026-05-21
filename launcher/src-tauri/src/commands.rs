@@ -111,8 +111,9 @@ pub async fn launch_game(id: String, state: State<'_, AppState>) -> Result<(), S
         windowed: false,
     };
 
+    let games_base = crate::paths::expand_tilde("~/games");
     tauri::async_runtime::spawn_blocking(move || {
-        run(&path, &manifest, &repo_root, &opts)
+        run(&path, &manifest, &repo_root, &games_base, &opts)
             .map(|_| ())
             .map_err(|e| e.to_string())
     })

@@ -44,6 +44,40 @@ pub fn build_amiga_adf_command(
     cmd
 }
 
+pub fn build_amiga_hdf_command(
+    hdf_path: &Path,
+    model_config: &Path,
+    windowed: bool,
+) -> Command {
+    let mut cmd = Command::new("fs-uae");
+    cmd.arg(model_config)
+        .arg(format!("--hard_drive_0={}", hdf_path.display()));
+    if windowed {
+        cmd.arg("--fullscreen=0");
+    }
+    cmd
+}
+
+pub fn find_amiga_file(game_dir: &Path) -> anyhow::Result<PathBuf> {
+    if let Ok(entries) = std::fs::read_dir(game_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                if matches!(ext.to_lowercase().as_str(), "adf" | "hdf" | "rp9") {
+                    return Ok(path);
+                }
+            }
+        }
+    }
+    Err(anyhow::anyhow!(
+        "no Amiga file (.adf/.hdf/.rp9) found in {}",
+        game_dir.display()
+    ))
+}
+
 pub fn build_amiga_rp9_command(
     rp9_path: &Path,
     model_config: &Path,
@@ -131,11 +165,15 @@ pub fn run(
     manifest_path: &Path,
     manifest: &Manifest,
     repo_root: &Path,
+    games_base: &Path,
     opts: &RunOpts,
 ) -> anyhow::Result<ExitCode> {
     match manifest.platform {
         Platform::Dos => run_dos(manifest_path, manifest, opts),
-        Platform::Amiga => run_amiga(manifest_path, manifest, repo_root, opts),
+        Platform::Amiga => {
+            let game_dir = crate::paths::games_dir(games_base, &manifest.id);
+            run_amiga(manifest, &game_dir, repo_root, opts)
+        }
     }
 }
 
@@ -171,50 +209,53 @@ fn run_dos(
 }
 
 fn run_amiga(
-    manifest_path: &Path,
     manifest: &Manifest,
+    game_dir: &Path,
     repo_root: &Path,
     opts: &RunOpts,
 ) -> anyhow::Result<ExitCode> {
-    let file_rel = manifest
-        .runtime
-        .file
-        .as_deref()
-        .ok_or_else(|| anyhow!("Amiga manifest missing runtime.file"))?;
-    let abs_file = resolve_relative(manifest_path, file_rel);
     let model = manifest.runtime.model.as_deref().unwrap_or("a500");
     let model_config = resolve_amiga_model_config(repo_root, model)?;
-
-    let ext = abs_file
+    let file = find_amiga_file(game_dir)?;
+    let ext = file
         .extension()
         .and_then(|e| e.to_str())
-        .unwrap_or("");
+        .unwrap_or("")
+        .to_lowercase();
 
-    match ext {
+    match ext.as_str() {
         "adf" => {
-            let mut cmd = build_amiga_adf_command(&abs_file, &model_config, opts.windowed);
+            let mut cmd = build_amiga_adf_command(&file, &model_config, opts.windowed);
             if opts.dry_run {
                 println!("[primary] {}", format_command(&cmd));
                 return Ok(ExitCode::SUCCESS);
             }
-            let status = cmd
-                .status()
-                .map_err(|e| anyhow!("failed to spawn fs-uae: {e}"))?;
-            Ok(exit_code_from_status(status))
+            Ok(exit_code_from_status(
+                cmd.status().map_err(|e| anyhow::anyhow!("failed to spawn fs-uae: {e}"))?,
+            ))
+        }
+        "hdf" => {
+            let mut cmd = build_amiga_hdf_command(&file, &model_config, opts.windowed);
+            if opts.dry_run {
+                println!("[primary] {}", format_command(&cmd));
+                return Ok(ExitCode::SUCCESS);
+            }
+            Ok(exit_code_from_status(
+                cmd.status().map_err(|e| anyhow::anyhow!("failed to spawn fs-uae: {e}"))?,
+            ))
         }
         "rp9" => {
             let (mut cmd, _keep) =
-                build_amiga_rp9_command(&abs_file, &model_config, opts.windowed)?;
+                build_amiga_rp9_command(&file, &model_config, opts.windowed)?;
             if opts.dry_run {
                 println!("[primary] {}", format_command(&cmd));
                 return Ok(ExitCode::SUCCESS);
             }
-            let status = cmd
-                .status()
-                .map_err(|e| anyhow!("failed to spawn fs-uae: {e}"))?;
-            Ok(exit_code_from_status(status))
+            Ok(exit_code_from_status(
+                cmd.status().map_err(|e| anyhow::anyhow!("failed to spawn fs-uae: {e}"))?,
+            ))
         }
-        other => Err(anyhow!("unsupported Amiga file extension: .{other}")),
+        other => Err(anyhow::anyhow!("unsupported Amiga file extension: .{other}")),
     }
 }
 
@@ -384,5 +425,50 @@ mod tests {
         }
         zip.finish().unwrap();
         rp9_path
+    }
+
+    #[test]
+    fn amiga_hdf_command_structure() {
+        let hdf = Path::new("/games/workbench.hdf");
+        let model = Path::new("/repo/amiga/config/a500.fs-uae");
+        let cmd = build_amiga_hdf_command(hdf, model, false);
+        assert_eq!(cmd.get_program(), "fs-uae");
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert_eq!(args[0], "/repo/amiga/config/a500.fs-uae");
+        assert_eq!(args[1], "--hard_drive_0=/games/workbench.hdf");
+        assert!(!args.contains(&"--fullscreen=0".to_string()));
+    }
+
+    #[test]
+    fn amiga_hdf_command_windowed() {
+        let hdf = Path::new("/games/workbench.hdf");
+        let model = Path::new("/repo/amiga/config/a500.fs-uae");
+        let cmd = build_amiga_hdf_command(hdf, model, true);
+        let args: Vec<_> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert!(args.contains(&"--fullscreen=0".to_string()));
+    }
+
+    #[test]
+    fn find_amiga_file_finds_adf() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("game.adf"), b"").unwrap();
+        let result = find_amiga_file(temp.path());
+        assert!(result.is_ok());
+        assert!(result.unwrap().ends_with("game.adf"));
+    }
+
+    #[test]
+    fn find_amiga_file_finds_hdf() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("whdload.hdf"), b"").unwrap();
+        let result = find_amiga_file(temp.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn find_amiga_file_errors_when_empty() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("readme.txt"), b"").unwrap();
+        assert!(find_amiga_file(temp.path()).is_err());
     }
 }

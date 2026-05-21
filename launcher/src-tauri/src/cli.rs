@@ -78,8 +78,9 @@ fn cmd_run(repo_root: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCod
             ExitCode::FAILURE
         }
         Some((path, manifest)) => {
+            let games_base = crate::paths::expand_tilde("~/games");
             let opts = RunOpts { dry_run, windowed };
-            match launch(&path, &manifest, repo_root, &opts) {
+            match launch(&path, &manifest, repo_root, &games_base, &opts) {
                 Ok(code) => code,
                 Err(e) => {
                     eprintln!("error: {e:#}");
