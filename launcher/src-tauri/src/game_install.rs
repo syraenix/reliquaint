@@ -1,4 +1,3 @@
-use crate::paths::expand_tilde;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -44,7 +43,7 @@ const KQ_GAME_IDS: &[(&str, &str)] = &[
     ("kq6", "King's Quest 6"),
 ];
 
-pub fn discover_qfg(installers_dir: &Path) -> Vec<InstallerEntry> {
+pub fn discover_qfg(installers_dir: &Path, games_base: &Path) -> Vec<InstallerEntry> {
     QFG_GAMES
         .iter()
         .filter_map(|(game_id, exe_name, label)| {
@@ -54,7 +53,7 @@ pub fn discover_qfg(installers_dir: &Path) -> Vec<InstallerEntry> {
                     game_id: (*game_id).to_string(),
                     label: (*label).to_string(),
                     source: installer,
-                    target: expand_tilde(&format!("~/games/{game_id}")),
+                    target: games_base.join(game_id),
                 })
             } else {
                 None
@@ -63,7 +62,7 @@ pub fn discover_qfg(installers_dir: &Path) -> Vec<InstallerEntry> {
         .collect()
 }
 
-pub fn make_kq_entry(game_id: &str, source: &Path) -> Result<InstallerEntry, String> {
+pub fn make_kq_entry(game_id: &str, source: &Path, games_base: &Path) -> Result<InstallerEntry, String> {
     let label = KQ_GAME_IDS
         .iter()
         .find(|(id, _)| *id == game_id)
@@ -79,16 +78,16 @@ pub fn make_kq_entry(game_id: &str, source: &Path) -> Result<InstallerEntry, Str
         game_id: game_id.to_string(),
         label: label.to_string(),
         source: source.to_path_buf(),
-        target: expand_tilde(&format!("~/games/{game_id}")),
+        target: games_base.join(game_id),
     })
 }
 
-pub fn build_qfg_commands(entry: &InstallerEntry) -> Vec<Vec<String>> {
+pub fn build_qfg_commands(entry: &InstallerEntry, games_base: &Path) -> Vec<Vec<String>> {
     let target = entry.target.to_string_lossy().to_string();
     let source = entry.source.to_string_lossy().to_string();
 
     if entry.game_id == "qfg1-ega" {
-        let vga_target = expand_tilde("~/games/qfg1-vga");
+        let vga_target = games_base.join("qfg1-vga");
         let ega_source = vga_target.join("EGA").to_string_lossy().to_string();
         return vec![
             vec!["rm".into(), "-rf".into(), target.clone()],
@@ -109,13 +108,21 @@ pub fn build_qfg_commands(entry: &InstallerEntry) -> Vec<Vec<String>> {
     ]
 }
 
-pub fn build_kq_commands(entry: &InstallerEntry) -> Vec<Vec<String>> {
+pub fn build_kq_commands(entry: &InstallerEntry, _games_base: &Path) -> Vec<Vec<String>> {
     let target = entry.target.to_string_lossy().to_string();
     let source_dot = format!("{}/.", entry.source.to_string_lossy());
     vec![
         vec!["rm".into(), "-rf".into(), target.clone()],
         vec!["mkdir".into(), "-p".into(), target.clone()],
         vec!["cp".into(), "-r".into(), "--".into(), source_dot, target],
+    ]
+}
+
+pub fn build_amiga_copy_commands(source: &Path, target_dir: &Path) -> Vec<Vec<String>> {
+    let target = target_dir.to_string_lossy().to_string();
+    vec![
+        vec!["mkdir".into(), "-p".into(), target.clone()],
+        vec!["cp".into(), "--".into(), source.to_string_lossy().to_string(), target],
     ]
 }
 
@@ -155,10 +162,11 @@ mod tests {
     #[test]
     fn discover_qfg_finds_known_exes() {
         let temp = tempfile::tempdir().unwrap();
+        let games_base = tempfile::tempdir().unwrap();
         std::fs::write(temp.path().join("qfg1.exe"), b"").unwrap();
         std::fs::write(temp.path().join("qfg2.exe"), b"").unwrap();
 
-        let entries = discover_qfg(temp.path());
+        let entries = discover_qfg(temp.path(), games_base.path());
         let ids: Vec<&str> = entries.iter().map(|e| e.game_id.as_str()).collect();
         assert!(ids.contains(&"qfg1-vga"));
         assert!(ids.contains(&"qfg1-ega"));
@@ -169,22 +177,25 @@ mod tests {
     #[test]
     fn discover_qfg_ignores_qfg5() {
         let temp = tempfile::tempdir().unwrap();
+        let games_base = tempfile::tempdir().unwrap();
         std::fs::write(temp.path().join("qfg5.exe"), b"").unwrap();
-        let entries = discover_qfg(temp.path());
+        let entries = discover_qfg(temp.path(), games_base.path());
         assert!(entries.is_empty());
     }
 
     #[test]
     fn discover_qfg_empty_when_no_installers() {
         let temp = tempfile::tempdir().unwrap();
-        let entries = discover_qfg(temp.path());
+        let games_base = tempfile::tempdir().unwrap();
+        let entries = discover_qfg(temp.path(), games_base.path());
         assert!(entries.is_empty());
     }
 
     #[test]
     fn make_kq_entry_accepts_known_id_and_existing_dir() {
         let temp = tempfile::tempdir().unwrap();
-        let entry = make_kq_entry("kq1sci", temp.path()).unwrap();
+        let games_base = Path::new("/home/user/games");
+        let entry = make_kq_entry("kq1sci", temp.path(), games_base).unwrap();
         assert_eq!(entry.game_id, "kq1sci");
         assert!(entry.target.to_string_lossy().ends_with("games/kq1sci"));
     }
@@ -192,25 +203,28 @@ mod tests {
     #[test]
     fn make_kq_entry_rejects_unknown_id() {
         let temp = tempfile::tempdir().unwrap();
-        let result = make_kq_entry("kq99", temp.path());
+        let games_base = tempfile::tempdir().unwrap();
+        let result = make_kq_entry("kq99", temp.path(), games_base.path());
         assert!(result.is_err());
     }
 
     #[test]
     fn make_kq_entry_rejects_missing_dir() {
-        let result = make_kq_entry("kq1sci", Path::new("/this/path/should/not/exist/abc123"));
+        let games_base = tempfile::tempdir().unwrap();
+        let result = make_kq_entry("kq1sci", Path::new("/this/path/should/not/exist/abc123"), games_base.path());
         assert!(result.is_err());
     }
 
     #[test]
     fn build_qfg_commands_for_qfg1_vga_uses_innoextract() {
+        let games_base = Path::new("/home/user/games");
         let entry = InstallerEntry {
             game_id: "qfg1-vga".into(),
             label: "QFG1 VGA".into(),
             source: PathBuf::from("/installers/qfg1.exe"),
             target: PathBuf::from("/home/user/games/qfg1-vga"),
         };
-        let cmds = build_qfg_commands(&entry);
+        let cmds = build_qfg_commands(&entry, games_base);
         assert_eq!(cmds.len(), 2);
         assert_eq!(cmds[0][0], "mkdir");
         assert_eq!(cmds[1][0], "innoextract");
@@ -220,13 +234,14 @@ mod tests {
 
     #[test]
     fn build_qfg_commands_for_qfg1_ega_moves_from_vga_dir() {
+        let games_base = Path::new("/home/user/games");
         let entry = InstallerEntry {
             game_id: "qfg1-ega".into(),
             label: "QFG1 EGA".into(),
             source: PathBuf::from("/installers/qfg1.exe"),
-            target: expand_tilde("~/games/qfg1-ega"),
+            target: PathBuf::from("/home/user/games/qfg1-ega"),
         };
-        let cmds = build_qfg_commands(&entry);
+        let cmds = build_qfg_commands(&entry, games_base);
         assert_eq!(cmds.len(), 2);
         assert_eq!(cmds[0][0], "rm");
         assert_eq!(cmds[1][0], "mv");
@@ -237,25 +252,27 @@ mod tests {
 
     #[test]
     fn build_qfg_commands_for_qfg2_uses_innoextract() {
+        let games_base = Path::new("/home/user/games");
         let entry = InstallerEntry {
             game_id: "qfg2".into(),
             label: "QFG2".into(),
             source: PathBuf::from("/installers/qfg2.exe"),
             target: PathBuf::from("/home/user/games/qfg2"),
         };
-        let cmds = build_qfg_commands(&entry);
+        let cmds = build_qfg_commands(&entry, games_base);
         assert_eq!(cmds[1][0], "innoextract");
     }
 
     #[test]
     fn build_kq_commands_uses_cp_r_with_trailing_dot() {
+        let games_base = Path::new("/home/user/games");
         let entry = InstallerEntry {
             game_id: "kq1sci".into(),
             label: "KQ1 SCI".into(),
             source: PathBuf::from("/steam/Kings Quest 1+2+3/kq1sci"),
             target: PathBuf::from("/home/user/games/kq1sci"),
         };
-        let cmds = build_kq_commands(&entry);
+        let cmds = build_kq_commands(&entry, games_base);
         assert_eq!(cmds.len(), 3);
         assert_eq!(cmds[0][0], "rm");
         assert_eq!(cmds[1][0], "mkdir");
@@ -317,5 +334,19 @@ mod tests {
         };
         let result = validate_collection_membership(Collection::QuestForGlory, &[entry]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn build_amiga_copy_commands_creates_dir_and_copies() {
+        let source = Path::new("/downloads/lemmings.adf");
+        let target = Path::new("/home/user/games/lemmings");
+        let cmds = build_amiga_copy_commands(source, target);
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0][0], "mkdir");
+        assert!(cmds[0].contains(&"-p".to_string()));
+        assert_eq!(cmds[0].last().unwrap(), "/home/user/games/lemmings");
+        assert_eq!(cmds[1][0], "cp");
+        assert!(cmds[1].contains(&"/downloads/lemmings.adf".to_string()));
+        assert_eq!(cmds[1].last().unwrap(), "/home/user/games/lemmings");
     }
 }

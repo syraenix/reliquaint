@@ -8,13 +8,29 @@ fn fixture_root() -> PathBuf {
 
 fn launcher() -> Command {
     let mut cmd = Command::cargo_bin("classic-launcher").unwrap();
-    cmd.env("CLASSIC_LAUNCHER_REPO_ROOT", fixture_root());
+    cmd.env("CLASSIC_LAUNCHER_REPO_ROOT", fixture_root())
+       .env("CLASSIC_LAUNCHER_GAMES_DIR", "/tmp/classic-launcher-no-games");
+    cmd
+}
+
+fn launcher_with_games(games_dir: &std::path::Path) -> Command {
+    let mut cmd = Command::cargo_bin("classic-launcher").unwrap();
+    cmd.env("CLASSIC_LAUNCHER_REPO_ROOT", fixture_root())
+       .env("CLASSIC_LAUNCHER_GAMES_DIR", games_dir);
     cmd
 }
 
 #[test]
-fn list_shows_fixture_manifest_ids() {
-    launcher()
+fn list_shows_installed_games() {
+    let temp = tempfile::tempdir().unwrap();
+    let qfg_dir = temp.path().join("qfg1-ega");
+    std::fs::create_dir(&qfg_dir).unwrap();
+    std::fs::write(qfg_dir.join("QUEST.EXE"), b"").unwrap();
+    let kq_dir = temp.path().join("kq1sci");
+    std::fs::create_dir(&kq_dir).unwrap();
+    std::fs::write(kq_dir.join("SIERRA.EXE"), b"").unwrap();
+
+    launcher_with_games(temp.path())
         .arg("list")
         .assert()
         .success()
@@ -23,8 +39,24 @@ fn list_shows_fixture_manifest_ids() {
 }
 
 #[test]
+fn list_empty_when_no_games_installed() {
+    let temp = tempfile::tempdir().unwrap();
+    launcher_with_games(temp.path())
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicates::str::is_empty());
+}
+
+#[test]
 fn list_output_is_sorted() {
-    let output = launcher().arg("list").output().unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    for id in ["kq1sci", "qfg1-ega"] {
+        let d = temp.path().join(id);
+        std::fs::create_dir(&d).unwrap();
+        std::fs::write(d.join("game.exe"), b"").unwrap();
+    }
+    let output = launcher_with_games(temp.path()).arg("list").output().unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
     let ids: Vec<&str> = stdout
         .lines()
@@ -34,6 +66,7 @@ fn list_output_is_sorted() {
     let mut sorted = ids.clone();
     sorted.sort();
     assert_eq!(ids, sorted, "list output should be sorted by id");
+    assert_eq!(ids.len(), 2);
 }
 
 #[test]
@@ -92,14 +125,4 @@ fn doctor_runs_without_panic() {
     );
     let code = output.status.code().unwrap_or(-1);
     assert!(code == 0 || code == 2, "doctor exits 0 or 2, got {code}");
-}
-
-#[test]
-fn doctor_shows_install_dir_checks() {
-    let output = launcher().arg("doctor").output().unwrap();
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(
-        stdout.contains("install dir"),
-        "doctor should show per-manifest install dir checks"
-    );
 }

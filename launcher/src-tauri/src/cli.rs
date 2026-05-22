@@ -1,5 +1,6 @@
-use crate::discovery::{discover, find_by_id, find_repo_root};
+use crate::discovery::{discover_installed, find_by_id, find_repo_root};
 use crate::doctor::{run_all, ProbeStatus};
+use crate::paths::expand_tilde;
 use crate::runner::{run as launch, RunOpts};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
@@ -31,47 +32,51 @@ pub fn run() -> ExitCode {
     let repo_root = match resolve_repo_root() {
         Some(r) => r,
         None => {
-            eprintln!(
-                "error: cannot find repo root (no parent directory contains both dos/ and amiga/)"
-            );
-            eprintln!("Run classic-launcher from within the game guides repository.");
+            eprintln!("error: cannot find repo root");
             return ExitCode::FAILURE;
         }
     };
-
+    let games_base = resolve_games_base();
     match cli.command {
-        Commands::List => cmd_list(&repo_root),
+        Commands::List => cmd_list(&repo_root, &games_base),
         Commands::Run {
             id,
             dry_run,
             windowed,
-        } => cmd_run(&repo_root, &id, dry_run, windowed),
-        Commands::Doctor => cmd_doctor(&repo_root),
+        } => cmd_run(&repo_root, &games_base, &id, dry_run, windowed),
+        Commands::Doctor => cmd_doctor(&repo_root, &games_base),
     }
 }
 
 fn resolve_repo_root() -> Option<PathBuf> {
-    if let Ok(override_root) = std::env::var("CLASSIC_LAUNCHER_REPO_ROOT") {
-        return Some(PathBuf::from(override_root));
+    if let Ok(r) = std::env::var("CLASSIC_LAUNCHER_REPO_ROOT") {
+        return Some(PathBuf::from(r));
     }
     let cwd = std::env::current_dir().ok()?;
     find_repo_root(&cwd)
 }
 
-fn cmd_list(repo_root: &Path) -> ExitCode {
-    let mut manifests = discover(repo_root);
-    manifests.sort_by(|(_, a), (_, b)| a.id.cmp(&b.id));
-    for (_, m) in &manifests {
-        let platform = format!("{:?}", m.platform).to_lowercase();
+fn resolve_games_base() -> PathBuf {
+    if let Ok(base) = std::env::var("CLASSIC_LAUNCHER_GAMES_DIR") {
+        return PathBuf::from(base);
+    }
+    expand_tilde("~/games")
+}
+
+fn cmd_list(repo_root: &Path, games_base: &Path) -> ExitCode {
+    let mut entries = discover_installed(repo_root, games_base);
+    entries.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
+    for e in &entries {
+        let platform = format!("{:?}", e.manifest.platform).to_lowercase();
         println!(
             "{:<15}  {:<6}  {:<20}  {}",
-            m.id, platform, m.collection, m.title
+            e.manifest.id, platform, e.manifest.collection, e.manifest.title
         );
     }
     ExitCode::SUCCESS
 }
 
-fn cmd_run(repo_root: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCode {
+fn cmd_run(repo_root: &Path, games_base: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCode {
     match find_by_id(repo_root, id) {
         None => {
             eprintln!("error: no manifest found for id '{id}'");
@@ -79,7 +84,7 @@ fn cmd_run(repo_root: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCod
         }
         Some((path, manifest)) => {
             let opts = RunOpts { dry_run, windowed };
-            match launch(&path, &manifest, repo_root, &opts) {
+            match launch(&path, &manifest, repo_root, games_base, &opts) {
                 Ok(code) => code,
                 Err(e) => {
                     eprintln!("error: {e:#}");
@@ -90,8 +95,8 @@ fn cmd_run(repo_root: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCod
     }
 }
 
-fn cmd_doctor(repo_root: &Path) -> ExitCode {
-    let results = run_all(repo_root);
+fn cmd_doctor(repo_root: &Path, games_base: &Path) -> ExitCode {
+    let results = run_all(repo_root, games_base);
     let mut any_missing = false;
     for r in &results {
         let label = match r.status {

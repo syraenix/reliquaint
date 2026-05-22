@@ -9,6 +9,10 @@ pub fn resolve_relative(manifest_path: &Path, relative: &str) -> PathBuf {
     base.join(relative)
 }
 
+pub fn games_dir(base: &Path, id: &str) -> PathBuf {
+    base.join(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,5 +47,21 @@ mod tests {
         let result = resolve_relative(manifest, "../config/qfg1-ega.conf");
         // The path contains `..` but points at the right location
         assert!(result.to_string_lossy().contains("config/qfg1-ega.conf"));
+    }
+
+    #[test]
+    fn games_dir_joins_base_and_id() {
+        let base = Path::new("/home/user/games");
+        let result = games_dir(base, "qfg1-ega");
+        assert_eq!(result, PathBuf::from("/home/user/games/qfg1-ega"));
+    }
+
+    #[test]
+    fn games_dir_with_tilde_base() {
+        let base = expand_tilde("~/games");
+        let result = games_dir(&base, "kq1sci");
+        let home = std::env::var("HOME").unwrap_or_default();
+        assert!(result.starts_with(&home));
+        assert!(result.ends_with("games/kq1sci"));
     }
 }
