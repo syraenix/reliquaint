@@ -1,5 +1,6 @@
 use crate::commands::AppState;
 use crate::discovery::find_repo_root;
+use crate::paths::expand_tilde;
 use std::path::PathBuf;
 
 pub fn run_gui() {
@@ -7,12 +8,14 @@ pub fn run_gui() {
         eprintln!("warning: cannot locate repo root; set CLASSIC_LAUNCHER_REPO_ROOT");
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
     });
+    let games_base = resolve_games_base();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState { repo_root })
+        .manage(AppState { repo_root, games_base })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_games,
+            crate::commands::list_catalog,
             crate::commands::launch_game,
             crate::commands::run_doctor,
             crate::commands::install_dependency,
@@ -20,6 +23,7 @@ pub fn run_gui() {
             crate::commands::discover_qfg_installers,
             crate::commands::build_kq_entry,
             crate::commands::install_games,
+            crate::commands::install_amiga_game,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri application");
@@ -31,4 +35,11 @@ fn resolve_repo_root() -> Option<PathBuf> {
     }
     let cwd = std::env::current_dir().ok()?;
     find_repo_root(&cwd)
+}
+
+fn resolve_games_base() -> PathBuf {
+    if let Ok(base) = std::env::var("CLASSIC_LAUNCHER_GAMES_DIR") {
+        return PathBuf::from(base);
+    }
+    expand_tilde("~/games")
 }

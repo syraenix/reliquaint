@@ -8,5 +8,3 @@ emulator = "dosbox-staging"
 config   = "../config/kq5.conf"
 sidecars = ["fluidsynth"]
 
-[install]
-expects_dir = "~/games/kq5"

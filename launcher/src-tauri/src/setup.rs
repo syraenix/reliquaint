@@ -59,9 +59,7 @@ pub fn action_for(kind: &ProbeKind, distro: Distro) -> Option<InstallAction> {
             remote_url: "https://flathub.org/repo/flathub.flatpakrepo",
             app_id: "io.github.dosbox-staging",
         }),
-        ProbeKind::GameInstallDir(_) => Some(InstallAction::Informational(
-            "Acquire and extract the game per the collection guide; the launcher cannot install game files.",
-        )),
+        ProbeKind::GameInstallDir(_) => None,
         ProbeKind::Fluidsynth => apt_if_debian(distro, vec!["fluidsynth"]),
         ProbeKind::Soundfont => apt_if_debian(distro, vec!["fluid-soundfont-gm"]),
         ProbeKind::Innoextract => apt_if_debian(distro, vec!["innoextract"]),
@@ -189,13 +187,11 @@ mod tests {
     }
 
     #[test]
-    fn action_for_game_install_dir_is_informational() {
-        let a = action_for(
-            &ProbeKind::GameInstallDir("qfg1-ega".into()),
-            Distro::DebianLike,
-        )
-        .expect("informational");
-        assert!(matches!(a, InstallAction::Informational(_)));
+    fn action_for_game_install_dir_is_none() {
+        // The launcher now handles game installation via the "+ Add Game" catalog panel.
+        for d in [Distro::DebianLike, Distro::Unknown] {
+            assert!(action_for(&ProbeKind::GameInstallDir("qfg1-ega".into()), d).is_none());
+        }
     }
 
     #[test]
