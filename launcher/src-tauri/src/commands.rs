@@ -215,6 +215,8 @@ pub async fn install_amiga_game(
 ) -> Result<i32, String> {
     let source = PathBuf::from(&source_path);
     if !source.is_file() {
+        let _ = app.emit("game-install-finished", GameInstallFinishedPayload { game_id: game_id.clone(), exit_code: 1 });
+        let _ = app.emit("game-install-aborted", GameInstallAbortedPayload { game_id: game_id.clone(), exit_code: 1 });
         return Err(format!("source file not found: {source_path}"));
     }
     let target_dir = games_dir(&state.games_base, &game_id);
@@ -282,18 +284,18 @@ pub fn default_installers_dir(
 }
 
 #[tauri::command]
-pub fn discover_qfg_installers(directory: String) -> Result<Vec<InstallerEntry>, String> {
+pub fn discover_qfg_installers(directory: String, state: State<'_, AppState>) -> Result<Vec<InstallerEntry>, String> {
     let dir = PathBuf::from(&directory);
     if !dir.is_dir() {
         return Err(format!("not a directory: {directory}"));
     }
-    Ok(discover_qfg(&dir))
+    Ok(discover_qfg(&dir, &state.games_base))
 }
 
 #[tauri::command]
-pub fn build_kq_entry(game_id: String, directory: String) -> Result<InstallerEntry, String> {
+pub fn build_kq_entry(game_id: String, directory: String, state: State<'_, AppState>) -> Result<InstallerEntry, String> {
     let dir = PathBuf::from(&directory);
-    make_kq_entry(&game_id, &dir)
+    make_kq_entry(&game_id, &dir, &state.games_base)
 }
 
 #[tauri::command]
@@ -301,6 +303,7 @@ pub async fn install_games(
     collection: String,
     entries: Vec<InstallerEntry>,
     app: AppHandle,
+    state: State<'_, AppState>,
 ) -> Result<i32, String> {
     let parsed = Collection::parse(&collection)
         .ok_or_else(|| format!("unknown collection: {collection}"))?;
@@ -310,13 +313,14 @@ pub async fn install_games(
     }
 
     let ordered = install_order(entries);
+    let games_base = state.games_base.clone();
 
     let app_for_task = app.clone();
     let exit_code = tauri::async_runtime::spawn_blocking(move || -> Result<i32, String> {
         for entry in ordered {
             let cmds = match parsed {
-                Collection::QuestForGlory => build_qfg_commands(&entry),
-                Collection::KingsQuest => build_kq_commands(&entry),
+                Collection::QuestForGlory => build_qfg_commands(&entry, &games_base),
+                Collection::KingsQuest => build_kq_commands(&entry, &games_base),
             };
 
             let _ = app_for_task.emit(
