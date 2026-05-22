@@ -2,21 +2,29 @@
 
 ## Project Structure & Module Organization
 
-This repository is a documentation project for running classic DOS games with DOSBox Staging. Top-level docs live in `README.md` and `docs/prerequisites.md`. Shared DOSBox configuration lives in `config/default-dosbox-staging.conf`, and shared images live in `img/`.
+This repository is a documentation project plus a Rust + Tauri launcher (`classic-launcher`) for running classic DOS and Amiga games on Linux.
 
-Game-specific content is organized under `dos/<game-collection>/`. Active collections are `dos/quest-for-glory/` (GOG offline installers, extracted with `innoextract`) and `dos/kings-quest/` (Steam, files copied directly from the Steam install). Both follow the same layout: user guide, per-game DOSBox `.conf` files in `config/`, per-game TOML manifests in `manifests/`, screenshots in `img/`, and gitignored source files in `installers/` (QFG) or `games/` (KQ). The `dos/quest-for-glory/scripts/` directory still holds `extract-installers.sh`.
+**Shared / top-level.** Top-level docs live in `README.md` and `docs/prerequisites.md`. Shared DOSBox configuration lives in `config/default-dosbox-staging.conf`, and shared images live in `img/`. The launcher crate and Svelte/Tauri frontend live under `launcher/` (Rust crate at `launcher/src-tauri/`, frontend at `launcher/src/`).
+
+**DOS collections.** Organized under `dos/<game-collection>/`. Active collections are `dos/quest-for-glory/` (GOG offline installers, extracted with `innoextract`) and `dos/kings-quest/` (Steam, files copied directly from the Steam install). Both follow the same layout: user guide, per-game DOSBox `.conf` files in `config/`, per-game TOML manifests in `manifests/`, screenshots in `img/`, and gitignored source files in `installers/` (QFG) or `games/` (KQ). The `dos/quest-for-glory/scripts/` directory still holds `extract-installers.sh`.
+
+**Amiga collection.** `amiga/amiga.md` is the guide; per-game manifests live in `amiga/manifests/` (currently `fatman.toml`; `example.toml.disabled` is the off-by-default template); FS-UAE model templates live in `amiga/config/` (`a500.fs-uae`, `a1200.fs-uae`). Amiga games launch via FS-UAE rather than DOSBox Staging.
 
 ## Build, Test, and Development Commands
 
-There is no application build, package manifest, or automated test suite. Useful validation commands are:
+The Rust launcher under `launcher/` has its own test suite (`cd launcher && cargo test`). The Markdown guides and `.conf` / manifest files have no build step. Useful validation commands:
 
 ```bash
 git status --short
 find . -path './.git' -prune -o -type f -print | sort
 cd dos/quest-for-glory/scripts && ./extract-installers.sh
+classic-launcher list
+classic-launcher doctor
 classic-launcher run qfg1-ega --dry-run
 classic-launcher run qfg1-ega
+classic-launcher run kq1sci
 flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
+cd launcher && cargo test
 ```
 
 Use `extract-installers.sh` only after placing renamed GOG installers such as `qfg1.exe` and `qfg2.exe` in the collection’s `installers/` directory.
