@@ -10,11 +10,12 @@ A documentation repository with step-by-step Markdown guides, DOSBox Staging `.c
 
 - `README.md`, `docs/prerequisites.md` — top-level entry points. Prerequisites cover DOSBox Staging (Flatpak), FluidSynth, innoextract, FS-UAE, and the Rust toolchain.
 - `config/default-dosbox-staging.conf` — reference/baseline DOSBox Staging config.
-- `launcher/` — Rust workspace + Svelte/Tauri frontend for `classic-launcher`. CLI build: `cargo build` from `launcher/`; GUI build: `pnpm tauri dev` or `pnpm tauri build` from `launcher/`. Install CLI: `cargo install --path launcher/src-tauri`.
-  - `launcher/src-tauri/` — Rust crate (CLI + Tauri backend). Modules: `cli`, `commands`, `discovery`, `doctor`, `manifest`, `paths`, `runner`, `gui` (feature-gated).
+- `launcher/` — Rust workspace + Svelte/Tauri frontend for `classic-launcher`.
+  - `launcher/src-tauri/` — Rust crate (CLI + Tauri backend). Modules: `cli`, `commands`, `discovery`, `doctor`, `game_install` (per-collection installable-game catalog), `gui`, `installer` (runs install shell-outs and streams output), `manifest`, `paths`, `runner`, `setup` (host-dependency install actions for apt + flatpak, keyed off distro detection).
   - `launcher/src/` — Svelte frontend components.
   - `launcher/src-tauri/tauri.conf.json` — Tauri 2 configuration.
-  - Tauri is always compiled in. Running with no args opens the GUI; running with a subcommand (list/run/doctor) stays CLI.
+  - Tauri is always compiled in. Running with no args opens the GUI; running with a subcommand (`list`/`run`/`doctor`) stays CLI.
+  - Build: `cargo build` (CLI) or `pnpm tauri dev` / `pnpm tauri build` (GUI), both from `launcher/`. Install CLI: `cargo install --path launcher/src-tauri`.
 - `dos/<game-collection>/` — one directory per DOS game collection. Active: `dos/quest-for-glory/` and `dos/kings-quest/`. Each follows this shape:
   - `<collection>.md` — the user-facing guide; source of truth that everything else supports.
   - `manifests/<id>.toml` — per-game TOML manifest (id, title, platform, config path, sidecars, expects_dir).
@@ -23,7 +24,7 @@ A documentation repository with step-by-step Markdown guides, DOSBox Staging `.c
   - `installers/` — user drops GOG `.exe` files here (QFG only). Gitignored.
   - `games/` — present in `dos/kings-quest/` to hold Steam-sourced game files (gitignored).
   - `img/` — screenshots embedded in the guide.
-- `amiga/` — Amiga collection. `amiga.md` is the guide; `manifests/<id>.toml` for each game; `config/a500.fs-uae` and `config/a1200.fs-uae` for model templates.
+- `amiga/` — Amiga collection. `amiga.md` is the guide; `manifests/<id>.toml` for each game (currently `fatman.toml`; `example.toml.disabled` is the off-by-default template); `config/a500.fs-uae` and `config/a1200.fs-uae` for model templates.
 
 ## Conventions when editing
 
@@ -34,12 +35,17 @@ A documentation repository with step-by-step Markdown guides, DOSBox Staging `.c
 
 ## Common operations
 
-- Extract installers (after dropping GOG `.exe` files into `dos/quest-for-glory/installers/`):
+### Install game files
+
+- Extract GOG installers (after dropping `.exe` files into `dos/quest-for-glory/installers/`):
   ```bash
   cd dos/quest-for-glory/scripts
   chmod +x ./extract-installers.sh
   ./extract-installers.sh
   ```
+
+### Launch and inspect
+
 - Launch a game:
   ```bash
   classic-launcher run qfg1-ega
@@ -61,6 +67,9 @@ A documentation repository with step-by-step Markdown guides, DOSBox Staging `.c
   ```bash
   flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
   ```
+
+### Develop the launcher
+
 - Run the launcher test suite (no Node.js required):
   ```bash
   cd launcher && cargo test
