@@ -1,3 +1,4 @@
+pub mod catalog;
 pub mod cli;
 pub mod commands;
 pub mod discovery;

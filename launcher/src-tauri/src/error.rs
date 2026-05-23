@@ -22,7 +22,10 @@
 /// variants can be added without breaking exhaustive matches downstream.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
-pub enum ReliquaintError {}
+pub enum ReliquaintError {
+    #[error(transparent)]
+    Catalog(#[from] crate::catalog::CatalogError),
+}
 
 /// Install a panic hook that prints a "please file a bug" banner before
 /// re-invoking the previous hook. Call once at each binary entry point.

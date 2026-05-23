@@ -1,0 +1,23 @@
+schema_version = 1
+
+[game]
+id = "fatman"
+title = "Fatman: The Caped Consumer"
+platform = "amiga"
+
+[meta]
+year = 1994
+developer = "Black Legend"
+publisher = "Black Legend"
+genre = ["action", "platformer"]
+description = "Eat-em-up platformer originally distributed on the Amiga Power coverdisk."
+
+[install]
+expects_files = ["fatman.adf"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model = "a500"
+floppies = ["fatman.adf"]
