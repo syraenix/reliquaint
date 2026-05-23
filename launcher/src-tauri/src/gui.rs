@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 pub fn run_gui() {
     let repo_root = resolve_repo_root().unwrap_or_else(|| {
-        eprintln!("warning: cannot locate repo root; set CLASSIC_LAUNCHER_REPO_ROOT");
+        eprintln!("warning: cannot locate repo root; set RELIQUAINT_REPO_ROOT");
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
     });
     let games_base = resolve_games_base();
@@ -30,7 +30,7 @@ pub fn run_gui() {
 }
 
 fn resolve_repo_root() -> Option<PathBuf> {
-    if let Ok(override_root) = std::env::var("CLASSIC_LAUNCHER_REPO_ROOT") {
+    if let Ok(override_root) = std::env::var("RELIQUAINT_REPO_ROOT") {
         return Some(PathBuf::from(override_root));
     }
     let cwd = std::env::current_dir().ok()?;
@@ -38,7 +38,7 @@ fn resolve_repo_root() -> Option<PathBuf> {
 }
 
 fn resolve_games_base() -> PathBuf {
-    if let Ok(base) = std::env::var("CLASSIC_LAUNCHER_GAMES_DIR") {
+    if let Ok(base) = std::env::var("RELIQUAINT_GAMES_DIR") {
         return PathBuf::from(base);
     }
     expand_tilde("~/games")

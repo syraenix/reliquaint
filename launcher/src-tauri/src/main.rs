@@ -6,9 +6,9 @@ fn main() -> ExitCode {
         .any(|a| matches!(a.as_str(), "list" | "run" | "doctor" | "--help" | "-h" | "--version" | "-V"));
 
     if is_cli {
-        classic_launcher::cli::run()
+        reliquaint::cli::run()
     } else {
-        classic_launcher::gui::run_gui();
+        reliquaint::gui::run_gui();
         ExitCode::SUCCESS
     }
 }

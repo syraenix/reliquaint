@@ -7,16 +7,16 @@ fn fixture_root() -> PathBuf {
 }
 
 fn launcher() -> Command {
-    let mut cmd = Command::cargo_bin("classic-launcher").unwrap();
-    cmd.env("CLASSIC_LAUNCHER_REPO_ROOT", fixture_root())
-       .env("CLASSIC_LAUNCHER_GAMES_DIR", "/tmp/classic-launcher-no-games");
+    let mut cmd = Command::cargo_bin("reliquaint").unwrap();
+    cmd.env("RELIQUAINT_REPO_ROOT", fixture_root())
+       .env("RELIQUAINT_GAMES_DIR", "/tmp/reliquaint-no-games");
     cmd
 }
 
 fn launcher_with_games(games_dir: &std::path::Path) -> Command {
-    let mut cmd = Command::cargo_bin("classic-launcher").unwrap();
-    cmd.env("CLASSIC_LAUNCHER_REPO_ROOT", fixture_root())
-       .env("CLASSIC_LAUNCHER_GAMES_DIR", games_dir);
+    let mut cmd = Command::cargo_bin("reliquaint").unwrap();
+    cmd.env("RELIQUAINT_REPO_ROOT", fixture_root())
+       .env("RELIQUAINT_GAMES_DIR", games_dir);
     cmd
 }
 

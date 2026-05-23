@@ -48,7 +48,7 @@
 
 <div class="app">
   <header>
-    <h1>Classic Launcher</h1>
+    <h1>Reliquaint</h1>
     <div class="header-actions">
       <FilterBar bind:filter />
       <button class="doctor-btn" on:click={toggleCatalog}>

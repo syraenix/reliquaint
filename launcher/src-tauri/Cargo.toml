@@ -1,16 +1,16 @@
 [package]
-name = "classic-launcher"
+name = "reliquaint"
 version = "0.1.0"
 edition = "2021"
 description = "Launch classic DOS and Amiga games"
 license = "MIT"
 
 [[bin]]
-name = "classic-launcher"
+name = "reliquaint"
 path = "src/main.rs"
 
 [lib]
-name = "classic_launcher"
+name = "reliquaint"
 path = "src/lib.rs"
 
 [dependencies]

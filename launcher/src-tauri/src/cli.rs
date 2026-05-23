@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "classic-launcher", about = "Launch classic games from manifests")]
+#[command(name = "reliquaint", about = "Launch classic games from manifests")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -49,7 +49,7 @@ pub fn run() -> ExitCode {
 }
 
 fn resolve_repo_root() -> Option<PathBuf> {
-    if let Ok(r) = std::env::var("CLASSIC_LAUNCHER_REPO_ROOT") {
+    if let Ok(r) = std::env::var("RELIQUAINT_REPO_ROOT") {
         return Some(PathBuf::from(r));
     }
     let cwd = std::env::current_dir().ok()?;
@@ -57,7 +57,7 @@ fn resolve_repo_root() -> Option<PathBuf> {
 }
 
 fn resolve_games_base() -> PathBuf {
-    if let Ok(base) = std::env::var("CLASSIC_LAUNCHER_GAMES_DIR") {
+    if let Ok(base) = std::env::var("RELIQUAINT_GAMES_DIR") {
         return PathBuf::from(base);
     }
     expand_tilde("~/games")
