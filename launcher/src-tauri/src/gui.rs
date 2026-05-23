@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 pub fn run_gui() {
     crate::logging::init_gui();
+    crate::error::install_panic_hook();
     let repo_root = resolve_repo_root().unwrap_or_else(|| {
         eprintln!("warning: cannot locate repo root; set RELIQUAINT_REPO_ROOT");
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))

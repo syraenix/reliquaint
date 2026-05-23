@@ -34,6 +34,7 @@ enum Commands {
 pub fn run() -> ExitCode {
     let cli = Cli::parse();
     crate::logging::init_cli(cli.verbose);
+    crate::error::install_panic_hook();
 
     let repo_root = match resolve_repo_root() {
         Some(r) => r,
