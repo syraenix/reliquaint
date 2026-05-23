@@ -5,6 +5,7 @@ pub mod doctor;
 pub mod game_install;
 pub mod gui;
 pub mod installer;
+pub mod logging;
 pub mod manifest;
 pub mod paths;
 pub mod runner;

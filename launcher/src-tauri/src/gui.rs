@@ -4,6 +4,7 @@ use crate::paths::expand_tilde;
 use std::path::PathBuf;
 
 pub fn run_gui() {
+    crate::logging::init_gui();
     let repo_root = resolve_repo_root().unwrap_or_else(|| {
         eprintln!("warning: cannot locate repo root; set RELIQUAINT_REPO_ROOT");
         std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))

@@ -9,6 +9,11 @@ use std::process::ExitCode;
 #[derive(Parser)]
 #[command(name = "reliquaint", about = "Launch classic games from manifests")]
 struct Cli {
+    /// Increase log verbosity. `-v` enables DEBUG, `-vv` enables TRACE.
+    /// `RUST_LOG`, if set, overrides this.
+    #[arg(short, long, action = clap::ArgAction::Count, global = true)]
+    verbose: u8,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -28,6 +33,7 @@ enum Commands {
 
 pub fn run() -> ExitCode {
     let cli = Cli::parse();
+    crate::logging::init_cli(cli.verbose);
 
     let repo_root = match resolve_repo_root() {
         Some(r) => r,
@@ -64,7 +70,10 @@ fn resolve_games_base() -> PathBuf {
 }
 
 fn cmd_list(repo_root: &Path, games_base: &Path) -> ExitCode {
+    tracing::info!(repo_root = %repo_root.display(), "listing installed games");
+    tracing::trace!(games_base = %games_base.display(), "resolved games base");
     let mut entries = discover_installed(repo_root, games_base);
+    tracing::debug!(count = entries.len(), "discovered installed entries");
     entries.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
     for e in &entries {
         let platform = format!("{:?}", e.manifest.platform).to_lowercase();
