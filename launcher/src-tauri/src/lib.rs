@@ -13,3 +13,4 @@ pub mod manifest;
 pub mod paths;
 pub mod runner;
 pub mod setup;
+pub mod tap;

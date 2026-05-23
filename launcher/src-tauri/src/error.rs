@@ -28,6 +28,9 @@ pub enum ReliquaintError {
 
     #[error(transparent)]
     Install(#[from] crate::install_record::InstallError),
+
+    #[error(transparent)]
+    Tap(#[from] crate::tap::TapError),
 }
 
 /// Install a panic hook that prints a "please file a bug" banner before
