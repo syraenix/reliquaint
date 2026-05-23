@@ -25,6 +25,9 @@
 pub enum ReliquaintError {
     #[error(transparent)]
     Catalog(#[from] crate::catalog::CatalogError),
+
+    #[error(transparent)]
+    Install(#[from] crate::install_record::InstallError),
 }
 
 /// Install a panic hook that prints a "please file a bug" banner before
