@@ -4,81 +4,101 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A documentation repository with step-by-step Markdown guides, DOSBox Staging `.conf` files, TOML game manifests, a Rust CLI (`classic-launcher`), and a Tauri 2 GUI for installing and running classic DOS and Amiga games on Debian-based Linux. Active collections: Quest for Glory 1–4, King's Quest 1–6 (DOS via DOSBox Staging), and Amiga games (via FS-UAE).
+The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories — with the bundled `reliquaint-core` tap at `tap/` (12 entries: 5 QFG, 6 KQ, 1 Amiga).
+
+## Design docs
+
+Read before non-trivial changes:
+
+- `docs/prd.md` — product vision, problem, goals/non-goals, users, scope phases
+- `docs/schema.md` — TOML schemas for catalog entries, install records, tap metadata, user config
+- `docs/adr-0001-two-layer-manifest-model.md` — shippable catalog vs per-user install records
+- `docs/adr-0002-split-dosbox-config-model.md` — shipped `.conf` carries no `[autoexec]`; composed at launch
+- `docs/adr-0003-tap-based-distribution.md` — community-maintainable tap repos
+- `docs/adr-0004-logging-strategy.md` — `tracing` ecosystem; CLI + GUI share one instrumentation API
+- `docs/adr-0005-error-handling-strategy.md` — `thiserror` in library, `anyhow` in binaries
+
+`docs/v0.1-tasks.md` is the historical roadmap kept for context; all v0.1 tasks have shipped.
 
 ## Repository layout
 
-- `README.md`, `docs/prerequisites.md` — top-level entry points. Prerequisites cover DOSBox Staging (Flatpak), FluidSynth, innoextract, FS-UAE, and the Rust toolchain.
-- `config/default-dosbox-staging.conf` — reference/baseline DOSBox Staging config.
-- `launcher/` — Rust workspace + Svelte/Tauri frontend for `classic-launcher`.
-  - `launcher/src-tauri/` — Rust crate (CLI + Tauri backend). Modules: `cli`, `commands`, `discovery`, `doctor`, `game_install` (per-collection installable-game catalog), `gui`, `installer` (runs install shell-outs and streams output), `manifest`, `paths`, `runner`, `setup` (host-dependency install actions for apt + flatpak, keyed off distro detection).
-  - `launcher/src/` — Svelte frontend components.
-  - `launcher/src-tauri/tauri.conf.json` — Tauri 2 configuration.
-  - Tauri is always compiled in. Running with no args opens the GUI; running with a subcommand (`list`/`run`/`doctor`) stays CLI.
-  - Build: `cargo build` (CLI) or `pnpm tauri dev` / `pnpm tauri build` (GUI), both from `launcher/`. Install CLI: `cargo install --path launcher/src-tauri`.
-- `dos/<game-collection>/` — one directory per DOS game collection. Active: `dos/quest-for-glory/` and `dos/kings-quest/`. Each follows this shape:
-  - `<collection>.md` — the user-facing guide; source of truth that everything else supports.
-  - `manifests/<id>.toml` — per-game TOML manifest (id, title, platform, config path, sidecars, expects_dir).
-  - `scripts/extract-installers.sh` — QFG only. Extracts GOG `.exe` installers into `~/games/` using `innoextract`.
-  - `config/<game>.conf` — per-game DOSBox Staging config. The `[autoexec]` section mounts the game directory and launches the executable.
-  - `installers/` — user drops GOG `.exe` files here (QFG only). Gitignored.
-  - `games/` — present in `dos/kings-quest/` to hold Steam-sourced game files (gitignored).
-  - `img/` — screenshots embedded in the guide.
-- `amiga/` — Amiga collection. `amiga.md` is the guide; `manifests/<id>.toml` for each game (currently `fatman.toml`; `example.toml.disabled` is the off-by-default template); `config/a500.fs-uae` and `config/a1200.fs-uae` for model templates.
+- `README.md`, `CONTRIBUTING.md`, `docs/prerequisites.md` — front door.
+- `docs/` — design docs.
+- `config/default-dosbox-staging.conf` — reference DOSBox config used as a starting point for per-entry `.conf` files.
+- `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` / `<id>.fs-uae` — the bundled `reliquaint-core` tap. Tests use the smaller fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
+- `scripts/extract-installers.sh` — extracts QFG GOG installers into `~/games/`.
+- `dos/<game-collection>/`, `amiga/` — collection guide markdown + screenshots. Originally also held the pre-redesign per-game manifests and configs; those migrated into the tap in Milestone 6. The guide prose becomes companion content in v0.4 per ADR-0003. The gitignored `installers/` (QFG) and `games/` (KQ) subdirectories stay put.
+- `launcher/` — Rust workspace + Svelte/Tauri frontend.
+
+### Rust modules (`launcher/src-tauri/src/`)
+
+- `catalog`, `install_record`, `tap` — TOML parsers matching `docs/schema.md`.
+- `catalog_view` — joins loaded taps with install records into a single browsable view.
+- `launch` — composes `LaunchPlan` (program + args + sidecars) from `(CatalogEntry, InstallRecord, UserConfig)`.
+- `sidecar` — spawns the plan; SIGTERM/grace/SIGKILL sidecar shutdown; `run_plan_with_callback` streams primary stdout/stderr line-by-line (used by the GUI diagnostic panel).
+- `user_config` — `${XDG_CONFIG_HOME}/reliquaint/config.toml` with Debian-friendly defaults.
+- `doctor::check_install` — host + per-install diagnostics; reuses `ProbeKind`/`ProbeStatus`/`ProbeResult`.
+- `paths` — XDG locations and `find_repo_root` heuristic (recognizes either `tap/tap.toml` or legacy `dos/+amiga/` directory markers).
+- `cli` — `reliquaint list/run/install/doctor`.
+- `commands` — Tauri command handlers: `list_catalog`, `install_game`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
+- `gui` — Tauri builder, `AppState`, AppHandle wiring (drives the `logging::TauriBridgeLayer` so tracing events flow to the diagnostic panel).
+- `logging` (ADR-0004), `error` (ADR-0005).
+- `setup`, `installer` — host-dependency install actions backing the `install_dependency` Tauri command (apt + flatpak, distro-detected).
+
+### Svelte components (`launcher/src/components/`)
+
+`App.svelte` (root) → `FilterBar`, `GameGrid`, `GameCard`, `GameDetail`, `DiagnosticPanel`, `DoctorPanel`.
+
+### Entry-point dispatch
+
+`main.rs` routes by argument presence: a bare `reliquaint` (no arguments) opens the GUI; any arguments are handed to `cli::run()`, where Clap owns parsing, the required-subcommand check, global flags (`-v`/`--verbose`, `--help`, `--version`), and error reporting. Tauri is always compiled in.
 
 ## Conventions when editing
 
-- The guide Markdown is the product. Manifests and `.conf` files exist to make the guide reproducible — keep IDs, directory names, config paths, and guide commands in sync (e.g. if a manifest declares `expects_dir = "~/games/qfg1-ega"`, the `.conf` mount line and the guide's setup instruction must match).
-- Per-game `.conf` files diverge from `config/default-dosbox-staging.conf` deliberately (e.g. `cycles=fixed N`, MIDI routing to FluidSynth via `midiconfig=128:0`, scaler choice). Don't normalize them to the default.
-- Manifests assume FluidSynth's soundfont is at `/usr/share/sounds/sf2/FluidR3_GM.sf2` (the Debian `fluid-soundfont-gm` path). Keep that consistent in new manifests.
-- The repo is Linux-only (Flatpak DOSBox Staging, apt-installed FluidSynth/innoextract/FS-UAE). Don't add Windows/macOS branches unless asked.
+- New backend code uses `tracing` per ADR-0004 and `thiserror`/`anyhow` per ADR-0005. Library modules return `thiserror` enums and don't log errors on the way up; binary entry points (`main.rs`, `gui.rs`, Tauri commands) use `anyhow::Result` and own all user-facing error formatting.
+- **Path resolution:** XDG resolution lives in `paths.rs` only — don't reference `.local/share` or `.config` literals from other modules. New app-owned paths get added there.
+- FluidSynth's soundfont path defaults to `/usr/share/sounds/sf2/FluidR3_GM.sf2` (Debian `fluid-soundfont-gm`). Override via `[sidecars.fluidsynth].soundfont` in the user config.
+- The repo is Linux-only (Flatpak DOSBox Staging, apt-installed FluidSynth/FS-UAE). Don't add Windows/macOS branches unless asked.
+- Per-entry `.conf` files in the tap diverge from `config/default-dosbox-staging.conf` deliberately (cycles, MIDI routing, scalers). Don't normalize them to the default.
 
 ## Common operations
 
-### Install game files
+### CLI
 
-- Extract GOG installers (after dropping `.exe` files into `dos/quest-for-glory/installers/`):
-  ```bash
-  cd dos/quest-for-glory/scripts
-  chmod +x ./extract-installers.sh
-  ./extract-installers.sh
-  ```
+```bash
+reliquaint list                            # browse the catalog
+reliquaint list --platform dos --installed
+reliquaint list --format json              # for scripting
+reliquaint install qfg1-ega ~/games/qfg1-ega
+reliquaint migrate-installs                # bulk-register from ~/games/<id>/
+reliquaint run qfg1-ega --dry-run          # print the resolved command
+reliquaint run qfg1-ega
+reliquaint doctor                          # host + per-install diagnostics
+reliquaint -v list                         # DEBUG-level tracing to stderr
+RUST_LOG=trace reliquaint list             # TRACE
+```
 
-### Launch and inspect
-
-- Launch a game:
-  ```bash
-  classic-launcher run qfg1-ega
-  classic-launcher run kq1sci
-  ```
-- Dry-run (preview the command without launching):
-  ```bash
-  classic-launcher run qfg1-ega --dry-run
-  ```
-- List all available games:
-  ```bash
-  classic-launcher list
-  ```
-- Check host dependencies and install-dir status:
-  ```bash
-  classic-launcher doctor
-  ```
-- Launch DOSBox Staging directly with a specific config (useful when iterating on a `.conf`):
-  ```bash
-  flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
-  ```
+**Env vars (development / testing):**
+- `RELIQUAINT_REPO_ROOT` — override where the launcher searches for the bundled tap.
+- `RELIQUAINT_INSTALLS_DIR` — override `paths::installs_dir()` (test isolation).
+- `RELIQUAINT_USER_CONFIG_PATH` — override `paths::user_config_path()` (test isolation).
 
 ### Develop the launcher
 
-- Run the launcher test suite (no Node.js required):
-  ```bash
-  cd launcher && cargo test
-  ```
-- Run the GUI in development mode (requires Node.js + pnpm + Tauri system libs):
-  ```bash
-  cd launcher && pnpm install && pnpm tauri dev
-  ```
-- Build the GUI for release:
-  ```bash
-  cd launcher && pnpm tauri build
-  ```
+```bash
+cd launcher && cargo test                  # 100+ unit + 24 integration tests
+cd launcher && cargo build --bin reliquaint
+cd launcher && pnpm install && pnpm tauri dev   # GUI dev (Node + pnpm + Tauri system libs)
+cd launcher && pnpm tauri build            # release build
+cargo install --path launcher/src-tauri    # install the binary on PATH
+```
+
+### Iterate on a per-game `.conf`
+
+Edit the file under `tap/catalog/<platform>/<id>.conf`, then launch DOSBox Staging directly:
+
+```bash
+flatpak run io.github.dosbox-staging -conf tap/catalog/dos/<id>.conf
+```
+
+Once it feels right, `reliquaint run <id>` composes the launch with the user's install path and any sidecars.

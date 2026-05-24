@@ -1,28 +1,32 @@
 [package]
-name = "classic-launcher"
+name = "reliquaint"
 version = "0.1.0"
 edition = "2021"
 description = "Launch classic DOS and Amiga games"
-license = "MIT"
+license = "MPL-2.0"
 
 [[bin]]
-name = "classic-launcher"
+name = "reliquaint"
 path = "src/main.rs"
 
 [lib]
-name = "classic_launcher"
+name = "reliquaint"
 path = "src/lib.rs"
 
 [dependencies]
-clap        = { version = "4.5", features = ["derive"] }
-serde       = { version = "1.0", features = ["derive"] }
-toml        = "0.8"
-anyhow      = "1.0"
-thiserror   = "1.0"
-shellexpand = "3.1"
-zip         = "0.6"
-tempfile    = "3.10"
-tauri       = { version = "2", features = ["protocol-asset"] }
+clap                = { version = "4.5", features = ["derive"] }
+serde               = { version = "1.0", features = ["derive"] }
+serde_json          = "1.0"
+toml                = "0.8"
+anyhow              = "1.0"
+thiserror           = "1.0"
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
+libc                = "0.2"
+shellexpand         = "3.1"
+zip                 = "0.6"
+tempfile            = "3.10"
+tauri               = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 
 [build-dependencies]

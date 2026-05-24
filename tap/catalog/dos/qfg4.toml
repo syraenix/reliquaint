@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "qfg4"
+title      = "Quest for Glory IV: Shadows of Darkness"
+platform   = "dos"
+collection = "quest-for-glory"
+
+[meta]
+year        = 1993
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure", "rpg"]
+tags        = ["sierra", "sci", "gothic", "point-and-click", "voice-acted"]
+description = "Gothic horror entry set in the fictional Mordavia. Originally CD-only with full voice acting by John Rhys-Davies as the narrator."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/quest_for_glory_15"
+notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
+
+[install]
+expects_files = ["sierra.exe", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "qfg4.conf"
+entry  = "sierra.exe"
+mount  = "c"

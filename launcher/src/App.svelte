@@ -5,31 +5,23 @@
   import GameGrid from "./components/GameGrid.svelte";
   import GameDetail from "./components/GameDetail.svelte";
   import DoctorPanel from "./components/DoctorPanel.svelte";
-  import CatalogPanel from "./components/CatalogPanel.svelte";
 
-  let games = [];
+  let catalog = [];
   let filter = "all";
-  let selectedGame = null;
+  let selectedId = null;
   let loading = true;
   let error = null;
   let doctorOpen = false;
-  let catalogOpen = false;
 
   function toggleDoctor() {
     doctorOpen = !doctorOpen;
-    if (doctorOpen) catalogOpen = false;
   }
 
-  function toggleCatalog() {
-    catalogOpen = !catalogOpen;
-    if (catalogOpen) doctorOpen = false;
-  }
-
-  async function loadGames() {
+  async function loadCatalog() {
     loading = true;
     error = null;
     try {
-      games = await invoke("list_games");
+      catalog = await invoke("list_catalog");
     } catch (e) {
       error = String(e);
     } finally {
@@ -38,23 +30,24 @@
   }
 
   onMount(() => {
-    loadGames();
-    window.addEventListener("focus", loadGames);
-    return () => window.removeEventListener("focus", loadGames);
+    loadCatalog();
   });
 
-  $: filtered = games.filter((g) => filter === "all" || g.platform === filter);
+  $: filtered = catalog.filter((g) => filter === "all" || g.platform === filter);
+  $: selectedGame = selectedId
+    ? catalog.find((g) => g.id === selectedId) ?? null
+    : null;
 </script>
 
 <div class="app">
   <header>
-    <h1>Classic Launcher</h1>
+    <h1>Reliquaint</h1>
     <div class="header-actions">
       <FilterBar bind:filter />
-      <button class="doctor-btn" on:click={toggleCatalog}>
-        {catalogOpen ? "✕ Add Game" : "+ Add Game"}
+      <button class="header-btn" on:click={loadCatalog} title="Refresh catalog">
+        ↻
       </button>
-      <button class="doctor-btn" on:click={toggleDoctor}>
+      <button class="header-btn" on:click={toggleDoctor}>
         {doctorOpen ? "✕ Doctor" : "⚕ Doctor"}
       </button>
     </div>
@@ -62,18 +55,24 @@
 
   {#if doctorOpen}
     <DoctorPanel />
-  {:else if catalogOpen}
-    <CatalogPanel />
   {:else if selectedGame}
-    <GameDetail game={selectedGame} on:back={() => (selectedGame = null)} />
+    <GameDetail
+      game={selectedGame}
+      on:back={() => (selectedId = null)}
+      on:installed={loadCatalog}
+    />
   {:else if loading}
-    <div class="status">Loading games…</div>
+    <div class="status">Loading catalog…</div>
   {:else if error}
-    <div class="status error">Error loading games: {error}</div>
-  {:else if games.length === 0}
-    <div class="status">No games installed. Click <strong>+ Add Game</strong> to install one.</div>
+    <div class="status error">Error loading catalog: {error}</div>
+  {:else if catalog.length === 0}
+    <div class="status">
+      Catalog is empty.
+      <br />
+      <small>The bundled tap may not be present at this repo root.</small>
+    </div>
   {:else}
-    <GameGrid games={filtered} on:select={(e) => (selectedGame = e.detail)} />
+    <GameGrid games={filtered} on:select={(e) => (selectedId = e.detail.id)} />
   {/if}
 </div>
 
@@ -108,7 +107,7 @@
     gap: 12px;
   }
 
-  .doctor-btn {
+  .header-btn {
     background: #252538;
     border: 1px solid #3a3a55;
     color: #a0a8ff;
@@ -118,17 +117,26 @@
     font-size: 0.85rem;
   }
 
-  .doctor-btn:hover {
+  .header-btn:hover {
     background: #2e2e4a;
   }
 
   .status {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     color: #888;
     font-size: 1rem;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .status small {
+    color: #555;
+    font-size: 0.85rem;
+    margin-top: 8px;
   }
 
   .error {
