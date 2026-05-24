@@ -15,3 +15,4 @@ pub mod paths;
 pub mod runner;
 pub mod setup;
 pub mod tap;
+pub mod user_config;

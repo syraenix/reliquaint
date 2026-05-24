@@ -31,6 +31,9 @@ pub enum ReliquaintError {
 
     #[error(transparent)]
     Tap(#[from] crate::tap::TapError),
+
+    #[error(transparent)]
+    UserConfig(#[from] crate::user_config::ConfigError),
 }
 
 /// Install a panic hook that prints a "please file a bug" banner before
