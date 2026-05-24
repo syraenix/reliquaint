@@ -1,9 +1,11 @@
 use crate::catalog::Platform;
 use crate::catalog_view::{CatalogView, CatalogViewEntry};
-use crate::discovery::{find_by_id, find_repo_root};
+use crate::discovery::find_repo_root;
 use crate::doctor::{run_all, ProbeStatus};
+use crate::launch;
 use crate::paths::expand_tilde;
-use crate::runner::{run as launch, RunOpts};
+use crate::sidecar;
+use crate::user_config;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -27,10 +29,9 @@ enum Commands {
     /// Launch a game by its catalog id.
     Run {
         id: String,
+        /// Print the resolved command without spawning the emulator.
         #[arg(long)]
         dry_run: bool,
-        #[arg(long)]
-        windowed: bool,
     },
     /// Run host-dependency and install-record diagnostics.
     Doctor,
@@ -91,11 +92,10 @@ pub fn run() -> ExitCode {
             Ok(view) => cmd_list(&view, &opts),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Run {
-            id,
-            dry_run,
-            windowed,
-        } => cmd_run(&repo_root, &games_base, &id, dry_run, windowed),
+        Commands::Run { id, dry_run } => match load_view(&repo_root) {
+            Ok(view) => cmd_run(&view, &id, dry_run),
+            Err(()) => ExitCode::FAILURE,
+        },
         Commands::Doctor => cmd_doctor(&repo_root, &games_base),
     }
 }
@@ -253,27 +253,65 @@ fn print_json(entries: &[&CatalogViewEntry]) -> Result<(), serde_json::Error> {
     Ok(())
 }
 
-// --- Legacy commands (still backed by the old code path; Tasks 4.2 and
-// 4.4 will rewrite them against the new model in subsequent commits).
-
-fn cmd_run(repo_root: &Path, games_base: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCode {
-    match find_by_id(repo_root, id) {
+fn cmd_run(view: &CatalogView, id: &str, dry_run: bool) -> ExitCode {
+    let entry = match view.by_id(id) {
+        Some(e) => e,
         None => {
-            eprintln!("error: no manifest found for id '{id}'");
-            ExitCode::FAILURE
+            eprintln!("error: no catalog entry for '{id}'");
+            eprintln!("hint: run 'reliquaint list' to see available ids.");
+            return ExitCode::FAILURE;
         }
-        Some((path, manifest)) => {
-            let opts = RunOpts { dry_run, windowed };
-            match launch(&path, &manifest, repo_root, games_base, &opts) {
-                Ok(code) => code,
-                Err(e) => {
-                    eprintln!("error: {e:#}");
-                    ExitCode::FAILURE
-                }
-            }
+    };
+
+    let install = match entry.install.as_ref() {
+        Some(i) => i,
+        None => {
+            eprintln!("error: '{id}' has no installation record");
+            eprintln!("hint: run 'reliquaint install {id} <path-to-game-files>' first.");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let user_config = user_config::load_or_default(&crate::paths::user_config_path());
+
+    let plan = match entry.catalog.game.platform {
+        Platform::Dos => {
+            launch::compose_dosbox(&entry.catalog, &entry.source_path, install, &user_config)
+        }
+        Platform::Amiga => {
+            launch::compose_fs_uae(&entry.catalog, &entry.source_path, install, &user_config)
+        }
+    };
+    let plan = match plan {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if dry_run {
+        for s in &plan.sidecars {
+            println!("[sidecar:{}] {}", s.name, s.command.display_line());
+        }
+        println!("[primary] {}", plan.primary.display_line());
+        return ExitCode::SUCCESS;
+    }
+
+    match sidecar::run_plan(plan) {
+        Ok(status) => match status.code() {
+            Some(code) if code >= 0 => ExitCode::from(code.min(255) as u8),
+            _ => ExitCode::FAILURE,
+        },
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
         }
     }
 }
+
+// --- Legacy commands (still backed by the old code path; Task 4.4 will
+// rewrite cmd_doctor against the new model in the next commit).
 
 fn cmd_doctor(repo_root: &Path, games_base: &Path) -> ExitCode {
     let results = run_all(repo_root, games_base);

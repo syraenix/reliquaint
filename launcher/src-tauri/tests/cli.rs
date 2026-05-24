@@ -7,12 +7,18 @@ fn fixture_root() -> PathBuf {
 }
 
 /// Build a `reliquaint` invocation pointed at the fixture tap with an
-/// isolated installs directory. The caller may pre-populate the
-/// installs dir to set up "installed" entries.
+/// isolated installs directory and a deliberately-missing user config
+/// (so the launcher uses defaults rather than picking up the developer's
+/// real ~/.config/reliquaint/config.toml). The caller may pre-populate
+/// the installs dir to set up "installed" entries.
 fn launcher(installs_dir: &Path) -> Command {
     let mut cmd = Command::cargo_bin("reliquaint").unwrap();
     cmd.env("RELIQUAINT_REPO_ROOT", fixture_root())
-        .env("RELIQUAINT_INSTALLS_DIR", installs_dir);
+        .env("RELIQUAINT_INSTALLS_DIR", installs_dir)
+        .env(
+            "RELIQUAINT_USER_CONFIG_PATH",
+            installs_dir.join("nonexistent-config.toml"),
+        );
     cmd
 }
 
@@ -126,6 +132,81 @@ fn list_installed_and_not_installed_are_mutually_exclusive() {
         .failure()
         .stderr(contains("cannot be used with"));
 }
+
+// --- run tests -----------------------------------------------------------
+
+#[test]
+fn run_unknown_id_fails_with_hint() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["run", "nonexistent-game"])
+        .assert()
+        .failure()
+        .stderr(contains("no catalog entry"))
+        .stderr(contains("reliquaint list"));
+}
+
+#[test]
+fn run_without_install_record_fails_with_install_hint() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["run", "qfg1-ega"])
+        .assert()
+        .failure()
+        .stderr(contains("no installation record"))
+        .stderr(contains("reliquaint install qfg1-ega"));
+}
+
+#[test]
+fn run_dos_dry_run_prints_primary_and_fluidsynth_sidecar() {
+    let installs = tempfile::tempdir().unwrap();
+    write_install_record(installs.path(), "qfg1-ega", "/home/test/games/qfg1-ega");
+
+    let output = launcher(installs.path())
+        .args(["run", "qfg1-ega", "--dry-run"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    assert!(
+        output.status.success(),
+        "dry-run should succeed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("[sidecar:fluidsynth]"),
+        "missing sidecar line: {stdout}"
+    );
+    assert!(stdout.contains("[primary]"), "missing primary line: {stdout}");
+    assert!(stdout.contains("flatpak"), "primary should use flatpak: {stdout}");
+    assert!(stdout.contains("io.github.dosbox-staging"), "missing dosbox id: {stdout}");
+    assert!(stdout.contains("SIERRA.BAT"), "missing entry command: {stdout}");
+    assert!(
+        stdout.contains("/home/test/games/qfg1-ega"),
+        "missing install path: {stdout}"
+    );
+}
+
+#[test]
+fn run_amiga_dry_run_prints_primary_with_no_sidecars() {
+    let installs = tempfile::tempdir().unwrap();
+    write_install_record(installs.path(), "fatman", "/home/test/games/fatman");
+
+    let output = launcher(installs.path())
+        .args(["run", "fatman", "--dry-run"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(!stdout.contains("[sidecar:"), "fatman should have no sidecars: {stdout}");
+    assert!(stdout.contains("[primary]"));
+    assert!(stdout.contains("fs-uae"));
+    assert!(stdout.contains("--amiga_model=A500"));
+    assert!(stdout.contains("--floppy_drive_0=/home/test/games/fatman/fatman.adf"));
+}
+
+// --- list tests (continued) ----------------------------------------------
 
 #[test]
 fn list_format_json_emits_valid_array() {
