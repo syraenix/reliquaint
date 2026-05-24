@@ -17,51 +17,66 @@ Reading order before any task: PRD → ADR-0001 → ADR-0002 → ADR-0003 → AD
 
 ## Project Structure & Module Organization
 
-This repository is a documentation project plus a Rust + Tauri launcher (`reliquaint`) for running classic DOS and Amiga games on Linux.
+This repository is a Rust + Tauri launcher (`reliquaint`) for running classic DOS and Amiga games on Linux, plus accompanying documentation and a bundled tap of catalog entries (the latter populated in Milestone 6).
 
-**Shared / top-level.** Top-level docs live in `README.md` and `docs/prerequisites.md`. Shared DOSBox configuration lives in `config/default-dosbox-staging.conf`, and shared images live in `img/`. The launcher crate and Svelte/Tauri frontend live under `launcher/` (Rust crate at `launcher/src-tauri/`, frontend at `launcher/src/`).
+**Top-level.** `README.md` and `docs/prerequisites.md` cover the front door; `docs/` carries the design docs listed in "Redesign in progress" above. Shared DOSBox baseline at `config/default-dosbox-staging.conf`. Shared images in `img/`. The launcher crate and Svelte/Tauri frontend live under `launcher/` (Rust crate at `launcher/src-tauri/`, frontend at `launcher/src/`).
 
-**DOS collections.** Organized under `dos/<game-collection>/`. Active collections are `dos/quest-for-glory/` (GOG offline installers, extracted with `innoextract`) and `dos/kings-quest/` (Steam, files copied directly from the Steam install). Both follow the same layout: user guide, per-game DOSBox `.conf` files in `config/`, per-game TOML manifests in `manifests/`, screenshots in `img/`, and gitignored source files in `installers/` (QFG) or `games/` (KQ). The `dos/quest-for-glory/scripts/` directory still holds `extract-installers.sh`.
+**Bundled tap (post-Milestone-6).** `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` (DOS) or `<id>.fs-uae` (Amiga). See `docs/schema.md`. Until Milestone 6 lands, the only on-disk tap is the fixture at `launcher/src-tauri/tests/fixtures/tap/`.
 
-**Amiga collection.** `amiga/amiga.md` is the guide; per-game manifests live in `amiga/manifests/` (currently `fatman.toml`; `example.toml.disabled` is the off-by-default template); FS-UAE model templates live in `amiga/config/` (`a500.fs-uae`, `a1200.fs-uae`). Amiga games launch via FS-UAE rather than DOSBox Staging.
+**Legacy collection directories (`dos/quest-for-glory/`, `dos/kings-quest/`, `amiga/`).** Hold the in-progress migration source material — guide markdown, per-game configs, screenshots, gitignored installer/games directories. Their `manifests/` subdirectories were the old data model and have been removed; the per-game `config/` `.conf` files are migrated entry-by-entry in Milestone 6.
 
-> **Migrating away from this layout.** The per-collection `manifests/` and `config/` directories are being replaced by a tap-based catalog at `tap/catalog/<platform>/` per `docs/v0.1-tasks.md` Milestone 6. Do not add new per-collection manifests; wait for the new schema to land or add directly under the new layout once it exists.
+**Rust modules** (`launcher/src-tauri/src/`):
+
+- `catalog`, `install_record`, `tap` — TOML parsers + types matching the schema doc.
+- `catalog_view` — joins one or more loaded taps with install records into a single browsable view.
+- `launch` — composes `LaunchPlan` (program + args + sidecars) from a catalog entry, install record, and user config.
+- `sidecar` — spawns the plan, supervises sidecars (SIGTERM → grace → SIGKILL), streams primary stdout/stderr to a callback when needed.
+- `user_config` — parses `${XDG_CONFIG_HOME}/reliquaint/config.toml` with Debian-friendly defaults.
+- `doctor::check_install` — host + per-install diagnostics.
+- `paths` — XDG-aware locations (`tap_root`, `installs_dir`, `user_config_path`) plus `find_repo_root` heuristic.
+- `cli` — the `reliquaint list/run/install/doctor` subcommands.
+- `commands` — Tauri command handlers (`list_catalog`, `install_game`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`).
+- `gui` — Tauri builder, AppState, AppHandle wiring.
+- `logging` (ADR-0004), `error` (ADR-0005) — instrumentation and panic hook foundation.
+- `setup`, `installer` — host-dependency install actions (`install_dependency` Tauri command, apt/flatpak chains).
+
+**Svelte components** (`launcher/src/components/`):
+
+- `App.svelte` — root: header + catalog grid + Doctor panel toggle.
+- `FilterBar`, `GameGrid`, `GameCard`, `GameDetail` — catalog browser and per-entry detail.
+- `DiagnosticPanel` — live tracing events + emulator stdout/stderr stream.
+- `DoctorPanel` — host + install diagnostics with "Fix this" buttons for actionable items.
 
 ## Build, Test, and Development Commands
 
-The Rust launcher under `launcher/` has its own test suite (`cd launcher && cargo test`). The Markdown guides and `.conf` / manifest files have no build step. Useful validation commands:
-
 ```bash
 git status --short
-find . -path './.git' -prune -o -type f -print | sort
-cd dos/quest-for-glory/scripts && ./extract-installers.sh
-reliquaint list
-reliquaint doctor
+cd launcher && cargo test          # 100+ unit + 24 integration tests
+cd launcher && cargo build --bin reliquaint
+cd launcher && pnpm tauri dev      # requires Node + pnpm + GTK/webkit
+reliquaint list                    # browse the catalog
+reliquaint doctor                  # host + install diagnostics
+reliquaint install qfg1-ega ~/games/qfg1-ega
 reliquaint run qfg1-ega --dry-run
 reliquaint run qfg1-ega
-reliquaint run kq1sci
-flatpak run io.github.dosbox-staging -conf dos/quest-for-glory/config/qfg1-ega.conf
-cd launcher && cargo test
 ```
 
-Environment overrides (rename in progress): `RELIQUAINT_REPO_ROOT` points the binary at a specific repo root; `RELIQUAINT_GAMES_DIR` overrides the default `~/games` base (the latter becomes vestigial once the install-record model from ADR-0001 lands).
-
-Use `extract-installers.sh` only after placing renamed GOG installers such as `qfg1.exe` and `qfg2.exe` in the collection’s `installers/` directory.
+**Env vars** (development / testing):
+- `RELIQUAINT_REPO_ROOT` — override where `find_repo_root` would land (used by integration tests).
+- `RELIQUAINT_INSTALLS_DIR` — override `paths::installs_dir()` (isolated state for tests).
+- `RELIQUAINT_USER_CONFIG_PATH` — override `paths::user_config_path()` (so tests don't pick up the dev's real config).
+- `RUST_LOG` — overrides the CLI `-v`/`-vv` verbosity flags.
 
 ## Coding Style & Naming Conventions
 
-Keep Markdown concise and task-oriented. Use relative links that match the current `dos/<collection>/` nesting, and keep guide commands synchronized with script names, config filenames, and output directories.
+Lowercase-hyphenated ids for games (e.g. `qfg1-vga`), taps, and collections. Catalog entries shipped as TOML following `docs/schema.md`. New backend code follows `tracing` (ADR-0004) and `thiserror`-in-library / `anyhow`-in-binaries (ADR-0005). Library code does not log errors on the way up — it returns them; the binary layer decides how to surface.
 
-Games are launched via `reliquaint run <id>` (installed from `launcher/src-tauri`). The manifest for each game lives at `dos/<collection>/manifests/<id>.toml` or `amiga/manifests/<id>.toml` (today's layout; being migrated — see "Redesign in progress" above). Use lowercase, hyphenated names for game directories, manifest IDs, and config files, for example `qfg1-vga` and `qfg1-vga.conf`. FluidSynth and `/usr/share/sounds/sf2/FluidR3_GM.sf2` remain the Debian-assumed MIDI path; keep that consistent in any new manifests.
-
-**New backend conventions** (apply to new modules during the v0.1 redesign): use `tracing` for instrumentation per ADR-0004, and `thiserror` for library errors / `anyhow` at binary boundaries per ADR-0005. Library code does not log errors on the way up — it returns them; the binary layer decides how to surface.
+FluidSynth's soundfont path defaults to `/usr/share/sounds/sf2/FluidR3_GM.sf2` (Debian `fluid-soundfont-gm`). Override via `[sidecars.fluidsynth].soundfont` in the user config.
 
 ## Testing Guidelines
 
-Validate documentation changes by following the affected guide steps from a clean checkout when practical. For script or `.conf` changes, run the matching helper script or launch DOSBox Staging directly with the edited config. Confirm that screenshots and links resolve from the Markdown file where they are referenced.
+Most Rust modules carry unit tests inline. Integration tests at `launcher/src-tauri/tests/cli.rs` drive the binary end-to-end against the fixture tap. GUI behaviour is verified manually — run `pnpm tauri dev` from `launcher/`. Don't commit proprietary game installers or extracted game files.
 
 ## Commit & Pull Request Guidelines
 
-Recent commits use short, imperative summaries such as `Add installation steps for QFG2` and `Move quest-for-glory-collection under dos/`. Follow that style and keep each commit focused.
-
-Pull requests should describe the guide, script, or config changed; list any manual validation performed; and include screenshots only when installation screens or documented UI steps change. Do not commit proprietary game installers or extracted game files.
+One task per commit. Subject lines follow `feat(<area>): <short>` or `docs:` / `rename:` etc. Reference the milestone + task number in the body for design-docs-driven work. PRs describe the change, list manual validation performed, and include screenshots only when GUI behaviour visibly changes.

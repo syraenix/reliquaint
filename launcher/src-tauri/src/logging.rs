@@ -16,6 +16,9 @@
 //! - **Errors** — library code does not log errors; it returns them. The
 //!   binary layer decides where they go.
 
+use std::sync::{Mutex, OnceLock};
+
+use tauri::Emitter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 /// Initialize the global tracing subscriber for CLI invocations.
@@ -58,9 +61,21 @@ pub fn init_gui() {
         .try_init();
 }
 
-/// Stub layer that will forward tracing events to the Tauri frontend in
-/// Milestone 5. For now it's a no-op so the subscriber stack is fully
-/// composed and parser tasks can instrument freely.
+/// Global slot for the Tauri AppHandle. Set by [`set_gui_app_handle`]
+/// from `gui::run_gui::setup` once the app is built. Until then,
+/// `TauriBridgeLayer` events are dropped silently.
+static GUI_APP: OnceLock<Mutex<Option<tauri::AppHandle>>> = OnceLock::new();
+
+/// Register the Tauri `AppHandle` so subsequent tracing events fire as
+/// `"log"` events to the frontend. Called once during GUI startup.
+pub fn set_gui_app_handle(app: tauri::AppHandle) {
+    let cell = GUI_APP.get_or_init(|| Mutex::new(None));
+    *cell.lock().unwrap() = Some(app);
+}
+
+/// Tauri-side layer that turns each tracing event into a `"log"` event
+/// on the Tauri event bus. The frontend (DiagnosticPanel) listens and
+/// renders them in the diagnostic panel alongside emulator output.
 struct TauriBridgeLayer;
 
 impl TauriBridgeLayer {
@@ -75,11 +90,59 @@ where
 {
     fn on_event(
         &self,
-        _event: &tracing::Event<'_>,
+        event: &tracing::Event<'_>,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        // TODO(milestone-5): forward event payload to the frontend via
-        // tauri::AppHandle::emit() once the AppHandle is available here.
+        let Some(cell) = GUI_APP.get() else {
+            return;
+        };
+        let guard = match cell.lock() {
+            Ok(g) => g,
+            Err(_) => return,
+        };
+        let Some(app) = guard.as_ref() else {
+            return;
+        };
+
+        let level = match *event.metadata().level() {
+            tracing::Level::ERROR => "ERROR",
+            tracing::Level::WARN => "WARN",
+            tracing::Level::INFO => "INFO",
+            tracing::Level::DEBUG => "DEBUG",
+            tracing::Level::TRACE => "TRACE",
+        };
+        let mut visitor = EventVisitor::default();
+        event.record(&mut visitor);
+
+        let _ = app.emit(
+            "log",
+            serde_json::json!({
+                "level": level,
+                "target": event.metadata().target(),
+                "message": visitor.message,
+                "fields": visitor.fields,
+            }),
+        );
+    }
+}
+
+/// Pulls the `message` and structured fields out of a `tracing::Event`.
+#[derive(Default)]
+struct EventVisitor {
+    message: String,
+    fields: String,
+}
+
+impl tracing::field::Visit for EventVisitor {
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        if field.name() == "message" {
+            self.message = format!("{value:?}");
+        } else {
+            if !self.fields.is_empty() {
+                self.fields.push(' ');
+            }
+            self.fields.push_str(&format!("{}={value:?}", field.name()));
+        }
     }
 }
 

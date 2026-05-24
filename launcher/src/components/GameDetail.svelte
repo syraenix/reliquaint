@@ -1,7 +1,9 @@
 <script>
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import DiagnosticPanel from "./DiagnosticPanel.svelte";
 
   export let game;
   const dispatch = createEventDispatcher();
@@ -9,6 +11,8 @@
   let launching = false;
   let launchError = null;
   let launchExitedMessage = null;
+  let showDiagnostics = false;
+  let unlistenExit = null;
 
   let installing = false;
   let installError = null;
@@ -90,15 +94,36 @@
     launching = true;
     launchError = null;
     launchExitedMessage = null;
+    showDiagnostics = true;
     try {
+      // launch_game returns immediately after spawning a background
+      // thread. The frontend tracks lifecycle via "emulator-exit"
+      // events (wired up below).
       await invoke("launch_game", { id: game.id });
-      launchExitedMessage = "Session ended.";
     } catch (e) {
       launchError = String(e);
-    } finally {
       launching = false;
     }
   }
+
+  onMount(async () => {
+    unlistenExit = await listen("emulator-exit", (e) => {
+      const payload = e.payload || {};
+      if (payload.id !== game.id) return;
+      launching = false;
+      if (payload.error) {
+        launchError = payload.error;
+      } else if (payload.code === 0) {
+        launchExitedMessage = "Session ended.";
+      } else {
+        launchError = `emulator exited with code ${payload.code}`;
+      }
+    });
+  });
+
+  onDestroy(() => {
+    unlistenExit?.();
+  });
 </script>
 
 <div class="detail">
@@ -183,6 +208,12 @@
       {/if}
       {#if launchError}
         <p class="msg error">{launchError}</p>
+      {/if}
+
+      {#if showDiagnostics}
+        <div class="diagnostics">
+          <DiagnosticPanel />
+        </div>
       {/if}
     </div>
   </div>
@@ -409,6 +440,11 @@
   .error {
     background: #2e1a1a;
     color: #ff8080;
+  }
+
+  .diagnostics {
+    margin-top: 20px;
+    max-width: 100%;
   }
 
   .modal-overlay {
