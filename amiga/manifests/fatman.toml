@@ -1,8 +1,0 @@
-id         = "fatman"
-title      = "Fatman - The Caped Consumer"
-platform   = "amiga"
-collection = "amiga"
-
-[runtime]
-emulator = "fs-uae"
-model    = "a500"
