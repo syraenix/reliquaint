@@ -64,6 +64,12 @@ pub enum InstallError {
     )]
     UnsupportedSchema { path: PathBuf, version: u32 },
 
+    #[error(
+        "install_path {install_path} in {path} is not absolute (after ~ expansion); \
+         docs/schema.md requires an absolute path"
+    )]
+    NonAbsoluteInstallPath { path: PathBuf, install_path: PathBuf },
+
     #[error("cannot access {path}: {source}")]
     PathAccess {
         path: PathBuf,
@@ -221,6 +227,12 @@ pub fn parse_str(text: &str, path: &Path) -> Result<InstallRecord, InstallError>
             record.install.install_path = PathBuf::from(shellexpand::tilde(s).into_owned());
         }
     }
+    if !record.install.install_path.is_absolute() {
+        return Err(InstallError::NonAbsoluteInstallPath {
+            path: path.to_path_buf(),
+            install_path: record.install.install_path.clone(),
+        });
+    }
     Ok(record)
 }
 
@@ -371,6 +383,24 @@ installed_at = 2026-05-23T14:32:00Z
         let s = record.install.install_path.to_string_lossy();
         assert!(!s.starts_with('~'), "tilde should be expanded, got {s}");
         assert!(s.ends_with("/games/qfg1-ega"), "expanded path should retain tail, got {s}");
+    }
+
+    #[test]
+    fn rejects_relative_install_path() {
+        let text = r#"
+schema_version = 1
+
+[install]
+catalog_id   = "qfg1-ega"
+tap          = "reliquaint-core"
+install_path = "games/qfg1-ega"
+installed_at = 2026-05-23T14:32:00Z
+"#;
+        let err = parse_str(text, Path::new("test.toml")).unwrap_err();
+        assert!(
+            matches!(err, InstallError::NonAbsoluteInstallPath { .. }),
+            "relative install_path should be rejected, got {err:?}"
+        );
     }
 
     fn write_sample_record(dir: &Path, filename: &str, catalog_id: &str) {

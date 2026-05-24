@@ -162,6 +162,19 @@ pub enum CatalogError {
         platform: Platform,
         required: &'static str,
     },
+
+    #[error(
+        "invalid {field} {value:?} in {path}: must be a bare filename — no absolute paths, \
+         no `..`, no path separators (see docs/schema.md)"
+    )]
+    InvalidPathField {
+        path: PathBuf,
+        field: &'static str,
+        value: String,
+    },
+
+    #[error("invalid mount {value:?} in {path}: must be a single ASCII letter (see docs/schema.md)")]
+    InvalidMount { path: PathBuf, value: String },
 }
 
 /// Read and parse a catalog entry from disk.
@@ -232,7 +245,65 @@ fn validate(entry: &CatalogEntry, path: &Path) -> Result<(), CatalogError> {
             }
         }
     }
+
+    // Path fields the schema constrains to bare filenames (no absolute
+    // paths, no `..`, no separators) so a tap entry can never resolve
+    // outside its tap or install directory. See docs/schema.md.
+    let bare = |field, value: &str| -> Result<(), CatalogError> {
+        if is_bare_filename(value) {
+            Ok(())
+        } else {
+            Err(CatalogError::InvalidPathField {
+                path: path.to_path_buf(),
+                field,
+                value: value.to_string(),
+            })
+        }
+    };
+    for f in &entry.install.expects_files {
+        bare("expects_files entry", f)?;
+    }
+    if let Some(dosbox) = entry.runtime.dosbox.as_ref() {
+        bare("runtime.dosbox.config", &dosbox.config)?;
+        if !is_drive_letter(&dosbox.mount) {
+            return Err(CatalogError::InvalidMount {
+                path: path.to_path_buf(),
+                value: dosbox.mount.clone(),
+            });
+        }
+    }
+    if let Some(fs_uae) = entry.runtime.fs_uae.as_ref() {
+        if let Some(config) = fs_uae.config.as_ref() {
+            bare("runtime.fs_uae.config", config)?;
+        }
+        for floppy in &fs_uae.floppies {
+            bare("runtime.fs_uae.floppies entry", floppy)?;
+        }
+    }
     Ok(())
+}
+
+/// Returns true if `s` is a single path component with no directory
+/// structure — i.e. a bare filename. Rejects absolute paths, `..`, `.`,
+/// empty strings, and anything containing a `/` or `\` separator.
+fn is_bare_filename(s: &str) -> bool {
+    // `\` is not a separator on Linux, but these names are composed into
+    // DOS/Amiga command lines where it is — reject it explicitly.
+    if s.contains('/') || s.contains('\\') {
+        return false;
+    }
+    let mut components = Path::new(s).components();
+    matches!(
+        (components.next(), components.next()),
+        (Some(std::path::Component::Normal(_)), None)
+    )
+}
+
+/// Returns true if `s` is exactly one ASCII alphabetic character — a
+/// valid DOSBox drive letter.
+fn is_drive_letter(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    bytes.len() == 1 && bytes[0].is_ascii_alphabetic()
 }
 
 /// Returns true if `id` matches `^[a-z][a-z0-9-]*[a-z0-9]$`, has no
@@ -425,5 +496,111 @@ model = "a500"
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
         assert!(matches!(err, CatalogError::PlatformEmulatorMismatch { .. }));
+    }
+
+    #[test]
+    fn bare_filename_accepts_plain_names_rejects_paths() {
+        for ok in &["qfg1-ega.conf", "SIERRA.BAT", "fatman.adf", "RESOURCE.000"] {
+            assert!(is_bare_filename(ok), "{ok} should be a bare filename");
+        }
+        for bad in &["", ".", "..", "/etc/passwd", "../escape.conf", "sub/dir.conf", "a\\b.conf"] {
+            assert!(!is_bare_filename(bad), "{bad} should not be a bare filename");
+        }
+    }
+
+    #[test]
+    fn drive_letter_accepts_single_letter_rejects_others() {
+        for ok in &["c", "C", "d", "a"] {
+            assert!(is_drive_letter(ok), "{ok} should be a drive letter");
+        }
+        for bad in &["", "cc", "c:", "1", "-", " "] {
+            assert!(!is_drive_letter(bad), "{bad} should not be a drive letter");
+        }
+    }
+
+    fn dos_entry_with(config: &str, mount: &str, expects: &str) -> String {
+        format!(
+            r#"schema_version = 1
+
+[game]
+id = "qfg1-ega"
+title = "X"
+platform = "dos"
+
+[install]
+expects_files = [{expects}]
+
+[runtime]
+emulator = "dosbox-staging"
+
+[runtime.dosbox]
+config = "{config}"
+entry = "SIERRA.BAT"
+mount = "{mount}"
+"#
+        )
+    }
+
+    #[test]
+    fn rejects_absolute_dosbox_config() {
+        let text = dos_entry_with("/etc/evil.conf", "c", "\"SIERRA.BAT\"");
+        let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
+        assert!(matches!(
+            err,
+            CatalogError::InvalidPathField { field: "runtime.dosbox.config", .. }
+        ), "got {err:?}");
+    }
+
+    #[test]
+    fn rejects_traversal_dosbox_config() {
+        let text = dos_entry_with("../escape.conf", "c", "\"SIERRA.BAT\"");
+        let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
+        assert!(matches!(err, CatalogError::InvalidPathField { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn rejects_multichar_mount() {
+        let text = dos_entry_with("qfg1-ega.conf", "cc", "\"SIERRA.BAT\"");
+        let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
+        assert!(matches!(err, CatalogError::InvalidMount { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn rejects_pathful_expects_file() {
+        let text = dos_entry_with("qfg1-ega.conf", "c", "\"sub/RESOURCE.000\"");
+        let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
+        assert!(matches!(
+            err,
+            CatalogError::InvalidPathField { field: "expects_files entry", .. }
+        ), "got {err:?}");
+    }
+
+    #[test]
+    fn rejects_pathful_fs_uae_floppy() {
+        let text = r#"schema_version = 1
+
+[game]
+id = "fatman"
+title = "X"
+platform = "amiga"
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model = "a500"
+floppies = ["../sneaky.adf"]
+"#;
+        let err = parse_str(text, Path::new("test.toml")).unwrap_err();
+        assert!(matches!(
+            err,
+            CatalogError::InvalidPathField { field: "runtime.fs_uae.floppies entry", .. }
+        ), "got {err:?}");
+    }
+
+    #[test]
+    fn accepts_bare_filename_entry() {
+        let text = dos_entry_with("qfg1-ega.conf", "c", "\"SIERRA.BAT\", \"RESOURCE.000\"");
+        parse_str(&text, Path::new("test.toml")).expect("bare filenames should validate");
     }
 }

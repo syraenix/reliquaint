@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "reliquaint", about = "Launch classic games from manifests")]
+#[command(name = "reliquaint", version, about = "Launch classic games from manifests")]
 struct Cli {
     /// Increase log verbosity. `-v` enables DEBUG, `-vv` enables TRACE.
     /// `RUST_LOG`, if set, overrides this.
