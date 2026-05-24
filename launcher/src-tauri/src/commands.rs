@@ -139,9 +139,9 @@ pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>, 
 }
 
 /// Result payload for `install_game`. Serializes as a tagged JSON object
-/// the Svelte side can `switch` on. `install_path` is the directory the
-/// game was copied/extracted into; on `MissingFiles` the frontend hands it
-/// back to `register_install` if the user chooses to install anyway.
+/// the Svelte side can `switch` on. `install_path` is where the game will
+/// live once committed; on `MissingFiles` the staged copy is held and the
+/// frontend calls `commit_install` (install anyway) or `discard_install`.
 #[derive(Serialize, Clone)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum InstallGameOutcome {
