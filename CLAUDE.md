@@ -2,32 +2,32 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Redesign in progress
+## What this repo is
 
-The project is being rebuilt as **Reliquaint** — a preservation hub for classic DOS and Amiga games — and renamed from `classic-launcher` to `reliquaint`. Read these design docs before doing non-trivial work; they define the target state every new commit is moving toward:
+The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories — with the bundled `reliquaint-core` tap at `tap/` (12 entries: 5 QFG, 6 KQ, 1 Amiga).
+
+## Design docs
+
+Read before non-trivial changes:
 
 - `docs/prd.md` — product vision, problem, goals/non-goals, users, scope phases
 - `docs/schema.md` — TOML schemas for catalog entries, install records, tap metadata, user config
-- `docs/v0.1-tasks.md` — sequenced implementation tasks; the source of truth for what to work on next
-- `docs/adr-0001-two-layer-manifest-model.md` — split shippable catalog from per-user install records
-- `docs/adr-0002-split-dosbox-config-model.md` — strip `[autoexec]` from shipped `.conf`, compose at launch
-- `docs/adr-0003-tap-based-distribution.md` — community-maintainable tap repos for catalog + companion content
+- `docs/adr-0001-two-layer-manifest-model.md` — shippable catalog vs per-user install records
+- `docs/adr-0002-split-dosbox-config-model.md` — shipped `.conf` carries no `[autoexec]`; composed at launch
+- `docs/adr-0003-tap-based-distribution.md` — community-maintainable tap repos
 - `docs/adr-0004-logging-strategy.md` — `tracing` ecosystem; CLI + GUI share one instrumentation API
 - `docs/adr-0005-error-handling-strategy.md` — `thiserror` in library, `anyhow` in binaries
 
-Reading order before any task: PRD → ADR-0001 → ADR-0002 → ADR-0003 → ADR-0004 → ADR-0005 → `schema.md`.
-
-## What this repo is
-
-The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories — with the bundled `reliquaint-core` tap shipped in `tap/` (populated in Milestone 6).
+`docs/v0.1-tasks.md` is the historical roadmap kept for context; all v0.1 tasks have shipped.
 
 ## Repository layout
 
-- `README.md`, `docs/prerequisites.md` — top-level entry points. Prerequisites cover DOSBox Staging (Flatpak), FluidSynth, FS-UAE, and the Rust toolchain.
-- `docs/` — design docs (PRD, schema, ADRs 0001–0005, v0.1 tasks).
-- `config/default-dosbox-staging.conf` — reference/baseline DOSBox config used as a starting point for per-entry `.conf` files in the tap.
-- `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` / `<id>.fs-uae` — the bundled `reliquaint-core` tap (populated in Milestone 6). Until then, the on-disk tap is the fixture at `launcher/src-tauri/tests/fixtures/tap/`.
-- `dos/<game-collection>/`, `amiga/` — legacy directories with guide markdown, per-game configs, screenshots. Their `manifests/` subdirectories were the pre-redesign data model and are gone. Guides and `.conf` files remain as migration source material for Milestone 6.
+- `README.md`, `CONTRIBUTING.md`, `docs/prerequisites.md` — front door.
+- `docs/` — design docs.
+- `config/default-dosbox-staging.conf` — reference DOSBox config used as a starting point for per-entry `.conf` files.
+- `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` / `<id>.fs-uae` — the bundled `reliquaint-core` tap. Tests use the smaller fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
+- `scripts/extract-installers.sh` — extracts QFG GOG installers into `~/games/`.
+- `dos/<game-collection>/`, `amiga/` — collection guide markdown + screenshots. Originally also held the pre-redesign per-game manifests and configs; those migrated into the tap in Milestone 6. The guide prose becomes companion content in v0.4 per ADR-0003. The gitignored `installers/` (QFG) and `games/` (KQ) subdirectories stay put.
 - `launcher/` — Rust workspace + Svelte/Tauri frontend.
 
 ### Rust modules (`launcher/src-tauri/src/`)
@@ -70,6 +70,7 @@ reliquaint list                            # browse the catalog
 reliquaint list --platform dos --installed
 reliquaint list --format json              # for scripting
 reliquaint install qfg1-ega ~/games/qfg1-ega
+reliquaint migrate-installs                # bulk-register from ~/games/<id>/
 reliquaint run qfg1-ega --dry-run          # print the resolved command
 reliquaint run qfg1-ega
 reliquaint doctor                          # host + per-install diagnostics

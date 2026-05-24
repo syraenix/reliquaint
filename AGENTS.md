@@ -1,29 +1,28 @@
 # Repository Guidelines
 
-## Redesign in progress
+## Design docs
 
-This project is being rebuilt as **Reliquaint** — a preservation hub for classic DOS and Amiga games — and renamed from `classic-launcher` to `reliquaint`. Read these design docs before doing non-trivial work; they define the target state every new commit is moving toward:
+Read these before non-trivial work; they're the source of truth for the data model and conventions:
 
 - `docs/prd.md` — product vision, problem, goals/non-goals, users, scope phases
 - `docs/schema.md` — TOML schemas for catalog entries, install records, tap metadata, user config
-- `docs/v0.1-tasks.md` — sequenced implementation tasks; the source of truth for what to work on
-- `docs/adr-0001-two-layer-manifest-model.md` — split shippable catalog from per-user install records
-- `docs/adr-0002-split-dosbox-config-model.md` — strip `[autoexec]` from shipped `.conf`, compose at launch
-- `docs/adr-0003-tap-based-distribution.md` — community-maintainable tap repos for catalog + companion content
+- `docs/adr-0001-two-layer-manifest-model.md` — shippable catalog vs per-user install records
+- `docs/adr-0002-split-dosbox-config-model.md` — shipped `.conf` carries no `[autoexec]`; composed at launch
+- `docs/adr-0003-tap-based-distribution.md` — community-maintainable tap repos
 - `docs/adr-0004-logging-strategy.md` — `tracing` ecosystem; CLI + GUI share one instrumentation API
 - `docs/adr-0005-error-handling-strategy.md` — `thiserror` in library, `anyhow` in binaries
 
-Reading order before any task: PRD → ADR-0001 → ADR-0002 → ADR-0003 → ADR-0004 → ADR-0005 → `schema.md`.
+`docs/v0.1-tasks.md` is the historical roadmap kept for context; all v0.1 tasks have shipped.
 
 ## Project Structure & Module Organization
 
-This repository is a Rust + Tauri launcher (`reliquaint`) for running classic DOS and Amiga games on Linux, plus accompanying documentation and a bundled tap of catalog entries (the latter populated in Milestone 6).
+`reliquaint` is a Rust + Tauri launcher for running classic DOS and Amiga games on Linux, plus a bundled tap of catalog entries.
 
-**Top-level.** `README.md` and `docs/prerequisites.md` cover the front door; `docs/` carries the design docs listed in "Redesign in progress" above. Shared DOSBox baseline at `config/default-dosbox-staging.conf`. Shared images in `img/`. The launcher crate and Svelte/Tauri frontend live under `launcher/` (Rust crate at `launcher/src-tauri/`, frontend at `launcher/src/`).
+**Top-level.** `README.md`, `CONTRIBUTING.md`, `docs/prerequisites.md`; `docs/` carries the design docs above. Shared DOSBox baseline at `config/default-dosbox-staging.conf`. Shared images in `img/`. Top-level `scripts/extract-installers.sh` extracts QFG GOG installers into `~/games/`.
 
-**Bundled tap (post-Milestone-6).** `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` (DOS) or `<id>.fs-uae` (Amiga). See `docs/schema.md`. Until Milestone 6 lands, the only on-disk tap is the fixture at `launcher/src-tauri/tests/fixtures/tap/`.
+**Bundled tap.** `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` (DOS) or `<id>.fs-uae` (Amiga). See `docs/schema.md`. Tests use the fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
 
-**Legacy collection directories (`dos/quest-for-glory/`, `dos/kings-quest/`, `amiga/`).** Hold the in-progress migration source material — guide markdown, per-game configs, screenshots, gitignored installer/games directories. Their `manifests/` subdirectories were the old data model and have been removed; the per-game `config/` `.conf` files are migrated entry-by-entry in Milestone 6.
+**Collection guides (`dos/quest-for-glory/`, `dos/kings-quest/`, `amiga/`).** Markdown guides + screenshots only — the original manifests and per-game configs were migrated into the bundled tap in Milestone 6. These directories also still hold the gitignored `installers/` (QFG) and `games/` (KQ) folders where the user drops source files. The guide prose becomes companion content in v0.4 (ADR-0003).
 
 **Rust modules** (`launcher/src-tauri/src/`):
 
@@ -51,12 +50,13 @@ This repository is a Rust + Tauri launcher (`reliquaint`) for running classic DO
 
 ```bash
 git status --short
-cd launcher && cargo test          # 100+ unit + 24 integration tests
+cd launcher && cargo test          # 101 unit + 27 integration tests
 cd launcher && cargo build --bin reliquaint
 cd launcher && pnpm tauri dev      # requires Node + pnpm + GTK/webkit
 reliquaint list                    # browse the catalog
 reliquaint doctor                  # host + install diagnostics
 reliquaint install qfg1-ega ~/games/qfg1-ega
+reliquaint migrate-installs        # bulk-register everything in ~/games/
 reliquaint run qfg1-ega --dry-run
 reliquaint run qfg1-ega
 ```
