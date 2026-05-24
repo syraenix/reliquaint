@@ -1,10 +1,9 @@
 use crate::catalog::Platform;
 use crate::catalog_view::{CatalogView, CatalogViewEntry};
 use crate::discovery::find_repo_root;
-use crate::doctor::{run_all, ProbeStatus};
+use crate::doctor::{check_install, ProbeStatus};
 use crate::install_record::{self, Install as InstallRec, InstallRecord};
 use crate::launch;
-use crate::paths::expand_tilde;
 use crate::sidecar;
 use crate::user_config;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -98,7 +97,6 @@ pub fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let games_base = resolve_games_base();
     match cli.command {
         Commands::List(opts) => match load_view(&repo_root) {
             Ok(view) => cmd_list(&view, &opts),
@@ -112,7 +110,10 @@ pub fn run() -> ExitCode {
             Ok(view) => cmd_install(&view, &id, &path, force),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Doctor => cmd_doctor(&repo_root, &games_base),
+        Commands::Doctor => match load_view(&repo_root) {
+            Ok(view) => cmd_doctor(&view),
+            Err(()) => ExitCode::FAILURE,
+        },
     }
 }
 
@@ -122,13 +123,6 @@ fn resolve_repo_root() -> Option<PathBuf> {
     }
     let cwd = std::env::current_dir().ok()?;
     find_repo_root(&cwd)
-}
-
-fn resolve_games_base() -> PathBuf {
-    if let Ok(base) = std::env::var("RELIQUAINT_GAMES_DIR") {
-        return PathBuf::from(base);
-    }
-    expand_tilde("~/games")
 }
 
 /// Assemble a `CatalogView` from the bundled tap + install records.
@@ -453,11 +447,9 @@ fn now_iso8601() -> String {
     )
 }
 
-// --- Legacy commands (still backed by the old code path; Task 4.4 will
-// rewrite cmd_doctor against the new model in the next commit).
-
-fn cmd_doctor(repo_root: &Path, games_base: &Path) -> ExitCode {
-    let results = run_all(repo_root, games_base);
+fn cmd_doctor(view: &CatalogView) -> ExitCode {
+    let user_config = user_config::load_or_default(&crate::paths::user_config_path());
+    let results = check_install(view, &user_config);
     let mut any_missing = false;
     for r in &results {
         let label = match r.status {

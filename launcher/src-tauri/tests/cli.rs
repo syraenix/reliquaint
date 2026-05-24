@@ -314,6 +314,122 @@ fn install_rejects_path_that_is_a_file() {
         .stderr(contains("is not a directory"));
 }
 
+// --- doctor tests --------------------------------------------------------
+
+#[test]
+fn doctor_always_includes_emulator_probes() {
+    let installs = tempfile::tempdir().unwrap();
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("dosbox-staging"), "missing dosbox probe: {stdout}");
+    assert!(stdout.contains("fs-uae"), "missing fs-uae probe: {stdout}");
+}
+
+#[test]
+fn doctor_omits_soundfont_check_when_no_fluidsynth_user_installed() {
+    let installs = tempfile::tempdir().unwrap();
+    // No install records → no installed games → no soundfont probe.
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        !stdout.contains("fluidsynth soundfont"),
+        "soundfont probe shouldn't appear when nothing's installed: {stdout}"
+    );
+}
+
+#[test]
+fn doctor_includes_soundfont_check_when_fluidsynth_game_installed() {
+    let installs = tempfile::tempdir().unwrap();
+    // qfg1-ega declares fluidsynth in runtime.sidecars; an install
+    // record for it should trigger the soundfont probe.
+    write_install_record(installs.path(), "qfg1-ega", "/nonexistent/qfg1");
+
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("fluidsynth soundfont"),
+        "soundfont probe should appear: {stdout}"
+    );
+}
+
+#[test]
+fn doctor_reports_missing_install_path() {
+    let installs = tempfile::tempdir().unwrap();
+    write_install_record(
+        installs.path(),
+        "qfg1-ega",
+        "/definitely/not/a/real/path/anywhere",
+    );
+
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("install path for qfg1-ega"),
+        "missing install path not reported: {stdout}"
+    );
+    assert!(stdout.contains("missing"), "expected a missing-status line: {stdout}");
+    // Deliberately-broken state → exit code 2.
+    assert_eq!(output.status.code(), Some(2));
+}
+
+#[test]
+fn doctor_reports_ok_for_valid_install_with_expects_files() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+    std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
+    std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
+    write_install_record(
+        installs.path(),
+        "qfg1-ega",
+        game.path().to_str().unwrap(),
+    );
+
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    // The per-install probe should be Ok (no "missing" against it).
+    assert!(stdout.contains("install for qfg1-ega"), "missing install probe line: {stdout}");
+    assert!(
+        !stdout.contains("expects_files for qfg1-ega"),
+        "expects_files probe should not appear when all present: {stdout}"
+    );
+}
+
+#[test]
+fn doctor_reports_missing_expects_files() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+    // Game dir exists but has none of the expected files.
+    write_install_record(
+        installs.path(),
+        "qfg1-ega",
+        game.path().to_str().unwrap(),
+    );
+
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("expects_files for qfg1-ega"),
+        "expects_files probe missing: {stdout}"
+    );
+    assert!(stdout.contains("SIERRA.BAT"), "should name missing file: {stdout}");
+    assert_eq!(output.status.code(), Some(2));
+}
+
+#[test]
+fn doctor_reports_orphan_install_records() {
+    let installs = tempfile::tempdir().unwrap();
+    // Catalog id doesn't exist in the fixture tap → orphan.
+    write_install_record(installs.path(), "ghost-game", "/tmp/whatever");
+
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("orphan install record"),
+        "orphan not reported: {stdout}"
+    );
+    assert!(stdout.contains("ghost-game"), "orphan id missing from output: {stdout}");
+}
+
 // --- list tests (continued) ----------------------------------------------
 
 #[test]
