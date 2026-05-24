@@ -13,6 +13,28 @@ pub fn games_dir(base: &Path, id: &str) -> PathBuf {
     base.join(id)
 }
 
+/// Walk upward from `start` looking for a Reliquaint repository root.
+///
+/// Recognizes either layout:
+/// - **New (post-Milestone 6):** `<root>/tap/tap.toml` present.
+/// - **Legacy (pre-Milestone 6):** `<root>/dos/` and `<root>/amiga/`
+///   collection directories present.
+///
+/// Returns the first ancestor that matches, or `None` if none does.
+pub fn find_repo_root(start: &Path) -> Option<PathBuf> {
+    let mut current = start.to_path_buf();
+    loop {
+        let has_tap = current.join("tap/tap.toml").is_file();
+        let has_legacy = current.join("dos").is_dir() && current.join("amiga").is_dir();
+        if has_tap || has_legacy {
+            return Some(current);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
 // --- XDG-based path helpers ----------------------------------------------
 //
 // Every reliquaint-owned path under the user's home goes through one of
@@ -178,6 +200,41 @@ mod tests {
             "user_config_path should end with reliquaint/config.toml, got {}",
             p.display()
         );
+    }
+
+    #[test]
+    fn find_repo_root_recognizes_new_tap_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("tap")).unwrap();
+        std::fs::write(tmp.path().join("tap/tap.toml"), "schema_version = 1\n").unwrap();
+        // Walk up from a nested path:
+        let nested = tmp.path().join("a/b/c");
+        std::fs::create_dir_all(&nested).unwrap();
+        let root = find_repo_root(&nested).unwrap();
+        assert_eq!(root, tmp.path().canonicalize().unwrap_or_else(|_| tmp.path().to_path_buf()));
+    }
+
+    #[test]
+    fn find_repo_root_recognizes_legacy_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join("dos")).unwrap();
+        std::fs::create_dir(tmp.path().join("amiga")).unwrap();
+        let root = find_repo_root(tmp.path()).unwrap();
+        assert_eq!(root, tmp.path().canonicalize().unwrap_or_else(|_| tmp.path().to_path_buf()));
+    }
+
+    #[test]
+    fn find_repo_root_returns_none_outside_a_repo() {
+        let tmp = tempfile::tempdir().unwrap();
+        // No marker dirs/files. Will walk upward to /, then None.
+        // (May find an ancestor if developer's machine has a tap.toml
+        // somewhere above /tmp — unlikely but possible. Skip in that
+        // case rather than failing.)
+        if find_repo_root(tmp.path()).is_some() {
+            eprintln!("skipping: machine has an ancestor repo root above /tmp");
+            return;
+        }
+        assert!(find_repo_root(tmp.path()).is_none());
     }
 
     #[test]

@@ -1,6 +1,5 @@
 use crate::commands::AppState;
-use crate::discovery::find_repo_root;
-use crate::paths::expand_tilde;
+use crate::paths::{expand_tilde, find_repo_root};
 use std::path::PathBuf;
 
 pub fn run_gui() {

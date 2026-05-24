@@ -1,6 +1,6 @@
 use crate::catalog::Platform;
 use crate::catalog_view::{CatalogView, CatalogViewEntry};
-use crate::discovery::find_repo_root;
+use crate::paths::find_repo_root;
 use crate::doctor::{check_install, ProbeStatus};
 use crate::install_record::{self, Install as InstallRec, InstallRecord};
 use crate::launch;

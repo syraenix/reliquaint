@@ -1,4 +1,4 @@
-use crate::discovery::{discover_catalog, discover_installed, find_by_id};
+use crate::discovery::{discover_installed, find_by_id};
 use crate::doctor::{run_all, ProbeKind, ProbeStatus};
 use crate::game_install::{
     build_amiga_copy_commands, build_kq_commands, build_qfg_commands, discover_qfg, install_order,
@@ -95,40 +95,89 @@ pub fn list_games(state: State<'_, AppState>) -> Result<Vec<GameEntry>, String> 
     Ok(games_from_repo(&state.repo_root, &state.games_base))
 }
 
+/// One row of the catalog as the Svelte frontend consumes it. Flat
+/// rather than mirroring the nested CatalogEntry types so the IPC
+/// payload is straightforward to read on the JS side.
 #[derive(Serialize, Clone)]
-pub struct GameCatalogEntry {
+pub struct CatalogEntryDto {
     pub id: String,
     pub title: String,
     pub platform: String,
-    pub collection: String,
+    pub collection: Option<String>,
+    pub year: Option<u32>,
+    pub developer: Option<String>,
+    pub publisher: Option<String>,
+    pub genre: Vec<String>,
+    pub tags: Vec<String>,
+    pub description: Option<String>,
+    pub acquisition: AcquisitionDto,
+    pub tap_id: String,
     pub installed: bool,
+    pub install_path: Option<String>,
 }
 
-pub fn games_catalog(repo_root: &Path, games_base: &Path) -> Vec<GameCatalogEntry> {
-    let installed_ids: std::collections::HashSet<String> =
-        discover_installed(repo_root, games_base)
-            .into_iter()
-            .map(|e| e.manifest.id)
-            .collect();
+#[derive(Serialize, Clone, Default)]
+pub struct AcquisitionDto {
+    pub gog: Option<String>,
+    pub steam: Option<String>,
+    pub developer_site: Option<String>,
+    pub archive: Option<String>,
+    pub notes: Option<String>,
+}
 
-    let mut entries: Vec<GameCatalogEntry> = discover_catalog(repo_root)
-        .into_iter()
-        .map(|(_, m)| GameCatalogEntry {
-            installed: installed_ids.contains(&m.id),
-            id: m.id,
-            title: m.title,
-            platform: format!("{:?}", m.platform).to_lowercase(),
-            collection: m.collection,
-        })
-        .collect();
+pub fn load_catalog_view(repo_root: &Path) -> Result<crate::catalog_view::CatalogView, String> {
+    let tap_root = crate::paths::tap_root(repo_root);
+    let taps = match crate::tap::load_tap(&tap_root) {
+        Ok(t) => vec![t],
+        Err(crate::tap::TapError::MissingRoot { .. }) => {
+            tracing::warn!(
+                root = %tap_root.display(),
+                "bundled tap not found; treating catalog as empty"
+            );
+            Vec::new()
+        }
+        Err(e) => return Err(format!("failed to load bundled tap: {e}")),
+    };
+    let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+    Ok(crate::catalog_view::CatalogView::assemble(taps, installs))
+}
 
-    entries.sort_by(|a, b| a.id.cmp(&b.id));
-    entries
+pub fn entry_to_dto(e: &crate::catalog_view::CatalogViewEntry) -> CatalogEntryDto {
+    let acq = &e.catalog.acquisition;
+    CatalogEntryDto {
+        id: e.catalog.game.id.clone(),
+        title: e.catalog.game.title.clone(),
+        platform: match e.catalog.game.platform {
+            crate::catalog::Platform::Dos => "dos".to_string(),
+            crate::catalog::Platform::Amiga => "amiga".to_string(),
+        },
+        collection: e.catalog.game.collection.clone(),
+        year: e.catalog.meta.year,
+        developer: e.catalog.meta.developer.clone(),
+        publisher: e.catalog.meta.publisher.clone(),
+        genre: e.catalog.meta.genre.clone(),
+        tags: e.catalog.meta.tags.clone(),
+        description: e.catalog.meta.description.clone(),
+        acquisition: AcquisitionDto {
+            gog: acq.gog.clone(),
+            steam: acq.steam.clone(),
+            developer_site: acq.developer_site.clone(),
+            archive: acq.archive.clone(),
+            notes: acq.notes.clone(),
+        },
+        tap_id: e.tap_id.clone(),
+        installed: e.install.is_some(),
+        install_path: e
+            .install
+            .as_ref()
+            .map(|i| i.install.install_path.to_string_lossy().into_owned()),
+    }
 }
 
 #[tauri::command]
-pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<GameCatalogEntry>, String> {
-    Ok(games_catalog(&state.repo_root, &state.games_base))
+pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>, String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    Ok(view.all().iter().map(entry_to_dto).collect())
 }
 
 #[tauri::command]
@@ -366,4 +415,47 @@ pub async fn install_games(
     .map_err(|e| e.to_string())??;
 
     Ok(exit_code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixture_repo_root() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+    }
+
+    #[test]
+    fn load_catalog_view_finds_fixture_tap_entries() {
+        let view = load_catalog_view(&fixture_repo_root()).unwrap();
+        let ids: Vec<&str> = view.all().iter().map(|e| e.catalog.game.id.as_str()).collect();
+        assert!(ids.contains(&"qfg1-ega"), "expected qfg1-ega in {ids:?}");
+        assert!(ids.contains(&"fatman"), "expected fatman in {ids:?}");
+    }
+
+    #[test]
+    fn entry_to_dto_carries_metadata_and_acquisition() {
+        let view = load_catalog_view(&fixture_repo_root()).unwrap();
+        let qfg = view.by_id("qfg1-ega").expect("qfg1-ega fixture missing");
+        let dto = entry_to_dto(qfg);
+
+        assert_eq!(dto.id, "qfg1-ega");
+        assert_eq!(dto.platform, "dos");
+        assert_eq!(dto.collection.as_deref(), Some("quest-for-glory"));
+        assert_eq!(dto.year, Some(1989));
+        assert_eq!(dto.developer.as_deref(), Some("Sierra On-Line"));
+        assert_eq!(dto.tap_id, "reliquaint-core");
+        assert!(!dto.installed);
+        assert!(dto.install_path.is_none());
+        assert!(dto.acquisition.gog.as_deref().unwrap().contains("gog.com"));
+        assert!(dto.acquisition.notes.is_some());
+    }
+
+    #[test]
+    fn load_catalog_view_returns_empty_when_no_tap_present() {
+        let tmp = tempfile::tempdir().unwrap();
+        let view = load_catalog_view(tmp.path()).unwrap();
+        assert!(view.all().is_empty());
+    }
 }

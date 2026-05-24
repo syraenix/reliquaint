@@ -1,18 +1,6 @@
 use crate::manifest::{self, Manifest};
 use std::path::{Path, PathBuf};
 
-pub fn find_repo_root(start: &Path) -> Option<PathBuf> {
-    let mut current = start.to_path_buf();
-    loop {
-        if current.join("dos").is_dir() && current.join("amiga").is_dir() {
-            return Some(current);
-        }
-        if !current.pop() {
-            return None;
-        }
-    }
-}
-
 pub fn discover_catalog(repo_root: &Path) -> Vec<(PathBuf, Manifest)> {
     let mut scan_dirs: Vec<PathBuf> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(repo_root.join("dos")) {
@@ -166,14 +154,6 @@ mod tests {
     fn find_by_id_returns_none_for_unknown() {
         let root = fixture_root();
         assert!(find_by_id(&root, "nonexistent").is_none());
-    }
-
-    #[test]
-    fn find_repo_root_walks_upward() {
-        let deep = fixture_root().join("dos/quest-for-glory/manifests");
-        let root = find_repo_root(&deep);
-        assert!(root.is_some());
-        assert_eq!(root.unwrap(), fixture_root());
     }
 
     #[test]
