@@ -43,6 +43,15 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
+    /// Scan a base directory (default `~/games`) for per-id subfolders
+    /// matching catalog entries and register install records for each.
+    /// Intended for users coming from the pre-redesign `~/games/<id>/`
+    /// layout.
+    MigrateInstalls {
+        /// Base directory containing per-game subdirectories.
+        #[arg(long, default_value = "~/games")]
+        base: String,
+    },
     /// Run host-dependency and install-record diagnostics.
     Doctor,
 }
@@ -107,6 +116,10 @@ pub fn run() -> ExitCode {
         },
         Commands::Install { id, path, force } => match load_view(&repo_root) {
             Ok(view) => cmd_install(&view, &id, &path, force),
+            Err(()) => ExitCode::FAILURE,
+        },
+        Commands::MigrateInstalls { base } => match load_view(&repo_root) {
+            Ok(view) => cmd_migrate_installs(&view, &base),
             Err(()) => ExitCode::FAILURE,
         },
         Commands::Doctor => match load_view(&repo_root) {
@@ -388,6 +401,67 @@ fn cmd_install(view: &CatalogView, id: &str, path: &Path, force: bool) -> ExitCo
         }
         // Cannot reach here — force=true above doesn't return MissingFiles.
         InstallOutcome::MissingFiles(_) => unreachable!(),
+    }
+}
+
+fn cmd_migrate_installs(view: &CatalogView, base: &str) -> ExitCode {
+    let base_path = crate::paths::expand_tilde(base);
+    if !base_path.is_dir() {
+        eprintln!("error: base directory {} does not exist", base_path.display());
+        return ExitCode::FAILURE;
+    }
+
+    let installs_dir = crate::paths::installs_dir();
+    let mut migrated = 0;
+    let mut skipped = 0;
+    let mut missing = 0;
+    let mut errors = 0;
+
+    for entry in view.all() {
+        let id = &entry.catalog.game.id;
+        if entry.install.is_some() {
+            skipped += 1;
+            continue;
+        }
+        let game_dir = base_path.join(id);
+        if !game_dir.is_dir() {
+            missing += 1;
+            continue;
+        }
+        match install_record::install(
+            id,
+            &entry.tap_id,
+            &entry.catalog.install.expects_files,
+            &game_dir,
+            true, // force: this is a bulk migration, no per-game prompts
+            &installs_dir,
+        ) {
+            Ok(InstallOutcome::Installed { .. }) => {
+                println!("migrated {id} from {}", game_dir.display());
+                migrated += 1;
+            }
+            Ok(InstallOutcome::MissingFiles(_)) => {
+                // Unreachable with force=true.
+                errors += 1;
+            }
+            Err(e) => {
+                eprintln!("error migrating {id}: {e}");
+                errors += 1;
+            }
+        }
+    }
+
+    println!();
+    println!(
+        "Done: {migrated} migrated, {skipped} already installed, \
+         {missing} not found under {}, {errors} errors.",
+        base_path.display()
+    );
+
+    if errors > 0 {
+        ExitCode::from(2)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 

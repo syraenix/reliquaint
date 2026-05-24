@@ -4,7 +4,15 @@ fn main() -> ExitCode {
     let is_cli = std::env::args().skip(1).any(|a| {
         matches!(
             a.as_str(),
-            "list" | "run" | "install" | "doctor" | "--help" | "-h" | "--version" | "-V"
+            "list"
+                | "run"
+                | "install"
+                | "migrate-installs"
+                | "doctor"
+                | "--help"
+                | "-h"
+                | "--version"
+                | "-V"
         )
     });
 

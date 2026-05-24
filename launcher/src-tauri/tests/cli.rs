@@ -314,6 +314,74 @@ fn install_rejects_path_that_is_a_file() {
         .stderr(contains("is not a directory"));
 }
 
+// --- migrate-installs tests ----------------------------------------------
+
+#[test]
+fn migrate_installs_picks_up_legacy_per_id_dirs() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+
+    // qfg1-ega and fatman are the catalog fixture entries. Stage two
+    // games under the legacy ~/games/<id>/ layout.
+    let qfg_dir = games.path().join("qfg1-ega");
+    std::fs::create_dir(&qfg_dir).unwrap();
+    std::fs::write(qfg_dir.join("SIERRA.BAT"), b"").unwrap();
+    std::fs::write(qfg_dir.join("RESOURCE.000"), b"").unwrap();
+
+    let fatman_dir = games.path().join("fatman");
+    std::fs::create_dir(&fatman_dir).unwrap();
+    std::fs::write(fatman_dir.join("fatman.adf"), b"").unwrap();
+
+    let output = launcher(installs.path())
+        .args(["migrate-installs", "--base"])
+        .arg(games.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(stdout.contains("migrated qfg1-ega"));
+    assert!(stdout.contains("migrated fatman"));
+    assert!(stdout.contains("2 migrated"));
+
+    // Both install records were written.
+    assert!(installs.path().join("qfg1-ega.toml").exists());
+    assert!(installs.path().join("fatman.toml").exists());
+}
+
+#[test]
+fn migrate_installs_skips_already_installed_entries() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+
+    // qfg1-ega already has a record; the migrator should skip it.
+    write_install_record(installs.path(), "qfg1-ega", "/existing/path");
+
+    let qfg_dir = games.path().join("qfg1-ega");
+    std::fs::create_dir(&qfg_dir).unwrap();
+
+    let output = launcher(installs.path())
+        .args(["migrate-installs", "--base"])
+        .arg(games.path())
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    assert!(output.status.success());
+    assert!(stdout.contains("1 already installed"));
+    assert!(stdout.contains("0 migrated"));
+}
+
+#[test]
+fn migrate_installs_errors_when_base_missing() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["migrate-installs", "--base", "/definitely/not/a/real/games/dir"])
+        .assert()
+        .failure()
+        .stderr(contains("does not exist"));
+}
+
 // --- doctor tests --------------------------------------------------------
 
 #[test]
