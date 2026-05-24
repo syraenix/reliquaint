@@ -1,8 +1,10 @@
-use crate::discovery::{discover_installed, find_by_id, find_repo_root};
+use crate::catalog::Platform;
+use crate::catalog_view::{CatalogView, CatalogViewEntry};
+use crate::discovery::{find_by_id, find_repo_root};
 use crate::doctor::{run_all, ProbeStatus};
 use crate::paths::expand_tilde;
 use crate::runner::{run as launch, RunOpts};
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -20,7 +22,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    List,
+    /// List catalog entries with their install status.
+    List(ListOpts),
+    /// Launch a game by its catalog id.
     Run {
         id: String,
         #[arg(long)]
@@ -28,7 +32,45 @@ enum Commands {
         #[arg(long)]
         windowed: bool,
     },
+    /// Run host-dependency and install-record diagnostics.
     Doctor,
+}
+
+#[derive(Args)]
+struct ListOpts {
+    /// Filter to a single platform.
+    #[arg(long, value_enum)]
+    platform: Option<PlatformArg>,
+    /// Show only entries with an install record.
+    #[arg(long)]
+    installed: bool,
+    /// Show only entries without an install record.
+    #[arg(long, conflicts_with = "installed")]
+    not_installed: bool,
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = Format::Tabular)]
+    format: Format,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum PlatformArg {
+    Dos,
+    Amiga,
+}
+
+impl From<PlatformArg> for Platform {
+    fn from(p: PlatformArg) -> Self {
+        match p {
+            PlatformArg::Dos => Self::Dos,
+            PlatformArg::Amiga => Self::Amiga,
+        }
+    }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum Format {
+    Tabular,
+    Json,
 }
 
 pub fn run() -> ExitCode {
@@ -45,7 +87,10 @@ pub fn run() -> ExitCode {
     };
     let games_base = resolve_games_base();
     match cli.command {
-        Commands::List => cmd_list(&repo_root, &games_base),
+        Commands::List(opts) => match load_view(&repo_root) {
+            Ok(view) => cmd_list(&view, &opts),
+            Err(()) => ExitCode::FAILURE,
+        },
         Commands::Run {
             id,
             dry_run,
@@ -70,21 +115,146 @@ fn resolve_games_base() -> PathBuf {
     expand_tilde("~/games")
 }
 
-fn cmd_list(repo_root: &Path, games_base: &Path) -> ExitCode {
-    tracing::info!(repo_root = %repo_root.display(), "listing installed games");
-    tracing::trace!(games_base = %games_base.display(), "resolved games base");
-    let mut entries = discover_installed(repo_root, games_base);
-    tracing::debug!(count = entries.len(), "discovered installed entries");
-    entries.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
-    for e in &entries {
-        let platform = format!("{:?}", e.manifest.platform).to_lowercase();
-        println!(
-            "{:<15}  {:<6}  {:<20}  {}",
-            e.manifest.id, platform, e.manifest.collection, e.manifest.title
-        );
+/// Assemble a `CatalogView` from the bundled tap + install records.
+/// A missing bundled tap is non-fatal (warn and continue with no
+/// entries); a structural tap-loading error is fatal.
+fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
+    let tap_root = crate::paths::tap_root(repo_root);
+    let taps = match crate::tap::load_tap(&tap_root) {
+        Ok(t) => vec![t],
+        Err(crate::tap::TapError::MissingRoot { .. }) => {
+            tracing::warn!(
+                root = %tap_root.display(),
+                "bundled tap not found; treating catalog as empty"
+            );
+            Vec::new()
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            return Err(());
+        }
+    };
+    let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+    Ok(CatalogView::assemble(taps, installs))
+}
+
+fn cmd_list(view: &CatalogView, opts: &ListOpts) -> ExitCode {
+    let filtered: Vec<&CatalogViewEntry> = view
+        .all()
+        .iter()
+        .filter(|e| match opts.platform {
+            Some(p) => e.catalog.game.platform == p.into(),
+            None => true,
+        })
+        .filter(|e| {
+            if opts.installed {
+                e.install.is_some()
+            } else if opts.not_installed {
+                e.install.is_none()
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    match opts.format {
+        Format::Tabular => print_tabular(&filtered),
+        Format::Json => match print_json(&filtered) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("error: failed to serialize JSON: {e}");
+                return ExitCode::FAILURE;
+            }
+        },
     }
     ExitCode::SUCCESS
 }
+
+fn print_tabular(entries: &[&CatalogViewEntry]) {
+    use std::collections::BTreeMap;
+    if entries.is_empty() {
+        return;
+    }
+    let mut by_collection: BTreeMap<String, Vec<&CatalogViewEntry>> = BTreeMap::new();
+    for e in entries {
+        let key = e
+            .catalog
+            .game
+            .collection
+            .clone()
+            .unwrap_or_else(|| "(no collection)".into());
+        by_collection.entry(key).or_default().push(e);
+    }
+    let mut first = true;
+    for (collection, items) in by_collection {
+        if !first {
+            println!();
+        }
+        first = false;
+        println!("{collection}");
+        for e in items {
+            let status = if e.install.is_some() {
+                "installed"
+            } else {
+                "not installed"
+            };
+            let year = e
+                .catalog
+                .meta
+                .year
+                .map(|y| y.to_string())
+                .unwrap_or_else(|| "----".into());
+            println!(
+                "  {:<14}  {:<35}  {:<5}  {status}",
+                e.catalog.game.id, e.catalog.game.title, year
+            );
+        }
+    }
+}
+
+fn print_json(entries: &[&CatalogViewEntry]) -> Result<(), serde_json::Error> {
+    #[derive(serde::Serialize)]
+    struct JsonRow<'a> {
+        id: &'a str,
+        title: &'a str,
+        platform: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        collection: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        year: Option<u32>,
+        tap_id: &'a str,
+        installed: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        install_path: Option<String>,
+    }
+
+    let rows: Vec<JsonRow> = entries
+        .iter()
+        .map(|e| JsonRow {
+            id: &e.catalog.game.id,
+            title: &e.catalog.game.title,
+            platform: match e.catalog.game.platform {
+                Platform::Dos => "dos",
+                Platform::Amiga => "amiga",
+            },
+            collection: e.catalog.game.collection.as_deref(),
+            year: e.catalog.meta.year,
+            tap_id: &e.tap_id,
+            installed: e.install.is_some(),
+            install_path: e
+                .install
+                .as_ref()
+                .map(|i| i.install.install_path.to_string_lossy().into_owned()),
+        })
+        .collect();
+
+    let output = serde_json::to_string_pretty(&rows)?;
+    println!("{output}");
+    Ok(())
+}
+
+// --- Legacy commands (still backed by the old code path; Tasks 4.2 and
+// 4.4 will rewrite them against the new model in subsequent commits).
 
 fn cmd_run(repo_root: &Path, games_base: &Path, id: &str, dry_run: bool, windowed: bool) -> ExitCode {
     match find_by_id(repo_root, id) {

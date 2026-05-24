@@ -33,12 +33,29 @@ pub fn user_taps_dir() -> PathBuf {
 }
 
 /// Where per-game installation records live.
+///
+/// `RELIQUAINT_INSTALLS_DIR`, if set and non-empty, overrides the
+/// default XDG-derived path. Used by integration tests to isolate
+/// state.
 pub fn installs_dir() -> PathBuf {
+    if let Ok(v) = std::env::var("RELIQUAINT_INSTALLS_DIR") {
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
     data_home_from_env(std::env::var("XDG_DATA_HOME").ok().as_deref()).join("reliquaint/installs")
 }
 
 /// The user's launcher config file.
+///
+/// `RELIQUAINT_USER_CONFIG_PATH`, if set and non-empty, overrides the
+/// default XDG-derived path. Used by integration tests to isolate state.
 pub fn user_config_path() -> PathBuf {
+    if let Ok(v) = std::env::var("RELIQUAINT_USER_CONFIG_PATH") {
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
     config_home_from_env(std::env::var("XDG_CONFIG_HOME").ok().as_deref())
         .join("reliquaint/config.toml")
 }

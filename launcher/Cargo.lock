@@ -2757,6 +2757,7 @@ dependencies = [
  "libc",
  "predicates",
  "serde",
+ "serde_json",
  "shellexpand",
  "tauri",
  "tauri-build",

@@ -271,7 +271,7 @@ mod tests {
     use std::str::FromStr;
 
     fn fixture_catalog_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/catalog")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tap/catalog")
     }
 
     fn synthetic_install(catalog_id: &str, install_path: &str) -> InstallRecord {
