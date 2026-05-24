@@ -34,6 +34,9 @@ pub enum ReliquaintError {
 
     #[error(transparent)]
     UserConfig(#[from] crate::user_config::ConfigError),
+
+    #[error(transparent)]
+    Launch(#[from] crate::launch::LaunchError),
 }
 
 /// Install a panic hook that prints a "please file a bug" banner before

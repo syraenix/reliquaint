@@ -9,6 +9,7 @@ pub mod game_install;
 pub mod gui;
 pub mod install_record;
 pub mod installer;
+pub mod launch;
 pub mod logging;
 pub mod manifest;
 pub mod paths;
