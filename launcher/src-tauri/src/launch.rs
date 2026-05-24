@@ -9,10 +9,12 @@
 //! - DOS games: see ADR-0002 for the split-config rationale. We compose
 //!   the [autoexec] section as `-c` flags rather than writing a merged
 //!   tempfile.
+//! - Amiga games: shipped FS-UAE config if present, otherwise an inline
+//!   `--amiga_model=...` based on `runtime.fs_uae.model`.
 
 use std::path::{Path, PathBuf};
 
-use crate::catalog::{CatalogEntry, Platform};
+use crate::catalog::{AmigaModel, CatalogEntry, Platform};
 use crate::install_record::InstallRecord;
 use crate::user_config::{SidecarsConfig, UserConfig};
 
@@ -75,6 +77,9 @@ pub struct LaunchPlan {
 pub enum LaunchError {
     #[error("DOS entry {entry_id:?} is missing [runtime.dosbox]")]
     MissingDosboxRuntime { entry_id: String },
+
+    #[error("Amiga entry {entry_id:?} is missing [runtime.fs_uae]")]
+    MissingFsUaeRuntime { entry_id: String },
 
     #[error("could not resolve sibling shipped config relative to {path}")]
     InvalidEntrySource { path: PathBuf },
@@ -147,6 +152,75 @@ pub fn compose_dosbox(
     let sidecars = compose_sidecars(&entry.runtime.sidecars, &user_config.sidecars)?;
 
     Ok(LaunchPlan { primary, sidecars })
+}
+
+/// Compose the launch command for an Amiga game. Caller must ensure
+/// `entry.game.platform == Platform::Amiga`; violation returns
+/// [`LaunchError::MissingFsUaeRuntime`].
+pub fn compose_fs_uae(
+    entry: &CatalogEntry,
+    entry_source: &Path,
+    install: &InstallRecord,
+    user_config: &UserConfig,
+) -> Result<LaunchPlan, LaunchError> {
+    debug_assert_eq!(entry.game.platform, Platform::Amiga);
+
+    let fs_uae = entry.runtime.fs_uae.as_ref().ok_or_else(|| {
+        LaunchError::MissingFsUaeRuntime {
+            entry_id: entry.game.id.clone(),
+        }
+    })?;
+
+    let (program, mut args) = split_command(&user_config.emulators.fs_uae.command)?;
+
+    // Shipped config (positional first arg to fs-uae) OR inline model
+    // template. Per the schema doc, if `config` is set we use the
+    // sibling .fs-uae file; otherwise we drive the model directly.
+    if let Some(config_name) = fs_uae.config.as_deref() {
+        let config_path = entry_source
+            .parent()
+            .map(|p| p.join(config_name))
+            .ok_or_else(|| LaunchError::InvalidEntrySource {
+                path: entry_source.to_path_buf(),
+            })?;
+        if !config_path.is_file() {
+            return Err(LaunchError::ShippedConfigNotFound { path: config_path });
+        }
+        args.push(config_path.to_string_lossy().into_owned());
+    } else {
+        args.push(format!("--amiga_model={}", fs_uae_model_string(fs_uae.model)));
+    }
+
+    let install_path = &install.install.install_path;
+    for (i, floppy) in fs_uae.floppies.iter().enumerate() {
+        let abs = install_path.join(floppy);
+        args.push(format!("--floppy_drive_{i}={}", abs.to_string_lossy()));
+    }
+
+    if let Some(kickstart_dir) = &user_config.emulators.fs_uae.kickstart_path {
+        args.push(format!(
+            "--kickstarts_dir={}",
+            kickstart_dir.to_string_lossy()
+        ));
+    }
+
+    let primary = PreparedCommand {
+        program,
+        args,
+        working_dir: None,
+    };
+    let sidecars = compose_sidecars(&entry.runtime.sidecars, &user_config.sidecars)?;
+
+    Ok(LaunchPlan { primary, sidecars })
+}
+
+fn fs_uae_model_string(model: AmigaModel) -> &'static str {
+    match model {
+        AmigaModel::A500 => "A500",
+        AmigaModel::A600 => "A600",
+        AmigaModel::A1200 => "A1200",
+        AmigaModel::A4000 => "A4000",
+    }
 }
 
 fn compose_sidecars(
@@ -306,6 +380,156 @@ mod tests {
         let err = compose_dosbox(&entry, &source_path, &install, &UserConfig::default())
             .unwrap_err();
         assert!(matches!(err, LaunchError::ShippedConfigNotFound { .. }));
+    }
+
+    fn temp_tap_with_fatman() -> (tempfile::TempDir, PathBuf) {
+        let tmp = tempfile::tempdir().unwrap();
+        let catalog_amiga = tmp.path().join("catalog/amiga");
+        std::fs::create_dir_all(&catalog_amiga).unwrap();
+        let toml_src = std::fs::read_to_string(fixture_catalog_dir().join("amiga/fatman.toml"))
+            .unwrap();
+        let source_path = catalog_amiga.join("fatman.toml");
+        std::fs::write(&source_path, toml_src).unwrap();
+        (tmp, source_path)
+    }
+
+    #[test]
+    fn compose_fs_uae_happy_path_against_fatman_model_template() {
+        let (_tmp, source_path) = temp_tap_with_fatman();
+        let entry = crate::catalog::load(&source_path).unwrap();
+        let install = synthetic_install("fatman", "/home/test/games/fatman");
+
+        let plan = compose_fs_uae(&entry, &source_path, &install, &UserConfig::default()).unwrap();
+
+        assert_eq!(plan.primary.program, "fs-uae");
+        assert_eq!(
+            plan.primary.args,
+            vec![
+                "--amiga_model=A500".to_string(),
+                "--floppy_drive_0=/home/test/games/fatman/fatman.adf".to_string(),
+            ]
+        );
+        assert!(plan.sidecars.is_empty());
+    }
+
+    #[test]
+    fn compose_fs_uae_uses_shipped_config_when_present() {
+        use crate::catalog::{
+            Acquisition, CatalogEntry, FsUaeRuntime, Emulator, Game, Install as CatInstall,
+            Meta, Runtime,
+        };
+
+        let tmp = tempfile::tempdir().unwrap();
+        let catalog_amiga = tmp.path().join("catalog/amiga");
+        std::fs::create_dir_all(&catalog_amiga).unwrap();
+        let shipped = catalog_amiga.join("fatman.fs-uae");
+        std::fs::write(&shipped, "amiga_model = A500\n").unwrap();
+        let source_path = catalog_amiga.join("fatman.toml");
+        std::fs::write(&source_path, "# placeholder").unwrap();
+
+        let entry = CatalogEntry {
+            schema_version: 1,
+            game: Game {
+                id: "fatman".into(),
+                title: "Fatman".into(),
+                platform: Platform::Amiga,
+                collection: None,
+            },
+            meta: Meta::default(),
+            acquisition: Acquisition::default(),
+            install: CatInstall::default(),
+            runtime: Runtime {
+                emulator: Emulator::FsUae,
+                sidecars: vec![],
+                dosbox: None,
+                fs_uae: Some(FsUaeRuntime {
+                    model: AmigaModel::A500,
+                    config: Some("fatman.fs-uae".into()),
+                    floppies: vec!["fatman.adf".into()],
+                }),
+            },
+        };
+        let install = synthetic_install("fatman", "/games/fatman");
+
+        let plan = compose_fs_uae(&entry, &source_path, &install, &UserConfig::default()).unwrap();
+
+        // First positional arg is the shipped config; no --amiga_model.
+        assert_eq!(plan.primary.args[0], shipped.to_string_lossy());
+        assert!(!plan.primary.args.iter().any(|a| a.starts_with("--amiga_model=")));
+        assert!(plan
+            .primary
+            .args
+            .iter()
+            .any(|a| a == "--floppy_drive_0=/games/fatman/fatman.adf"));
+    }
+
+    #[test]
+    fn compose_fs_uae_handles_multiple_floppies_in_order() {
+        use crate::catalog::{
+            Acquisition, CatalogEntry, FsUaeRuntime, Emulator, Game, Install as CatInstall,
+            Meta, Runtime,
+        };
+        let entry = CatalogEntry {
+            schema_version: 1,
+            game: Game {
+                id: "multi".into(),
+                title: "Multi".into(),
+                platform: Platform::Amiga,
+                collection: None,
+            },
+            meta: Meta::default(),
+            acquisition: Acquisition::default(),
+            install: CatInstall::default(),
+            runtime: Runtime {
+                emulator: Emulator::FsUae,
+                sidecars: vec![],
+                dosbox: None,
+                fs_uae: Some(FsUaeRuntime {
+                    model: AmigaModel::A1200,
+                    config: None,
+                    floppies: vec!["disk1.adf".into(), "disk2.adf".into(), "disk3.adf".into()],
+                }),
+            },
+        };
+        let install = synthetic_install("multi", "/games/multi");
+
+        let plan = compose_fs_uae(
+            &entry,
+            Path::new("/tap/catalog/amiga/multi.toml"),
+            &install,
+            &UserConfig::default(),
+        )
+        .unwrap();
+
+        assert!(plan.primary.args.contains(&"--amiga_model=A1200".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--floppy_drive_0=/games/multi/disk1.adf".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--floppy_drive_1=/games/multi/disk2.adf".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--floppy_drive_2=/games/multi/disk3.adf".to_string()));
+    }
+
+    #[test]
+    fn compose_fs_uae_includes_kickstart_dir_when_set() {
+        let (_tmp, source_path) = temp_tap_with_fatman();
+        let entry = crate::catalog::load(&source_path).unwrap();
+        let install = synthetic_install("fatman", "/games/fatman");
+        let mut user = UserConfig::default();
+        user.emulators.fs_uae.kickstart_path = Some(PathBuf::from("/opt/kickstarts"));
+
+        let plan = compose_fs_uae(&entry, &source_path, &install, &user).unwrap();
+
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--kickstarts_dir=/opt/kickstarts".to_string()));
     }
 
     #[test]
