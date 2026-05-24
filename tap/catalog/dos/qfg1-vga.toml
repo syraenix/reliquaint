@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "qfg1-vga"
+title      = "Quest for Glory I: So You Want to Be a Hero (VGA)"
+platform   = "dos"
+collection = "quest-for-glory"
+
+[meta]
+year        = 1992
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure", "rpg"]
+tags        = ["sierra", "sci", "fantasy", "point-and-click"]
+description = "VGA remake of the 1989 EGA original, with a point-and-click interface replacing the parser and a soundtrack overhaul."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/quest_for_glory_15"
+notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
+
+[install]
+expects_files = ["SCIDHUV.exe", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "qfg1-vga.conf"
+entry  = "SCIDHUV.exe"
+mount  = "c"

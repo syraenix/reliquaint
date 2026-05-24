@@ -2,7 +2,7 @@
 
 In order to finish this guide, you will need to install several prerequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
 
-> **Tip:** Once `classic-launcher` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. The manual steps below remain the source of truth and the fallback for non-Debian distros.
+> **Tip:** Once `reliquaint` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. The manual steps below remain the source of truth and the fallback for non-Debian distros.
 
 ## DOSBox Staging
 
@@ -52,7 +52,7 @@ FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are 
 
 ## Rust toolchain
 
-`classic-launcher` is a Rust binary that replaces the per-game shell scripts. You need the Rust toolchain to build and install it.
+`reliquaint` is a Rust binary that replaces the per-game shell scripts. You need the Rust toolchain to build and install it.
 
 Install [rustup](https://rustup.rs/) (the Rust toolchain installer):
 
@@ -72,17 +72,17 @@ You also need a C linker (required by the Rust compiler):
 $ sudo apt install gcc
 ```
 
-Build and install `classic-launcher`:
+Build and install `reliquaint`:
 
 ```bash
 $ cargo install --path launcher/src-tauri
 ```
 
-This places `classic-launcher` in `~/.cargo/bin/`. Ensure `~/.cargo/bin` is on your `PATH` (rustup adds this automatically when you source the env file).
+This places `reliquaint` in `~/.cargo/bin/`. Ensure `~/.cargo/bin` is on your `PATH` (rustup adds this automatically when you source the env file).
 
 ## Node.js and pnpm (GUI only)
 
-Required only to build or run the `classic-launcher` GUI. Skip this section if you only need the CLI.
+Required only to build or run the `reliquaint` GUI. Skip this section if you only need the CLI.
 
 Install Node.js (LTS) via NodeSource:
 

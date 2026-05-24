@@ -1,23 +1,24 @@
 <script>
   import { createEventDispatcher } from "svelte";
-  import { convertFileSrc } from "@tauri-apps/api/core";
 
   export let game;
   const dispatch = createEventDispatcher();
-
-  $: artworkUrl = game.artwork_path ? convertFileSrc(game.artwork_path) : null;
 </script>
 
 <button class="card" on:click={() => dispatch("click")}>
-  <div class="artwork platform-{game.platform}">
-    {#if artworkUrl}
-      <img src={artworkUrl} alt="{game.title} artwork" />
-    {:else}
-      <span class="platform-label">{game.platform.toUpperCase()}</span>
+  <div class="header platform-{game.platform}">
+    <span class="platform-label">{game.platform.toUpperCase()}</span>
+    {#if game.installed}
+      <span class="installed-badge">INSTALLED</span>
     {/if}
   </div>
   <div class="info">
     <span class="title">{game.title}</span>
+    <span class="meta">
+      {#if game.year}{game.year}{/if}
+      {#if game.year && game.developer} · {/if}
+      {#if game.developer}{game.developer}{/if}
+    </span>
   </div>
 </button>
 
@@ -32,6 +33,8 @@
     overflow: hidden;
     transition: border-color 0.15s, transform 0.1s;
     width: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .card:hover {
@@ -39,26 +42,30 @@
     transform: translateY(-2px);
   }
 
-  .artwork {
-    width: 100%;
-    aspect-ratio: 4 / 3;
+  .header {
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-
-  .artwork img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    justify-content: space-between;
+    padding: 14px 14px;
+    aspect-ratio: 16 / 5;
   }
 
   .platform-label {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.1em;
     opacity: 0.7;
+  }
+
+  .installed-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: rgba(106, 191, 106, 0.2);
+    color: #6abf6a;
+    border: 1px solid #6abf6a;
   }
 
   .platform-dos {
@@ -74,13 +81,23 @@
   .info {
     padding: 10px 12px;
     border-top: 1px solid #2a2a40;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .title {
-    display: block;
-    font-size: 0.82rem;
-    color: #ccc;
-    line-height: 1.35;
+    font-size: 0.88rem;
+    color: #ddd;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .meta {
+    font-size: 0.75rem;
+    color: #777;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

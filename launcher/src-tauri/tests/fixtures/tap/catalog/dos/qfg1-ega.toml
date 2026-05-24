@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id = "qfg1-ega"
+title = "Quest for Glory I: So You Want to Be a Hero (EGA)"
+platform = "dos"
+collection = "quest-for-glory"
+
+[meta]
+year = 1989
+developer = "Sierra On-Line"
+publisher = "Sierra On-Line"
+genre = ["adventure", "rpg"]
+tags = ["sierra", "agi", "fantasy"]
+description = "Sierra's hybrid of adventure game and stat-based RPG. Originally released as Hero's Quest."
+
+[acquisition]
+gog = "https://www.gog.com/game/quest_for_glory_so_you_want_to_be_a_hero"
+notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
+
+[install]
+expects_files = ["SIERRA.BAT", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "qfg1-ega.conf"
+entry = "SIERRA.BAT"
+mount = "c"

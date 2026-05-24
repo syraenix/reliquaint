@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "qfg3"
+title      = "Quest for Glory III: Wages of War"
+platform   = "dos"
+collection = "quest-for-glory"
+
+[meta]
+year        = 1992
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure", "rpg"]
+tags        = ["sierra", "sci", "african", "point-and-click"]
+description = "Africa-inspired entry with VGA graphics and a point-and-click interface. Bridge between Trial by Fire's cliffhanger and the Shadows of Darkness storyline."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/quest_for_glory_15"
+notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
+
+[install]
+expects_files = ["sierra.exe", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "qfg3.conf"
+entry  = "sierra.exe"
+mount  = "c"
