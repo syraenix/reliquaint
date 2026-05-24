@@ -20,6 +20,7 @@ notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
 
 [install]
 expects_files = ["SCIV.exe", "RESOURCE.000"]
+subdir = "EGA"
 
 [runtime]
 emulator = "dosbox-staging"

@@ -94,44 +94,28 @@ pub enum InstallError {
     },
 }
 
-/// Result of [`install`]: either the record was written, or the
-/// requested directory is missing some of the catalog entry's
-/// `expects_files` and the caller needs to confirm before forcing.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum InstallOutcome {
-    Installed { record_path: PathBuf },
-    MissingFiles(Vec<String>),
-}
-
-/// Register an install: canonicalize `requested_path`, check the
-/// catalog entry's `expects_files`, and write the record under
-/// `installs_dir/<catalog_id>.toml`.
+/// Write an install record for a directory that has already been populated
+/// by the install flow (copy/extract) or is already present at the managed
+/// location. Canonicalizes `install_path` (so it is absolute, as the schema
+/// requires) and verifies it is a directory, then writes
+/// `installs_dir/<catalog_id>.toml`. Returns the record path.
 ///
-/// When some `expects_files` are missing and `force` is false, returns
-/// `Ok(InstallOutcome::MissingFiles(...))` instead of writing. Callers
-/// (CLI prompt, GUI modal) decide whether to re-invoke with
-/// `force = true`.
-pub fn install(
+/// Unlike the removed `install()`, this performs no `expects_files`
+/// validation — that is the orchestrator's job, after the copy/extract.
+pub fn register(
     catalog_id: &str,
     tap_id: &str,
-    expects_files: &[String],
-    requested_path: &Path,
-    force: bool,
+    install_path: &Path,
     installs_dir: &Path,
-) -> Result<InstallOutcome, InstallError> {
-    let abs = requested_path
+) -> Result<PathBuf, InstallError> {
+    let abs = install_path
         .canonicalize()
         .map_err(|source| InstallError::PathAccess {
-            path: requested_path.to_path_buf(),
+            path: install_path.to_path_buf(),
             source,
         })?;
     if !abs.is_dir() {
         return Err(InstallError::NotADirectory { path: abs });
-    }
-
-    let missing = missing_expects_files(&abs, expects_files);
-    if !missing.is_empty() && !force {
-        return Ok(InstallOutcome::MissingFiles(missing));
     }
 
     let installed_at = toml::value::Datetime::from_str(&now_iso8601())
@@ -153,7 +137,7 @@ pub fn install(
     })?;
     let record_path = installs_dir.join(format!("{catalog_id}.toml"));
     write(&record, &record_path)?;
-    Ok(InstallOutcome::Installed { record_path })
+    Ok(record_path)
 }
 
 /// Case-insensitive check for each expected filename at the top level of
@@ -462,106 +446,25 @@ installed_at = 2026-05-23T14:32:00Z
     }
 
     #[test]
-    fn install_happy_path_writes_record() {
+    fn register_writes_record_for_existing_dir() {
         let installs = tempfile::tempdir().unwrap();
         let game = tempfile::tempdir().unwrap();
-        std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
-
-        let outcome = install(
-            "qfg1-ega",
-            "reliquaint-core",
-            &["SIERRA.BAT".into()],
-            game.path(),
-            false,
-            installs.path(),
-        )
-        .unwrap();
-
-        match outcome {
-            InstallOutcome::Installed { record_path } => {
-                assert!(record_path.is_file(), "record should be written");
-                let r = load(&record_path).unwrap();
-                assert_eq!(r.install.catalog_id, "qfg1-ega");
-                assert_eq!(r.install.tap, "reliquaint-core");
-                assert_eq!(r.install.install_path, game.path().canonicalize().unwrap());
-            }
-            other => panic!("expected Installed, got {other:?}"),
-        }
+        let record_path =
+            register("kq5", "reliquaint-core", game.path(), installs.path()).unwrap();
+        assert!(record_path.is_file());
+        let r = load(&record_path).unwrap();
+        assert_eq!(r.install.catalog_id, "kq5");
+        assert_eq!(r.install.tap, "reliquaint-core");
+        assert_eq!(r.install.install_path, game.path().canonicalize().unwrap());
     }
 
     #[test]
-    fn install_returns_missing_files_when_not_force() {
+    fn register_errors_when_path_missing() {
         let installs = tempfile::tempdir().unwrap();
-        let game = tempfile::tempdir().unwrap();
-        // expects_files not present in the (empty) game dir.
-
-        let outcome = install(
-            "qfg1-ega",
+        let err = register(
+            "kq5",
             "reliquaint-core",
-            &["SIERRA.BAT".into(), "RESOURCE.000".into()],
-            game.path(),
-            false,
-            installs.path(),
-        )
-        .unwrap();
-
-        match outcome {
-            InstallOutcome::MissingFiles(missing) => {
-                assert_eq!(missing.len(), 2);
-                assert!(missing.contains(&"SIERRA.BAT".to_string()));
-            }
-            other => panic!("expected MissingFiles, got {other:?}"),
-        }
-        // No record written.
-        assert!(!installs.path().join("qfg1-ega.toml").exists());
-    }
-
-    #[test]
-    fn install_force_writes_record_with_missing_files() {
-        let installs = tempfile::tempdir().unwrap();
-        let game = tempfile::tempdir().unwrap();
-
-        let outcome = install(
-            "qfg1-ega",
-            "reliquaint-core",
-            &["SIERRA.BAT".into()],
-            game.path(),
-            true,
-            installs.path(),
-        )
-        .unwrap();
-
-        assert!(matches!(outcome, InstallOutcome::Installed { .. }));
-    }
-
-    #[test]
-    fn install_errors_when_path_is_file() {
-        let installs = tempfile::tempdir().unwrap();
-        let tmp = tempfile::tempdir().unwrap();
-        let file = tmp.path().join("not-a-dir.txt");
-        std::fs::write(&file, b"").unwrap();
-
-        let err = install(
-            "qfg1-ega",
-            "reliquaint-core",
-            &[],
-            &file,
-            true,
-            installs.path(),
-        )
-        .unwrap_err();
-        assert!(matches!(err, InstallError::NotADirectory { .. }));
-    }
-
-    #[test]
-    fn install_errors_when_path_does_not_exist() {
-        let installs = tempfile::tempdir().unwrap();
-        let err = install(
-            "qfg1-ega",
-            "reliquaint-core",
-            &[],
-            Path::new("/definitely/not/a/real/path/anywhere"),
-            true,
+            Path::new("/no/such/dir/xyz123"),
             installs.path(),
         )
         .unwrap_err();

@@ -69,6 +69,12 @@ pub struct Acquisition {
 pub struct Install {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub expects_files: Vec<String>,
+    /// Optional subfolder *within* the copied/extracted destination that
+    /// actually holds the game. After install, the recorded `install_path`
+    /// becomes `<dest>/<subdir>`. Used when one installer ships multiple
+    /// editions (e.g. the GOG QFG1 `.exe` puts the EGA edition under `EGA/`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subdir: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -108,6 +114,10 @@ pub struct FsUaeRuntime {
     pub config: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub floppies: Vec<String>,
+    /// Filenames (no paths) of hard-disk images inside `install_path`,
+    /// mounted as `--hard_drive_0..3` in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hard_drives: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -263,6 +273,9 @@ fn validate(entry: &CatalogEntry, path: &Path) -> Result<(), CatalogError> {
     for f in &entry.install.expects_files {
         bare("expects_files entry", f)?;
     }
+    if let Some(subdir) = entry.install.subdir.as_ref() {
+        bare("install.subdir", subdir)?;
+    }
     if let Some(dosbox) = entry.runtime.dosbox.as_ref() {
         bare("runtime.dosbox.config", &dosbox.config)?;
         if !is_drive_letter(&dosbox.mount) {
@@ -278,6 +291,9 @@ fn validate(entry: &CatalogEntry, path: &Path) -> Result<(), CatalogError> {
         }
         for floppy in &fs_uae.floppies {
             bare("runtime.fs_uae.floppies entry", floppy)?;
+        }
+        for hd in &fs_uae.hard_drives {
+            bare("runtime.fs_uae.hard_drives entry", hd)?;
         }
     }
     Ok(())
@@ -602,5 +618,112 @@ floppies = ["../sneaky.adf"]
     fn accepts_bare_filename_entry() {
         let text = dos_entry_with("qfg1-ega.conf", "c", "\"SIERRA.BAT\", \"RESOURCE.000\"");
         parse_str(&text, Path::new("test.toml")).expect("bare filenames should validate");
+    }
+
+    #[test]
+    fn parses_install_subdir() {
+        let text = r#"schema_version = 1
+
+[game]
+id = "qfg1-ega"
+title = "X"
+platform = "dos"
+
+[install]
+subdir = "EGA"
+
+[runtime]
+emulator = "dosbox-staging"
+
+[runtime.dosbox]
+config = "x.conf"
+entry = "SIERRA.BAT"
+"#;
+        let entry = parse_str(text, Path::new("test.toml")).unwrap();
+        assert_eq!(entry.install.subdir.as_deref(), Some("EGA"));
+    }
+
+    #[test]
+    fn subdir_defaults_to_none() {
+        let text = dos_entry_with("qfg1-ega.conf", "c", "\"SIERRA.BAT\"");
+        let entry = parse_str(&text, Path::new("test.toml")).unwrap();
+        assert_eq!(entry.install.subdir, None);
+    }
+
+    #[test]
+    fn rejects_pathful_subdir() {
+        let text = r#"schema_version = 1
+
+[game]
+id = "qfg1-ega"
+title = "X"
+platform = "dos"
+
+[install]
+subdir = "../escape"
+
+[runtime]
+emulator = "dosbox-staging"
+
+[runtime.dosbox]
+config = "x.conf"
+entry = "SIERRA.BAT"
+"#;
+        let err = parse_str(text, Path::new("test.toml")).unwrap_err();
+        assert!(
+            matches!(err, CatalogError::InvalidPathField { field: "install.subdir", .. }),
+            "got {err:?}"
+        );
+    }
+
+    #[test]
+    fn parses_fs_uae_hard_drives() {
+        let text = r#"schema_version = 1
+
+[game]
+id = "workbench-game"
+title = "X"
+platform = "amiga"
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model = "a1200"
+hard_drives = ["game.hdf"]
+"#;
+        let entry = parse_str(text, Path::new("test.toml")).unwrap();
+        let fs_uae = entry.runtime.fs_uae.as_ref().unwrap();
+        assert_eq!(fs_uae.hard_drives, vec!["game.hdf".to_string()]);
+    }
+
+    #[test]
+    fn hard_drives_defaults_to_empty() {
+        let path = fixtures_dir().join("amiga/fatman.toml");
+        let entry = load(&path).unwrap();
+        assert!(entry.runtime.fs_uae.as_ref().unwrap().hard_drives.is_empty());
+    }
+
+    #[test]
+    fn rejects_pathful_hard_drive() {
+        let text = r#"schema_version = 1
+
+[game]
+id = "workbench-game"
+title = "X"
+platform = "amiga"
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model = "a1200"
+hard_drives = ["../sneaky.hdf"]
+"#;
+        let err = parse_str(text, Path::new("test.toml")).unwrap_err();
+        assert!(
+            matches!(err, CatalogError::InvalidPathField { field: "runtime.fs_uae.hard_drives entry", .. }),
+            "got {err:?}"
+        );
     }
 }
