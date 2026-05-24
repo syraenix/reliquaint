@@ -1,4 +1,5 @@
 pub mod catalog;
+pub mod catalog_view;
 pub mod cli;
 pub mod commands;
 pub mod discovery;
