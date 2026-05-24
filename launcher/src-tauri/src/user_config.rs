@@ -47,6 +47,14 @@ pub struct FsUaeConfig {
     /// FS-UAE has its own fallbacks.
     #[serde(default)]
     pub kickstart_path: Option<PathBuf>,
+    /// Launch FS-UAE fullscreen. Default false (windowed) — the launcher
+    /// presents the native Amiga frame in a window, integer-scaled.
+    #[serde(default)]
+    pub fullscreen: bool,
+    /// Integer scale factor for the windowed view. Default 3 (a crisp ~3×
+    /// view of the native PAL frame). Ignored when `fullscreen` is set.
+    #[serde(default = "default_fs_uae_window_scale")]
+    pub window_scale: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default)]
@@ -71,6 +79,10 @@ fn default_dosbox_command() -> String {
 
 fn default_fs_uae_command() -> String {
     "fs-uae".to_string()
+}
+
+fn default_fs_uae_window_scale() -> u32 {
+    3
 }
 
 fn default_fluidsynth_command() -> String {
@@ -104,6 +116,8 @@ impl Default for FsUaeConfig {
         Self {
             command: default_fs_uae_command(),
             kickstart_path: None,
+            fullscreen: false,
+            window_scale: default_fs_uae_window_scale(),
         }
     }
 }
@@ -237,6 +251,8 @@ soundfont = "/opt/sounds/custom.sf2"
         );
         assert_eq!(parsed.emulators.fs_uae.command, "fs-uae");
         assert_eq!(parsed.emulators.fs_uae.kickstart_path, None);
+        assert!(!parsed.emulators.fs_uae.fullscreen);
+        assert_eq!(parsed.emulators.fs_uae.window_scale, 3);
     }
 
     #[test]

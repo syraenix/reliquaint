@@ -219,8 +219,16 @@ pub fn compose_fs_uae(
         args.push(format!("--amiga_model={}", fs_uae_model_string(fs_uae.model)));
     }
 
-    for (i, floppy) in floppies.iter().enumerate() {
-        args.push(format!("--floppy_drive_{i}={}", floppy.to_string_lossy()));
+    // Historic A500: one internal drive (DF0). Disk 1 boots in DF0; every
+    // disk is registered in the swap list so the user cycles them via the
+    // FS-UAE disk menu when the game prompts. Mounting all disks in separate
+    // drives is not authentic and confuses real games' loaders.
+    if let Some(first) = floppies.first() {
+        args.push("--floppy_drive_count=1".into());
+        args.push(format!("--floppy_drive_0={}", first.to_string_lossy()));
+        for (i, floppy) in floppies.iter().enumerate() {
+            args.push(format!("--floppy_image_{i}={}", floppy.to_string_lossy()));
+        }
     }
     for (i, hd) in hard_drives.iter().enumerate() {
         args.push(format!("--hard_drive_{i}={}", hd.to_string_lossy()));
@@ -231,6 +239,21 @@ pub fn compose_fs_uae(
             "--kickstarts_dir={}",
             kickstart_dir.to_string_lossy()
         ));
+    }
+
+    // Display: windowed and integer-scaled by default (a crisp native A500
+    // view), or fullscreen if the user opts in. Command-line flags override
+    // any shipped `.fs-uae` config, so this host preference always wins.
+    if user_config.emulators.fs_uae.fullscreen {
+        args.push("--fullscreen=1".into());
+    } else {
+        args.push("--fullscreen=0".into());
+        // FS-UAE doesn't derive width from height, so set both — an integer
+        // multiple of its 640×480 (4:3) output frame, so the window keeps the
+        // correct Amiga proportions instead of going tall and narrow.
+        let scale = user_config.emulators.fs_uae.window_scale.max(1);
+        args.push(format!("--window_width={}", 640 * scale));
+        args.push(format!("--window_height={}", 480 * scale));
     }
 
     let primary = PreparedCommand {
@@ -489,7 +512,12 @@ mod tests {
             plan.primary.args,
             vec![
                 "--amiga_model=A500".to_string(),
+                "--floppy_drive_count=1".to_string(),
                 "--floppy_drive_0=/home/test/games/fatman/fatman.adf".to_string(),
+                "--floppy_image_0=/home/test/games/fatman/fatman.adf".to_string(),
+                "--fullscreen=0".to_string(),
+                "--window_width=1920".to_string(),
+                "--window_height=1440".to_string(),
             ]
         );
         assert!(plan.sidecars.is_empty());
@@ -587,18 +615,29 @@ mod tests {
         .unwrap();
 
         assert!(plan.primary.args.contains(&"--amiga_model=A1200".to_string()));
+        // Single internal drive boots disk 1; all disks form the swap list.
+        assert!(plan.primary.args.contains(&"--floppy_drive_count=1".to_string()));
         assert!(plan
             .primary
             .args
             .contains(&"--floppy_drive_0=/games/multi/disk1.adf".to_string()));
+        assert!(!plan
+            .primary
+            .args
+            .iter()
+            .any(|a| a.starts_with("--floppy_drive_1") || a.starts_with("--floppy_drive_2")));
         assert!(plan
             .primary
             .args
-            .contains(&"--floppy_drive_1=/games/multi/disk2.adf".to_string()));
+            .contains(&"--floppy_image_0=/games/multi/disk1.adf".to_string()));
         assert!(plan
             .primary
             .args
-            .contains(&"--floppy_drive_2=/games/multi/disk3.adf".to_string()));
+            .contains(&"--floppy_image_1=/games/multi/disk2.adf".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--floppy_image_2=/games/multi/disk3.adf".to_string()));
     }
 
     fn amiga_entry_no_disks(model: AmigaModel) -> crate::catalog::CatalogEntry {
@@ -672,13 +711,22 @@ mod tests {
         )
         .unwrap();
 
-        let expected = format!(
+        let expected_drive = format!(
             "--floppy_drive_0={}/game.adf",
             install_dir.path().to_string_lossy()
         );
+        let expected_image = format!(
+            "--floppy_image_0={}/game.adf",
+            install_dir.path().to_string_lossy()
+        );
         assert!(
-            plan.primary.args.contains(&expected),
-            "expected {expected} in {:?}",
+            plan.primary.args.contains(&expected_drive),
+            "expected {expected_drive} in {:?}",
+            plan.primary.args
+        );
+        assert!(
+            plan.primary.args.contains(&expected_image),
+            "expected {expected_image} in {:?}",
             plan.primary.args
         );
     }
@@ -747,6 +795,38 @@ mod tests {
             .primary
             .args
             .contains(&"--kickstarts_dir=/opt/kickstarts".to_string()));
+    }
+
+    #[test]
+    fn compose_fs_uae_windowed_integer_scaled_by_default() {
+        let (_tmp, source_path) = temp_tap_with_fatman();
+        let entry = crate::catalog::load(&source_path).unwrap();
+        let install = synthetic_install("fatman", "/games/fatman");
+
+        let plan = compose_fs_uae(&entry, &source_path, &install, &UserConfig::default()).unwrap();
+
+        // Default scale is 3 → 640×480 × 3 = 1920×1440, windowed.
+        assert!(plan.primary.args.contains(&"--fullscreen=0".to_string()));
+        assert!(plan.primary.args.contains(&"--window_width=1920".to_string()));
+        assert!(plan.primary.args.contains(&"--window_height=1440".to_string()));
+    }
+
+    #[test]
+    fn compose_fs_uae_fullscreen_when_user_opts_in() {
+        let (_tmp, source_path) = temp_tap_with_fatman();
+        let entry = crate::catalog::load(&source_path).unwrap();
+        let install = synthetic_install("fatman", "/games/fatman");
+        let mut user = UserConfig::default();
+        user.emulators.fs_uae.fullscreen = true;
+
+        let plan = compose_fs_uae(&entry, &source_path, &install, &user).unwrap();
+
+        assert!(plan.primary.args.contains(&"--fullscreen=1".to_string()));
+        assert!(
+            !plan.primary.args.iter().any(|a| a.starts_with("--window_")),
+            "fullscreen launch should not set a window size: {:?}",
+            plan.primary.args
+        );
     }
 
     #[test]
