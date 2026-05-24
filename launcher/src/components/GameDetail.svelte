@@ -9,6 +9,25 @@
   let launchError = null;
   let launchExitedMessage = null;
 
+  const ACQUISITION_LABELS = [
+    ["gog", "Get on GOG"],
+    ["steam", "Get on Steam"],
+    ["developer_site", "Developer's site"],
+    ["archive", "Internet Archive"],
+  ];
+
+  $: acquisitionButtons = ACQUISITION_LABELS
+    .map(([key, label]) => ({ key, label, url: game.acquisition?.[key] }))
+    .filter((b) => !!b.url);
+
+  async function handleOpenUrl(url) {
+    try {
+      await invoke("open_url", { url });
+    } catch (e) {
+      launchError = String(e);
+    }
+  }
+
   async function handleLaunch() {
     launching = true;
     launchError = null;
@@ -63,6 +82,24 @@
 
       {#if game.description}
         <p class="description">{game.description}</p>
+      {/if}
+
+      {#if acquisitionButtons.length > 0 || game.acquisition?.notes}
+        <section class="acquisition">
+          <h3>How to obtain</h3>
+          {#if acquisitionButtons.length > 0}
+            <div class="acquisition-buttons">
+              {#each acquisitionButtons as btn (btn.key)}
+                <button class="acq-btn" on:click={() => handleOpenUrl(btn.url)}>
+                  {btn.label}
+                </button>
+              {/each}
+            </div>
+          {/if}
+          {#if game.acquisition?.notes}
+            <p class="acquisition-notes">{game.acquisition.notes}</p>
+          {/if}
+        </section>
       {/if}
 
       <div class="actions">
@@ -200,6 +237,49 @@
     line-height: 1.6;
     margin-bottom: 20px;
     max-width: 60ch;
+  }
+
+  .acquisition {
+    margin-bottom: 22px;
+    max-width: 60ch;
+  }
+
+  .acquisition h3 {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+
+  .acquisition-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .acq-btn {
+    background: #252538;
+    border: 1px solid #3a3a55;
+    color: #c0c8ff;
+    padding: 7px 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .acq-btn:hover {
+    background: #2e2e4a;
+    border-color: #5555aa;
+  }
+
+  .acquisition-notes {
+    color: #999;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    font-style: italic;
   }
 
   .actions {

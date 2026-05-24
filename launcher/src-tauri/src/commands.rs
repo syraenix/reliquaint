@@ -180,6 +180,28 @@ pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>, 
     Ok(view.all().iter().map(entry_to_dto).collect())
 }
 
+/// Open an `http://` or `https://` URL in the user's browser via
+/// `xdg-open`. Rejects other schemes (e.g. `file:`, `javascript:`) as
+/// defense in depth — the URL ultimately came from a catalog entry,
+/// but the renderer hands us a string and we shouldn't blindly trust it.
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    validate_external_url(&url)?;
+    std::process::Command::new("xdg-open")
+        .arg(&url)
+        .spawn()
+        .map_err(|e| format!("failed to spawn xdg-open: {e}"))?;
+    Ok(())
+}
+
+fn validate_external_url(url: &str) -> Result<(), String> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        Ok(())
+    } else {
+        Err(format!("refusing to open non-http(s) URL: {url}"))
+    }
+}
+
 #[tauri::command]
 pub async fn launch_game(id: String, state: State<'_, AppState>) -> Result<(), String> {
     let repo_root = state.repo_root.clone();
@@ -457,5 +479,28 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let view = load_catalog_view(tmp.path()).unwrap();
         assert!(view.all().is_empty());
+    }
+
+    #[test]
+    fn validate_external_url_accepts_http_and_https() {
+        assert!(validate_external_url("http://example.test/").is_ok());
+        assert!(validate_external_url("https://example.test/").is_ok());
+    }
+
+    #[test]
+    fn validate_external_url_rejects_dangerous_schemes() {
+        for url in [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "data:text/html,<script>",
+            "ftp://example.test/",
+            "",
+            "/etc/passwd",
+        ] {
+            assert!(
+                validate_external_url(url).is_err(),
+                "should reject {url:?}"
+            );
+        }
     }
 }
