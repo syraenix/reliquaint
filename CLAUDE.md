@@ -51,7 +51,7 @@ Read before non-trivial changes:
 
 ### Entry-point dispatch
 
-`main.rs` routes by first arg: presence of `list`/`run`/`install`/`doctor`/`--help`/`--version` stays CLI; otherwise opens the GUI. Tauri is always compiled in.
+`main.rs` routes by argument presence: a bare `reliquaint` (no arguments) opens the GUI; any arguments are handed to `cli::run()`, where Clap owns parsing, the required-subcommand check, global flags (`-v`/`--verbose`, `--help`, `--version`), and error reporting. Tauri is always compiled in.
 
 ## Conventions when editing
 
