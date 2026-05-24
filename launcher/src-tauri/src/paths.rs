@@ -13,6 +13,20 @@ pub fn games_dir(base: &Path, id: &str) -> PathBuf {
     base.join(id)
 }
 
+/// Default base directory the install flow copies/extracts games into.
+/// Each game lands at `<library>/<id>` (see [`games_dir`]).
+///
+/// `RELIQUAINT_GAMES_DIR`, if set and non-empty, overrides the default
+/// `~/games`. Used by integration tests to isolate state.
+pub fn default_library_dir() -> PathBuf {
+    if let Ok(v) = std::env::var("RELIQUAINT_GAMES_DIR") {
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
+    expand_tilde("~/games")
+}
+
 /// Walk upward from `start` looking for a Reliquaint repository root.
 ///
 /// Recognizes either layout:
@@ -235,6 +249,30 @@ mod tests {
             return;
         }
         assert!(find_repo_root(tmp.path()).is_none());
+    }
+
+    #[test]
+    fn default_library_dir_env_overrides() {
+        // Save/restore the env var so we don't leak state to other tests.
+        let saved = std::env::var("RELIQUAINT_GAMES_DIR").ok();
+        std::env::set_var("RELIQUAINT_GAMES_DIR", "/tmp/custom-games");
+        assert_eq!(default_library_dir(), PathBuf::from("/tmp/custom-games"));
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_GAMES_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_GAMES_DIR"),
+        }
+    }
+
+    #[test]
+    fn default_library_dir_falls_back_to_games_under_home() {
+        let saved = std::env::var("RELIQUAINT_GAMES_DIR").ok();
+        std::env::remove_var("RELIQUAINT_GAMES_DIR");
+        let dir = default_library_dir();
+        assert!(dir.ends_with("games"), "expected ~/games, got {}", dir.display());
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_GAMES_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_GAMES_DIR"),
+        }
     }
 
     #[test]

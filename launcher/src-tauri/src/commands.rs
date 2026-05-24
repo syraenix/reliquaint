@@ -75,6 +75,15 @@ pub struct AcquisitionDto {
 }
 
 pub fn load_catalog_view(repo_root: &Path) -> Result<crate::catalog_view::CatalogView, String> {
+    load_catalog_view_with(repo_root, &crate::paths::installs_dir())
+}
+
+/// Like [`load_catalog_view`] but with an explicit installs directory, so
+/// tests can isolate from the developer's real `paths::installs_dir()`.
+fn load_catalog_view_with(
+    repo_root: &Path,
+    installs_dir: &Path,
+) -> Result<crate::catalog_view::CatalogView, String> {
     let tap_root = crate::paths::tap_root(repo_root);
     let taps = match crate::tap::load_tap(&tap_root) {
         Ok(t) => vec![t],
@@ -87,7 +96,7 @@ pub fn load_catalog_view(repo_root: &Path) -> Result<crate::catalog_view::Catalo
         }
         Err(e) => return Err(format!("failed to load bundled tap: {e}")),
     };
-    let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+    let installs = crate::install_record::load_all(installs_dir);
     Ok(crate::catalog_view::CatalogView::assemble(taps, installs))
 }
 
@@ -129,25 +138,38 @@ pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>, 
     Ok(view.all().iter().map(entry_to_dto).collect())
 }
 
-/// Result payload for `install_game`. Mirrors
-/// `install_record::InstallOutcome` but serializes as a tagged JSON
-/// object the Svelte side can `switch` on.
+/// Result payload for `install_game`. Serializes as a tagged JSON object
+/// the Svelte side can `switch` on. `install_path` is where the game will
+/// live once committed; on `MissingFiles` the staged copy is held and the
+/// frontend calls `commit_install` (install anyway) or `discard_install`.
 #[derive(Serialize, Clone)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum InstallGameOutcome {
-    Installed { record_path: String },
-    MissingFiles { missing: Vec<String> },
+    Installed {
+        record_path: String,
+        install_path: String,
+    },
+    MissingFiles {
+        missing: Vec<String>,
+        install_path: String,
+    },
 }
 
-/// Register an install for the catalog entry `id` at `path`. With
-/// `force = false`, missing expects_files cause the call to return
-/// `MissingFiles` without writing — the frontend prompts the user, then
-/// re-invokes with `force = true` if they accept.
+/// Install the catalog entry `id` by staging `source` into the managed
+/// library (default `~/games/<id>`, or `<dest>/<id>` when `dest` is given) and
+/// committing it. Streams copy/extract output as `install-output` events.
+///
+/// Stage-then-commit: the source is copied/extracted into a sibling staging
+/// dir; only when the expected files are present is it committed (atomic
+/// rename) and a record written. If files are missing, returns `MissingFiles`
+/// with the staging left in place — the frontend then calls `commit_install`
+/// ("install anyway") or `discard_install` (cancel).
 #[tauri::command]
-pub fn install_game(
+pub async fn install_game(
     id: String,
-    path: PathBuf,
-    force: bool,
+    source: PathBuf,
+    dest: Option<PathBuf>,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<InstallGameOutcome, String> {
     let view = load_catalog_view(&state.repo_root)?;
@@ -155,26 +177,137 @@ pub fn install_game(
         .by_id(&id)
         .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
 
-    let outcome = crate::install_record::install(
+    let dest_base = dest.unwrap_or_else(crate::paths::default_library_dir);
+    let spec = crate::game_install::EntrySpec::from_entry(&entry.catalog);
+    let plan =
+        crate::game_install::plan_install(&spec, &source, &dest_base).map_err(|e| e.to_string())?;
+
+    let expects = entry.catalog.install.expects_files.clone();
+    let tap_id = entry.tap_id.clone();
+    let catalog_id = entry.catalog.game.id.clone();
+
+    // Stage the copy/extract on a blocking thread; stream each line as an event.
+    let plan_for_thread = plan.clone();
+    let app_for_thread = app.clone();
+    let id_for_emit = id.clone();
+    let staged = tauri::async_runtime::spawn_blocking(move || {
+        crate::game_install::stage(&plan_for_thread, move |cmds| {
+            let app_cb = app_for_thread.clone();
+            let emit_id = id_for_emit.clone();
+            crate::installer::run_install(cmds.to_vec(), move |line, is_err| {
+                let _ = app_cb.emit(
+                    "install-output",
+                    serde_json::json!({
+                        "id": emit_id.clone(),
+                        "stream": if is_err { "stderr" } else { "stdout" },
+                        "line": line,
+                    }),
+                );
+            })
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    if let Err(e) = staged {
+        let _ = crate::game_install::discard_staging(&plan.staging_dir);
+        return Err(e.to_string());
+    }
+
+    let install_path_str = plan.install_path.to_string_lossy().into_owned();
+    let missing =
+        crate::install_record::missing_expects_files(&plan.staged_install_path, &expects);
+    if !missing.is_empty() {
+        // Leave staging in place; the frontend decides commit vs discard.
+        return Ok(InstallGameOutcome::MissingFiles {
+            missing,
+            install_path: install_path_str,
+        });
+    }
+
+    crate::game_install::commit(&plan.staging_dir, &plan.staged_install_path, &plan.dest_dir)
+        .map_err(|e| e.to_string())?;
+    let record_path = match crate::install_record::register(
+        &catalog_id,
+        &tap_id,
+        &plan.install_path,
+        &crate::paths::installs_dir(),
+    ) {
+        Ok(rp) => rp,
+        Err(e) => {
+            // Roll back the just-committed dir so it doesn't block retries.
+            let _ = crate::game_install::discard_staging(&plan.dest_dir);
+            return Err(e.to_string());
+        }
+    };
+    Ok(InstallGameOutcome::Installed {
+        record_path: record_path.to_string_lossy().into_owned(),
+        install_path: install_path_str,
+    })
+}
+
+/// Commit a staged install the user chose to keep despite missing expected
+/// files: rename the staging dir into place and write the record. Backs the
+/// GUI's "install anyway" path after `install_game` returns `MissingFiles`.
+#[tauri::command]
+pub fn commit_install(
+    id: String,
+    dest: Option<PathBuf>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+    let dest_base = dest.unwrap_or_else(crate::paths::default_library_dir);
+    let loc = crate::game_install::locations(
+        &entry.catalog.game.id,
+        entry.catalog.install.subdir.as_deref(),
+        &dest_base,
+    );
+    crate::game_install::commit(&loc.staging_dir, &loc.staged_install_path, &loc.dest_dir)
+        .map_err(|e| e.to_string())?;
+    let record_path = match crate::install_record::register(
         &entry.catalog.game.id,
         &entry.tap_id,
-        &entry.catalog.install.expects_files,
-        &path,
-        force,
+        &loc.install_path,
         &crate::paths::installs_dir(),
-    )
-    .map_err(|e| e.to_string())?;
+    ) {
+        Ok(rp) => rp,
+        Err(e) => {
+            let _ = crate::game_install::discard_staging(&loc.dest_dir);
+            return Err(e.to_string());
+        }
+    };
+    Ok(record_path.to_string_lossy().into_owned())
+}
 
-    Ok(match outcome {
-        crate::install_record::InstallOutcome::Installed { record_path } => {
-            InstallGameOutcome::Installed {
-                record_path: record_path.to_string_lossy().into_owned(),
-            }
-        }
-        crate::install_record::InstallOutcome::MissingFiles(missing) => {
-            InstallGameOutcome::MissingFiles { missing }
-        }
-    })
+/// Discard a staged install (remove the staging dir) when the user cancels or
+/// backs out after `install_game` returned `MissingFiles`. Idempotent.
+#[tauri::command]
+pub fn discard_install(
+    id: String,
+    dest: Option<PathBuf>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+    let dest_base = dest.unwrap_or_else(crate::paths::default_library_dir);
+    let loc = crate::game_install::locations(
+        &entry.catalog.game.id,
+        entry.catalog.install.subdir.as_deref(),
+        &dest_base,
+    );
+    crate::game_install::discard_staging(&loc.staging_dir).map_err(|e| e.to_string())
+}
+
+/// The default destination shown in the install dialog: `~/games/<id>`.
+#[tauri::command]
+pub fn default_install_dest(id: String) -> String {
+    crate::paths::games_dir(&crate::paths::default_library_dir(), &id)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Open an `http://` or `https://` URL in the user's browser via
@@ -354,7 +487,10 @@ mod tests {
 
     #[test]
     fn load_catalog_view_finds_fixture_tap_entries() {
-        let view = load_catalog_view(&fixture_repo_root()).unwrap();
+        // Isolate from the developer's real installs dir so the test is
+        // deterministic regardless of what is installed on this machine.
+        let installs = tempfile::tempdir().unwrap();
+        let view = load_catalog_view_with(&fixture_repo_root(), installs.path()).unwrap();
         let ids: Vec<&str> = view.all().iter().map(|e| e.catalog.game.id.as_str()).collect();
         assert!(ids.contains(&"qfg1-ega"), "expected qfg1-ega in {ids:?}");
         assert!(ids.contains(&"fatman"), "expected fatman in {ids:?}");
@@ -362,7 +498,9 @@ mod tests {
 
     #[test]
     fn entry_to_dto_carries_metadata_and_acquisition() {
-        let view = load_catalog_view(&fixture_repo_root()).unwrap();
+        // Empty installs dir → qfg1-ega is deterministically "not installed".
+        let installs = tempfile::tempdir().unwrap();
+        let view = load_catalog_view_with(&fixture_repo_root(), installs.path()).unwrap();
         let qfg = view.by_id("qfg1-ega").expect("qfg1-ega fixture missing");
         let dto = entry_to_dto(qfg);
 

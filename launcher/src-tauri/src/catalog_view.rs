@@ -193,6 +193,7 @@ mod tests {
                     model: AmigaModel::A500,
                     config: None,
                     floppies: vec![],
+                    hard_drives: vec![],
                 }),
             },
         }

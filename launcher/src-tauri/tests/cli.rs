@@ -215,12 +215,14 @@ fn install_record_path(installs_dir: &Path, id: &str) -> PathBuf {
 #[test]
 fn install_writes_record_when_expects_files_present() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
     // qfg1-ega declares expects_files = ["SIERRA.BAT", "RESOURCE.000"]
     std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
     std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
 
     let output = launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega"])
         .arg(game.path())
         .output()
@@ -231,6 +233,8 @@ fn install_writes_record_when_expects_files_present() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    // Files copied into the managed library; record written.
+    assert!(games.path().join("qfg1-ega/SIERRA.BAT").is_file());
     let record = install_record_path(installs.path(), "qfg1-ega");
     assert!(record.exists(), "record should exist at {}", record.display());
 
@@ -243,10 +247,12 @@ fn install_writes_record_when_expects_files_present() {
 #[test]
 fn install_force_writes_record_with_missing_expects_files() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
     // empty game dir; expects_files missing
 
     launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega", "--force"])
         .arg(game.path())
         .assert()
@@ -258,9 +264,11 @@ fn install_force_writes_record_with_missing_expects_files() {
 #[test]
 fn install_aborts_when_prompt_declined() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
 
     launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega"])
         .arg(game.path())
         .write_stdin("n\n")
@@ -274,9 +282,11 @@ fn install_aborts_when_prompt_declined() {
 #[test]
 fn install_writes_record_when_prompt_accepted() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
 
     launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega"])
         .arg(game.path())
         .write_stdin("y\n")
@@ -306,12 +316,13 @@ fn install_rejects_path_that_is_a_file() {
     let file = tmp.path().join("a-file.txt");
     std::fs::write(&file, b"").unwrap();
 
+    // A plain file is neither a directory nor a recognized installer/image.
     launcher(installs.path())
         .args(["install", "qfg1-ega", "--force"])
         .arg(&file)
         .assert()
         .failure()
-        .stderr(contains("is not a directory"));
+        .stderr(contains("unsupported source"));
 }
 
 // --- migrate-installs tests ----------------------------------------------
@@ -340,8 +351,8 @@ fn migrate_installs_picks_up_legacy_per_id_dirs() {
     let stdout = String::from_utf8(output.stdout).unwrap();
 
     assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
-    assert!(stdout.contains("migrated qfg1-ega"));
-    assert!(stdout.contains("migrated fatman"));
+    assert!(stdout.contains("registered qfg1-ega"));
+    assert!(stdout.contains("registered fatman"));
     assert!(stdout.contains("2 migrated"));
 
     // Both install records were written.
@@ -534,4 +545,165 @@ fn list_format_json_emits_valid_array() {
         .expect("fatman missing from json");
     assert_eq!(fatman["installed"], false);
     assert_eq!(fatman["platform"], "amiga");
+}
+
+/// A source directory holding the files qfg1-ega's catalog entry expects.
+fn dos_source_with_expected_files() -> tempfile::TempDir {
+    let source = tempfile::tempdir().unwrap();
+    std::fs::write(source.path().join("SIERRA.BAT"), b"@echo off\n").unwrap();
+    std::fs::write(source.path().join("RESOURCE.000"), b"data").unwrap();
+    source
+}
+
+#[test]
+fn install_dest_flag_overrides_library_dir() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let dest = tempfile::tempdir().unwrap();
+    let source = dos_source_with_expected_files();
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args([
+            "install",
+            "qfg1-ega",
+            source.path().to_str().unwrap(),
+            "--dest",
+            dest.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    // Installed under the explicit --dest, not the default library dir.
+    assert!(dest.path().join("qfg1-ega/SIERRA.BAT").is_file());
+    assert!(!games.path().join("qfg1-ega").exists());
+}
+
+#[test]
+fn install_rejects_unsupported_source_for_platform() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let adf = tmp.path().join("disk.adf");
+    std::fs::write(&adf, b"x").unwrap();
+
+    // A .adf is not a valid source for a DOS game.
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "qfg1-ega", adf.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(contains("unsupported source"));
+}
+
+#[test]
+fn declined_install_leaves_nothing_and_can_be_retried() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+
+    // First attempt: source is missing the expected files; decline the prompt.
+    let bad = tempfile::tempdir().unwrap();
+    std::fs::write(bad.path().join("README.txt"), b"x").unwrap();
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "qfg1-ega", bad.path().to_str().unwrap()])
+        .write_stdin("n\n")
+        .assert()
+        .failure();
+
+    // Declining must not strand <games>/qfg1-ega (stage-then-commit).
+    assert!(
+        !games.path().join("qfg1-ega").exists(),
+        "a declined install should leave no managed directory behind"
+    );
+
+    // Retry with a good source — must succeed, not hit DestinationOccupied.
+    let good = dos_source_with_expected_files();
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "qfg1-ega", good.path().to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(games.path().join("qfg1-ega/SIERRA.BAT").is_file());
+    assert!(installs.path().join("qfg1-ega.toml").is_file());
+}
+
+/// Build a throwaway repo whose tap has one DOS entry with `subdir = "INNER"`,
+/// so we can exercise the subdir commit path without touching the shared
+/// fixture tap. Returns the repo root (set as `RELIQUAINT_REPO_ROOT`).
+fn temp_repo_with_subdir_entry() -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    let tap = root.path().join("tap");
+    let dos = tap.join("catalog/dos");
+    std::fs::create_dir_all(&dos).unwrap();
+    std::fs::write(
+        tap.join("tap.toml"),
+        r#"schema_version = 1
+id          = "test-tap"
+title       = "Test Tap"
+description = "test"
+version     = "0.1.0"
+maintainer  = "test"
+url         = "https://example.test"
+license     = "MIT"
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dos.join("subgame.toml"),
+        r#"schema_version = 1
+[game]
+id = "subgame"
+title = "Sub Game"
+platform = "dos"
+[install]
+expects_files = ["GAME.EXE"]
+subdir = "INNER"
+[runtime]
+emulator = "dosbox-staging"
+[runtime.dosbox]
+config = "subgame.conf"
+entry = "GAME.EXE"
+"#,
+    )
+    .unwrap();
+    root
+}
+
+#[test]
+fn forced_install_missing_subdir_fails_and_can_be_retried() {
+    let root = temp_repo_with_subdir_entry();
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+
+    // Source has GAME.EXE at the top level but NOT under the required INNER/.
+    let bad = tempfile::tempdir().unwrap();
+    std::fs::write(bad.path().join("GAME.EXE"), b"x").unwrap();
+
+    // --force bypasses the expects_files prompt, but the missing subdir must
+    // still fail the commit — and leave the final destination untouched.
+    launcher(installs.path())
+        .env("RELIQUAINT_REPO_ROOT", root.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "subgame", bad.path().to_str().unwrap(), "--force"])
+        .assert()
+        .failure();
+    assert!(
+        !games.path().join("subgame").exists(),
+        "a failed subdir install must not leave a committed directory"
+    );
+    assert!(!installs.path().join("subgame.toml").exists());
+
+    // Retry with a good source (GAME.EXE under INNER/) — must succeed.
+    let good = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(good.path().join("INNER")).unwrap();
+    std::fs::write(good.path().join("INNER/GAME.EXE"), b"x").unwrap();
+    launcher(installs.path())
+        .env("RELIQUAINT_REPO_ROOT", root.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "subgame", good.path().to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(games.path().join("subgame/INNER/GAME.EXE").is_file());
+    assert!(installs.path().join("subgame.toml").is_file());
 }
