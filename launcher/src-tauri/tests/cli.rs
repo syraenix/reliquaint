@@ -627,3 +627,83 @@ fn declined_install_leaves_nothing_and_can_be_retried() {
     assert!(games.path().join("qfg1-ega/SIERRA.BAT").is_file());
     assert!(installs.path().join("qfg1-ega.toml").is_file());
 }
+
+/// Build a throwaway repo whose tap has one DOS entry with `subdir = "INNER"`,
+/// so we can exercise the subdir commit path without touching the shared
+/// fixture tap. Returns the repo root (set as `RELIQUAINT_REPO_ROOT`).
+fn temp_repo_with_subdir_entry() -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    let tap = root.path().join("tap");
+    let dos = tap.join("catalog/dos");
+    std::fs::create_dir_all(&dos).unwrap();
+    std::fs::write(
+        tap.join("tap.toml"),
+        r#"schema_version = 1
+id          = "test-tap"
+title       = "Test Tap"
+description = "test"
+version     = "0.1.0"
+maintainer  = "test"
+url         = "https://example.test"
+license     = "MIT"
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dos.join("subgame.toml"),
+        r#"schema_version = 1
+[game]
+id = "subgame"
+title = "Sub Game"
+platform = "dos"
+[install]
+expects_files = ["GAME.EXE"]
+subdir = "INNER"
+[runtime]
+emulator = "dosbox-staging"
+[runtime.dosbox]
+config = "subgame.conf"
+entry = "GAME.EXE"
+"#,
+    )
+    .unwrap();
+    root
+}
+
+#[test]
+fn forced_install_missing_subdir_fails_and_can_be_retried() {
+    let root = temp_repo_with_subdir_entry();
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+
+    // Source has GAME.EXE at the top level but NOT under the required INNER/.
+    let bad = tempfile::tempdir().unwrap();
+    std::fs::write(bad.path().join("GAME.EXE"), b"x").unwrap();
+
+    // --force bypasses the expects_files prompt, but the missing subdir must
+    // still fail the commit — and leave the final destination untouched.
+    launcher(installs.path())
+        .env("RELIQUAINT_REPO_ROOT", root.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "subgame", bad.path().to_str().unwrap(), "--force"])
+        .assert()
+        .failure();
+    assert!(
+        !games.path().join("subgame").exists(),
+        "a failed subdir install must not leave a committed directory"
+    );
+    assert!(!installs.path().join("subgame.toml").exists());
+
+    // Retry with a good source (GAME.EXE under INNER/) — must succeed.
+    let good = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(good.path().join("INNER")).unwrap();
+    std::fs::write(good.path().join("INNER/GAME.EXE"), b"x").unwrap();
+    launcher(installs.path())
+        .env("RELIQUAINT_REPO_ROOT", root.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "subgame", good.path().to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(games.path().join("subgame/INNER/GAME.EXE").is_file());
+    assert!(installs.path().join("subgame.toml").is_file());
+}

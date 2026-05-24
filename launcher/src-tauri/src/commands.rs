@@ -224,15 +224,21 @@ pub async fn install_game(
         });
     }
 
-    crate::game_install::commit_dirs(&plan.staging_dir, &plan.dest_dir)
+    crate::game_install::commit(&plan.staging_dir, &plan.staged_install_path, &plan.dest_dir)
         .map_err(|e| e.to_string())?;
-    let record_path = crate::install_record::register(
+    let record_path = match crate::install_record::register(
         &catalog_id,
         &tap_id,
         &plan.install_path,
         &crate::paths::installs_dir(),
-    )
-    .map_err(|e| e.to_string())?;
+    ) {
+        Ok(rp) => rp,
+        Err(e) => {
+            // Roll back the just-committed dir so it doesn't block retries.
+            let _ = crate::game_install::discard_staging(&plan.dest_dir);
+            return Err(e.to_string());
+        }
+    };
     Ok(InstallGameOutcome::Installed {
         record_path: record_path.to_string_lossy().into_owned(),
         install_path: install_path_str,
@@ -258,14 +264,20 @@ pub fn commit_install(
         entry.catalog.install.subdir.as_deref(),
         &dest_base,
     );
-    crate::game_install::commit_dirs(&loc.staging_dir, &loc.dest_dir).map_err(|e| e.to_string())?;
-    let record_path = crate::install_record::register(
+    crate::game_install::commit(&loc.staging_dir, &loc.staged_install_path, &loc.dest_dir)
+        .map_err(|e| e.to_string())?;
+    let record_path = match crate::install_record::register(
         &entry.catalog.game.id,
         &entry.tap_id,
         &loc.install_path,
         &crate::paths::installs_dir(),
-    )
-    .map_err(|e| e.to_string())?;
+    ) {
+        Ok(rp) => rp,
+        Err(e) => {
+            let _ = crate::game_install::discard_staging(&loc.dest_dir);
+            return Err(e.to_string());
+        }
+    };
     Ok(record_path.to_string_lossy().into_owned())
 }
 

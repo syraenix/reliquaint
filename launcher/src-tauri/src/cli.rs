@@ -410,8 +410,11 @@ fn cmd_install(
         }
     }
 
-    // Commit: move staging into place, then register.
-    if let Err(e) = game_install::commit_dirs(&plan.staging_dir, &plan.dest_dir) {
+    // Commit: verify the staged tree contains the install path (e.g. the
+    // declared subdir), move staging into place, then register. On any
+    // failure, leave nothing behind so a retry isn't blocked.
+    if let Err(e) = game_install::commit(&plan.staging_dir, &plan.staged_install_path, &plan.dest_dir)
+    {
         let _ = game_install::discard_staging(&plan.staging_dir);
         eprintln!("error: {e}");
         return ExitCode::FAILURE;
@@ -433,6 +436,8 @@ fn cmd_install(
             ExitCode::SUCCESS
         }
         Err(e) => {
+            // Roll back the just-committed dir so it doesn't block retries.
+            let _ = game_install::discard_staging(&plan.dest_dir);
             eprintln!("error: {e}");
             ExitCode::FAILURE
         }

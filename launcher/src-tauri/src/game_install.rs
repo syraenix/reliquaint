@@ -117,6 +117,12 @@ pub enum InstallError {
     #[error("destination {path} already exists and is not empty")]
     DestinationOccupied { path: PathBuf },
 
+    #[error(
+        "staged install is incomplete: {path} does not exist (the source is \
+         missing the entry's required subdirectory)"
+    )]
+    IncompleteStaging { path: PathBuf },
+
     #[error("install command failed with exit code {code}")]
     CommandFailed { code: i32 },
 
@@ -238,9 +244,27 @@ where
     }
 }
 
-/// Commit a staged install: atomically rename `staging_dir` → `dest_dir`.
-/// Both live under the same library base, so this is a same-filesystem rename
-/// (no copy). Errors if `dest_dir` is already a non-empty install.
+/// Commit a staged install. First verifies the staged tree actually contains
+/// `staged_install_path` (the entry's declared `subdir`, if any) — otherwise
+/// the post-commit `install_path` would not exist and registration would
+/// fail, leaving an orphan `dest_dir` that blocks retries. Then renames
+/// `staging_dir` → `dest_dir`. Nothing is moved when the precondition fails.
+pub fn commit(
+    staging_dir: &Path,
+    staged_install_path: &Path,
+    dest_dir: &Path,
+) -> Result<(), InstallError> {
+    if !staged_install_path.is_dir() {
+        return Err(InstallError::IncompleteStaging {
+            path: staged_install_path.to_path_buf(),
+        });
+    }
+    commit_dirs(staging_dir, dest_dir)
+}
+
+/// Atomically rename `staging_dir` → `dest_dir` (same filesystem, no copy).
+/// Errors if `dest_dir` is already a non-empty install. Prefer [`commit`],
+/// which adds the staged-path precondition.
 pub fn commit_dirs(staging_dir: &Path, dest_dir: &Path) -> Result<(), InstallError> {
     if dir_is_nonempty(dest_dir) {
         return Err(InstallError::DestinationOccupied {
@@ -255,12 +279,14 @@ pub fn commit_dirs(staging_dir: &Path, dest_dir: &Path) -> Result<(), InstallErr
     })
 }
 
-/// Remove a staging dir. No-op if it doesn't exist (so cancelling twice, or
-/// cancelling after a crash that left nothing, is safe).
-pub fn discard_staging(staging_dir: &Path) -> Result<(), InstallError> {
-    if staging_dir.exists() {
-        std::fs::remove_dir_all(staging_dir).map_err(|source| InstallError::Io {
-            path: staging_dir.to_path_buf(),
+/// Remove a directory tree if it exists. Used to drop a staging dir on
+/// cancel/failure, and to roll back a just-committed `dest_dir` when the
+/// record write fails (so an orphan dir never blocks retries). No-op if the
+/// path is absent, so calling it twice is safe.
+pub fn discard_staging(dir: &Path) -> Result<(), InstallError> {
+    if dir.exists() {
+        std::fs::remove_dir_all(dir).map_err(|source| InstallError::Io {
+            path: dir.to_path_buf(),
             source,
         })?;
     }
@@ -730,6 +756,38 @@ mod tests {
 
         assert!(dest.join("GAME").is_file(), "files should be at dest");
         assert!(!staging.exists(), "staging should be gone after rename");
+    }
+
+    #[test]
+    fn commit_succeeds_when_staged_install_path_present() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join(".g.staging");
+        let staged_install = staging.join("EGA");
+        std::fs::create_dir_all(&staged_install).unwrap();
+        std::fs::write(staged_install.join("GAME"), b"x").unwrap();
+        let dest = tmp.path().join("g");
+
+        commit(&staging, &staged_install, &dest).unwrap();
+
+        assert!(dest.join("EGA/GAME").is_file());
+        assert!(!staging.exists());
+    }
+
+    #[test]
+    fn commit_errors_when_staged_subdir_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join(".g.staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("GAME"), b"x").unwrap();
+        // The entry declares subdir EGA, but the source didn't include it.
+        let staged_install = staging.join("EGA");
+        let dest = tmp.path().join("g");
+
+        let err = commit(&staging, &staged_install, &dest).unwrap_err();
+
+        assert!(matches!(err, InstallError::IncompleteStaging { .. }), "got {err:?}");
+        assert!(!dest.exists(), "must not commit when the staged subdir is missing");
+        assert!(staging.exists(), "staging is left for the caller to discard");
     }
 
     #[test]
