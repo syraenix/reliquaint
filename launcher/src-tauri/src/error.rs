@@ -37,6 +37,9 @@ pub enum ReliquaintError {
 
     #[error(transparent)]
     Launch(#[from] crate::launch::LaunchError),
+
+    #[error(transparent)]
+    Sidecar(#[from] crate::sidecar::SidecarError),
 }
 
 /// Install a panic hook that prints a "please file a bug" banner before

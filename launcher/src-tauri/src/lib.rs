@@ -15,5 +15,6 @@ pub mod manifest;
 pub mod paths;
 pub mod runner;
 pub mod setup;
+pub mod sidecar;
 pub mod tap;
 pub mod user_config;

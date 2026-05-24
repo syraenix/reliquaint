@@ -2754,6 +2754,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
+ "libc",
  "predicates",
  "serde",
  "shellexpand",
