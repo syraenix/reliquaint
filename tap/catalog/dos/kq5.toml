@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "kq5"
+title      = "King's Quest V: Absence Makes the Heart Go Yonder!"
+platform   = "dos"
+collection = "kings-quest"
+
+[meta]
+year        = 1990
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "fantasy", "point-and-click"]
+description = "The first VGA + point-and-click King's Quest. CD versions added voice acting; this DOS release uses the original 256-color visuals."
+
+[acquisition]
+steam = "https://store.steampowered.com/app/10110"
+notes = "Bundled in King's Quest 4+5+6 on Steam (app 10110)."
+
+[install]
+expects_files = ["SCIKQ5.EXE", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "kq5.conf"
+entry  = "SCIKQ5.EXE"
+mount  = "c"
