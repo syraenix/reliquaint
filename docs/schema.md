@@ -180,7 +180,10 @@ Hints for the install flow and the `doctor` command.
 
 | Field | Type | Description |
 |---|---|---|
-| `expects_files` | array of string | Filenames (no paths) the launcher expects to find in `install_path` after the user installs the game. Used to validate that the user pointed the install flow at the right directory. Case-insensitive matching. |
+| `expects_files` | array of string | Filenames (no paths) the launcher expects to find in `install_path` after the game is installed. Used to validate that the source held the right files. Case-insensitive matching. |
+| `subdir` | string | Optional. A single subfolder *within* the copied/extracted destination that actually holds the game; the recorded `install_path` becomes `<dest>/<subdir>`. Used when one installer ships multiple editions — e.g. the GOG QFG1 `.exe` puts the EGA edition under `EGA/`. Bare filename, no path components. |
+
+The install flow copies/extracts the chosen source into the managed library (default `~/games/<id>`); see "Installation record" below. Source kinds are inferred from the path: a **directory** (recursive copy, any platform), a **`.exe`** (DOS, extracted with `innoextract`), or an Amiga **`.adf`/`.hdf`/`.rp9`** image (`.rp9` is unzipped into the destination).
 
 ### `[runtime]`
 
@@ -201,9 +204,10 @@ Hints for the install flow and the `doctor` command.
 
 ```toml
 [runtime.fs_uae]
-model    = "a500"
-config   = "fatman.fs-uae"   # optional sibling config
-floppies = ["fatman.adf"]    # filenames inside install_path, in disk-swap order
+model       = "a500"
+config      = "fatman.fs-uae"   # optional sibling config
+floppies    = ["fatman.adf"]    # filenames inside install_path, in disk-swap order
+hard_drives = ["system.hdf"]    # filenames inside install_path, mounted as HD0..HD3
 ```
 
 | Field | Type | Required | Description |
@@ -211,8 +215,9 @@ floppies = ["fatman.adf"]    # filenames inside install_path, in disk-swap order
 | `model` | string | yes | Amiga model: `a500`, `a600`, `a1200`, `a4000`. Determines the model template if no `config` is specified. |
 | `config` | string | no | Filename of a sibling `.fs-uae` config in `catalog/amiga/`. If absent, the launcher uses a model template. |
 | `floppies` | array of string | no | Filenames (no paths) of `.adf` disk images inside the install path. The launcher mounts them as DF0..DF3 in order. |
+| `hard_drives` | array of string | no | Filenames (no paths) of `.hdf` hard-disk images inside the install path. Mounted as `--hard_drive_0..3` in order. |
 
-WHDLoad and hard-drive-installed Amiga games are out of scope for v0.1 and will be addressed in a follow-on ADR.
+**Autodetect fallback:** when an Amiga entry declares no `config`, `floppies`, or `hard_drives`, the launcher scans `install_path` for a runnable source — preferring an inner `.fs-uae` config, then `.hdf`, then `.adf`. This is what lets a game installed by unzipping a `.rp9` (whose inner filenames vary) launch without per-entry declaration.
 
 ---
 
@@ -256,9 +261,9 @@ The composition mechanism (temporary file vs `-c` inline commands) is left to th
 
 ### FS-UAE (`<id>.fs-uae`)
 
-A normal FS-UAE config file. The launcher injects floppy disk paths from the catalog entry's `floppies` list relative to `install_path` before invoking FS-UAE. The shipped file specifies model, chipset, memory, and any per-game quirks.
+A normal FS-UAE config file. The launcher injects floppy and hard-disk paths from the catalog entry's `floppies` / `hard_drives` lists relative to `install_path` before invoking FS-UAE. The shipped file specifies model, chipset, memory, and any per-game quirks.
 
-When no shipped config is present, the launcher uses a model template (e.g. a built-in `a500` profile) and injects only the floppies.
+When no shipped config is present, the launcher uses a model template (e.g. a built-in `a500` profile) and injects the declared disks — or, if none are declared, an autodetected source from `install_path` (see the autodetect fallback above).
 
 ---
 
@@ -284,7 +289,7 @@ installed_at = 2026-05-23T14:32:00Z
 |---|---|---|---|
 | `catalog_id` | string | yes | The `[game].id` of the matching catalog entry. |
 | `tap` | string | yes | The `id` of the tap the catalog entry came from. Disambiguates when multiple taps offer the same game. |
-| `install_path` | string | yes | Absolute path to the directory containing the game's files on this machine. |
+| `install_path` | string | yes | Absolute path to the directory containing the game's files on this machine. The install flow copies/extracts the game here (default `~/games/<id>`, or `<chosen-library>/<id>`; `+ <subdir>` when the entry declares one). |
 | `installed_at` | datetime | yes | TOML datetime of when the install record was created. |
 
 User-side overrides (e.g., adjusting `cycles` for a slower machine, or pointing at a different soundfont) are deferred to implementation. The expected shape is a `[overrides]` table; specifics will be added to this document once the implementation lands.

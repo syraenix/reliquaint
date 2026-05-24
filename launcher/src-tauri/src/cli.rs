@@ -2,7 +2,9 @@ use crate::catalog::Platform;
 use crate::catalog_view::{CatalogView, CatalogViewEntry};
 use crate::paths::find_repo_root;
 use crate::doctor::{check_install, ProbeStatus};
-use crate::install_record::{self, InstallOutcome};
+use crate::game_install;
+use crate::install_record;
+use crate::installer;
 use crate::launch;
 use crate::sidecar;
 use crate::user_config;
@@ -33,13 +35,20 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Register a game's install location with the launcher.
+    /// Install a game: copy/extract a source into the managed library and
+    /// register it. The source may be a directory, a DOS `.exe` installer,
+    /// or an Amiga `.adf`/`.hdf`/`.rp9` disk image.
     Install {
         /// Catalog id (run `reliquaint list` to see options).
         id: String,
-        /// Directory containing the installed game files.
-        path: PathBuf,
-        /// Skip the prompt when `[install].expects_files` are missing.
+        /// Source directory, `.exe`, or disk image to install from.
+        source: PathBuf,
+        /// Library directory to install into (default `~/games`). The game
+        /// lands at `<dir>/<id>`.
+        #[arg(long)]
+        dest: Option<PathBuf>,
+        /// Register the install even if `[install].expects_files` are
+        /// missing afterward.
         #[arg(long)]
         force: bool,
     },
@@ -114,8 +123,13 @@ pub fn run() -> ExitCode {
             Ok(view) => cmd_run(&view, &id, dry_run),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Install { id, path, force } => match load_view(&repo_root) {
-            Ok(view) => cmd_install(&view, &id, &path, force),
+        Commands::Install {
+            id,
+            source,
+            dest,
+            force,
+        } => match load_view(&repo_root) {
+            Ok(view) => cmd_install(&view, &id, &source, dest.as_deref(), force),
             Err(()) => ExitCode::FAILURE,
         },
         Commands::MigrateInstalls { base } => match load_view(&repo_root) {
@@ -289,7 +303,7 @@ fn cmd_run(view: &CatalogView, id: &str, dry_run: bool) -> ExitCode {
         Some(i) => i,
         None => {
             eprintln!("error: '{id}' has no installation record");
-            eprintln!("hint: run 'reliquaint install {id} <path-to-game-files>' first.");
+            eprintln!("hint: run 'reliquaint install {id} <source>' first.");
             return ExitCode::FAILURE;
         }
     };
@@ -332,7 +346,13 @@ fn cmd_run(view: &CatalogView, id: &str, dry_run: bool) -> ExitCode {
     }
 }
 
-fn cmd_install(view: &CatalogView, id: &str, path: &Path, force: bool) -> ExitCode {
+fn cmd_install(
+    view: &CatalogView,
+    id: &str,
+    source: &Path,
+    dest: Option<&Path>,
+    force: bool,
+) -> ExitCode {
     let entry = match view.by_id(id) {
         Some(e) => e,
         None => {
@@ -342,65 +362,69 @@ fn cmd_install(view: &CatalogView, id: &str, path: &Path, force: bool) -> ExitCo
         }
     };
 
-    let installs_dir = crate::paths::installs_dir();
+    let dest_base = dest
+        .map(Path::to_path_buf)
+        .unwrap_or_else(crate::paths::default_library_dir);
+    let spec = game_install::EntrySpec::from_entry(&entry.catalog);
 
-    // First pass: don't force. If expects_files are missing, prompt the
-    // user, then re-invoke with force=true if they accept.
-    let outcome = match install_record::install(
-        &entry.catalog.game.id,
-        &entry.tap_id,
-        &entry.catalog.install.expects_files,
-        path,
-        force,
-        &installs_dir,
-    ) {
-        Ok(o) => o,
+    let plan = match game_install::plan_install(&spec, source, &dest_base) {
+        Ok(p) => p,
         Err(e) => {
             eprintln!("error: {e}");
             return ExitCode::FAILURE;
         }
     };
 
-    let final_outcome = match outcome {
-        InstallOutcome::Installed { .. } => outcome,
-        InstallOutcome::MissingFiles(missing) => {
-            eprintln!("warning: expected files not found:");
-            for f in &missing {
-                eprintln!("  - {f}");
+    // Copy/extract, streaming command output to the terminal.
+    let run = |cmds: &[Vec<String>]| {
+        installer::run_install(cmds.to_vec(), |line, is_err| {
+            if is_err {
+                eprintln!("{line}");
+            } else {
+                println!("{line}");
             }
-            if !prompt_yes_no("Write install record anyway? [y/N]") {
-                eprintln!("aborted");
-                return ExitCode::FAILURE;
-            }
-            // Re-invoke with force=true now that the user has accepted.
-            match install_record::install(
-                &entry.catalog.game.id,
-                &entry.tap_id,
-                &entry.catalog.install.expects_files,
-                path,
-                true,
-                &installs_dir,
-            ) {
-                Ok(o) => o,
-                Err(e) => {
-                    eprintln!("error: {e}");
-                    return ExitCode::FAILURE;
-                }
-            }
-        }
+        })
     };
+    if let Err(e) = game_install::execute(&plan, run) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
 
-    match final_outcome {
-        InstallOutcome::Installed { record_path } => {
+    // Validate the result before registering.
+    let missing = install_record::missing_expects_files(
+        &plan.install_path,
+        &entry.catalog.install.expects_files,
+    );
+    if !missing.is_empty() && !force {
+        eprintln!("warning: expected files not found after install:");
+        for f in &missing {
+            eprintln!("  - {f}");
+        }
+        if !prompt_yes_no("Register install anyway? [y/N]") {
+            eprintln!("aborted (files remain at {})", plan.install_path.display());
+            return ExitCode::FAILURE;
+        }
+    }
+
+    match install_record::register(
+        &entry.catalog.game.id,
+        &entry.tap_id,
+        &plan.install_path,
+        &crate::paths::installs_dir(),
+    ) {
+        Ok(record_path) => {
             println!(
-                "installed {} (record at {})",
+                "installed {} to {} (record at {})",
                 entry.catalog.game.id,
+                plan.install_path.display(),
                 record_path.display()
             );
             ExitCode::SUCCESS
         }
-        // Cannot reach here — force=true above doesn't return MissingFiles.
-        InstallOutcome::MissingFiles(_) => unreachable!(),
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
@@ -428,21 +452,13 @@ fn cmd_migrate_installs(view: &CatalogView, base: &str) -> ExitCode {
             missing += 1;
             continue;
         }
-        match install_record::install(
-            id,
-            &entry.tap_id,
-            &entry.catalog.install.expects_files,
-            &game_dir,
-            true, // force: this is a bulk migration, no per-game prompts
-            &installs_dir,
-        ) {
-            Ok(InstallOutcome::Installed { .. }) => {
-                println!("migrated {id} from {}", game_dir.display());
+        // Files are already at the canonical `<base>/<id>` location, so we
+        // only register a record — no copy. No expects_files prompt; this
+        // is a bulk migration.
+        match install_record::register(id, &entry.tap_id, &game_dir, &installs_dir) {
+            Ok(_) => {
+                println!("registered {id} at {}", game_dir.display());
                 migrated += 1;
-            }
-            Ok(InstallOutcome::MissingFiles(_)) => {
-                // Unreachable with force=true.
-                errors += 1;
             }
             Err(e) => {
                 eprintln!("error migrating {id}: {e}");

@@ -173,9 +173,17 @@ pub fn compose_fs_uae(
 
     let (program, mut args) = split_command(&user_config.emulators.fs_uae.command)?;
 
-    // Shipped config (positional first arg to fs-uae) OR inline model
-    // template. Per the schema doc, if `config` is set we use the
-    // sibling .fs-uae file; otherwise we drive the model directly.
+    let install_path = &install.install.install_path;
+
+    // Explicitly declared disks, resolved relative to install_path.
+    let mut floppies: Vec<PathBuf> = fs_uae.floppies.iter().map(|f| install_path.join(f)).collect();
+    let mut hard_drives: Vec<PathBuf> =
+        fs_uae.hard_drives.iter().map(|h| install_path.join(h)).collect();
+
+    // Positional config (shipped sibling `.fs-uae`) OR inline model
+    // template. Per the schema doc, if `config` is set we use the sibling
+    // file; otherwise we drive the model directly.
+    let mut used_config = false;
     if let Some(config_name) = fs_uae.config.as_deref() {
         let config_path = entry_source
             .parent()
@@ -187,14 +195,35 @@ pub fn compose_fs_uae(
             return Err(LaunchError::ShippedConfigNotFound { path: config_path });
         }
         args.push(config_path.to_string_lossy().into_owned());
-    } else {
+        used_config = true;
+    }
+
+    // Autodetect fallback: when the entry declares no config and no disks
+    // (e.g. the game was installed by unzipping an .rp9, or from a single
+    // bare image), discover an inner `.fs-uae` config, else `.hdf`, else
+    // `.adf`, inside the permanent install_path. No temp dir is needed —
+    // the files live there for good — so the plan stays a pure value.
+    if !used_config && floppies.is_empty() && hard_drives.is_empty() {
+        match autodetect_amiga_source(install_path) {
+            Some(AmigaSource::Config(p)) => {
+                args.push(p.to_string_lossy().into_owned());
+                used_config = true;
+            }
+            Some(AmigaSource::HardDrive(p)) => hard_drives.push(p),
+            Some(AmigaSource::Floppy(p)) => floppies.push(p),
+            None => {}
+        }
+    }
+
+    if !used_config {
         args.push(format!("--amiga_model={}", fs_uae_model_string(fs_uae.model)));
     }
 
-    let install_path = &install.install.install_path;
-    for (i, floppy) in fs_uae.floppies.iter().enumerate() {
-        let abs = install_path.join(floppy);
-        args.push(format!("--floppy_drive_{i}={}", abs.to_string_lossy()));
+    for (i, floppy) in floppies.iter().enumerate() {
+        args.push(format!("--floppy_drive_{i}={}", floppy.to_string_lossy()));
+    }
+    for (i, hd) in hard_drives.iter().enumerate() {
+        args.push(format!("--hard_drive_{i}={}", hd.to_string_lossy()));
     }
 
     if let Some(kickstart_dir) = &user_config.emulators.fs_uae.kickstart_path {
@@ -212,6 +241,60 @@ pub fn compose_fs_uae(
     let sidecars = compose_sidecars(&entry.runtime.sidecars, &user_config.sidecars)?;
 
     Ok(LaunchPlan { primary, sidecars })
+}
+
+/// An Amiga disk source discovered inside an install directory.
+enum AmigaSource {
+    Config(PathBuf),
+    HardDrive(PathBuf),
+    Floppy(PathBuf),
+}
+
+/// Scan `install_path` for a runnable Amiga source when the catalog entry
+/// declares none. Preference order matches the old launcher: a `.fs-uae`
+/// config wins, then a `.hdf` hard disk, then a `.adf` floppy. Recurses so
+/// an unzipped `.rp9` with nested contents still resolves.
+fn autodetect_amiga_source(install_path: &Path) -> Option<AmigaSource> {
+    if let Some(p) = find_first_by_ext(install_path, "fs-uae") {
+        return Some(AmigaSource::Config(p));
+    }
+    if let Some(p) = find_first_by_ext(install_path, "hdf") {
+        return Some(AmigaSource::HardDrive(p));
+    }
+    if let Some(p) = find_first_by_ext(install_path, "adf") {
+        return Some(AmigaSource::Floppy(p));
+    }
+    None
+}
+
+/// First file under `dir` (depth-first) whose extension matches `ext`
+/// case-insensitively. Files at the current level take precedence over
+/// those in subdirectories.
+fn find_first_by_ext(dir: &Path, ext: &str) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut subdirs = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            subdirs.push(path);
+            continue;
+        }
+        if path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case(ext))
+            .unwrap_or(false)
+        {
+            return Some(path);
+        }
+    }
+    subdirs.sort();
+    for sub in subdirs {
+        if let Some(found) = find_first_by_ext(&sub, ext) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn fs_uae_model_string(model: AmigaModel) -> &'static str {
@@ -446,6 +529,7 @@ mod tests {
                     model: AmigaModel::A500,
                     config: Some("fatman.fs-uae".into()),
                     floppies: vec!["fatman.adf".into()],
+                    hard_drives: vec![],
                 }),
             },
         };
@@ -488,6 +572,7 @@ mod tests {
                     model: AmigaModel::A1200,
                     config: None,
                     floppies: vec!["disk1.adf".into(), "disk2.adf".into(), "disk3.adf".into()],
+                    hard_drives: vec![],
                 }),
             },
         };
@@ -514,6 +599,138 @@ mod tests {
             .primary
             .args
             .contains(&"--floppy_drive_2=/games/multi/disk3.adf".to_string()));
+    }
+
+    fn amiga_entry_no_disks(model: AmigaModel) -> crate::catalog::CatalogEntry {
+        use crate::catalog::{
+            Acquisition, CatalogEntry, Emulator, FsUaeRuntime, Game, Install as CatInstall, Meta,
+            Runtime,
+        };
+        CatalogEntry {
+            schema_version: 1,
+            game: Game {
+                id: "g".into(),
+                title: "G".into(),
+                platform: Platform::Amiga,
+                collection: None,
+            },
+            meta: Meta::default(),
+            acquisition: Acquisition::default(),
+            install: CatInstall::default(),
+            runtime: Runtime {
+                emulator: Emulator::FsUae,
+                sidecars: vec![],
+                dosbox: None,
+                fs_uae: Some(FsUaeRuntime {
+                    model,
+                    config: None,
+                    floppies: vec![],
+                    hard_drives: vec![],
+                }),
+            },
+        }
+    }
+
+    #[test]
+    fn compose_fs_uae_maps_hard_drives_in_order() {
+        let mut entry = amiga_entry_no_disks(AmigaModel::A1200);
+        entry.runtime.fs_uae.as_mut().unwrap().hard_drives =
+            vec!["sys.hdf".into(), "work.hdf".into()];
+        let install = synthetic_install("wb", "/games/wb");
+
+        let plan = compose_fs_uae(
+            &entry,
+            Path::new("/tap/catalog/amiga/wb.toml"),
+            &install,
+            &UserConfig::default(),
+        )
+        .unwrap();
+
+        assert!(plan.primary.args.contains(&"--amiga_model=A1200".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--hard_drive_0=/games/wb/sys.hdf".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--hard_drive_1=/games/wb/work.hdf".to_string()));
+    }
+
+    #[test]
+    fn compose_fs_uae_autodetects_adf_when_nothing_declared() {
+        let install_dir = tempfile::tempdir().unwrap();
+        std::fs::write(install_dir.path().join("game.adf"), b"DOS").unwrap();
+        let entry = amiga_entry_no_disks(AmigaModel::A500);
+        let install = synthetic_install("g", install_dir.path().to_str().unwrap());
+
+        let plan = compose_fs_uae(
+            &entry,
+            Path::new("/tap/catalog/amiga/g.toml"),
+            &install,
+            &UserConfig::default(),
+        )
+        .unwrap();
+
+        let expected = format!(
+            "--floppy_drive_0={}/game.adf",
+            install_dir.path().to_string_lossy()
+        );
+        assert!(
+            plan.primary.args.contains(&expected),
+            "expected {expected} in {:?}",
+            plan.primary.args
+        );
+    }
+
+    #[test]
+    fn compose_fs_uae_autodetects_hdf_when_nothing_declared() {
+        let install_dir = tempfile::tempdir().unwrap();
+        std::fs::write(install_dir.path().join("system.hdf"), b"RDSK").unwrap();
+        let entry = amiga_entry_no_disks(AmigaModel::A1200);
+        let install = synthetic_install("g", install_dir.path().to_str().unwrap());
+
+        let plan = compose_fs_uae(
+            &entry,
+            Path::new("/tap/catalog/amiga/g.toml"),
+            &install,
+            &UserConfig::default(),
+        )
+        .unwrap();
+
+        let expected = format!(
+            "--hard_drive_0={}/system.hdf",
+            install_dir.path().to_string_lossy()
+        );
+        assert!(
+            plan.primary.args.contains(&expected),
+            "expected {expected} in {:?}",
+            plan.primary.args
+        );
+    }
+
+    #[test]
+    fn compose_fs_uae_autodetected_config_replaces_amiga_model() {
+        let install_dir = tempfile::tempdir().unwrap();
+        let cfg = install_dir.path().join("game.fs-uae");
+        std::fs::write(&cfg, "amiga_model = A1200\n").unwrap();
+        let entry = amiga_entry_no_disks(AmigaModel::A1200);
+        let install = synthetic_install("g", install_dir.path().to_str().unwrap());
+
+        let plan = compose_fs_uae(
+            &entry,
+            Path::new("/tap/catalog/amiga/g.toml"),
+            &install,
+            &UserConfig::default(),
+        )
+        .unwrap();
+
+        assert_eq!(plan.primary.args[0], cfg.to_string_lossy());
+        assert!(
+            !plan.primary.args.iter().any(|a| a.starts_with("--amiga_model=")),
+            "autodetected .fs-uae config should replace --amiga_model: {:?}",
+            plan.primary.args
+        );
     }
 
     #[test]

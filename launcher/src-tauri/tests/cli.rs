@@ -215,12 +215,14 @@ fn install_record_path(installs_dir: &Path, id: &str) -> PathBuf {
 #[test]
 fn install_writes_record_when_expects_files_present() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
     // qfg1-ega declares expects_files = ["SIERRA.BAT", "RESOURCE.000"]
     std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
     std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
 
     let output = launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega"])
         .arg(game.path())
         .output()
@@ -231,6 +233,8 @@ fn install_writes_record_when_expects_files_present() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    // Files copied into the managed library; record written.
+    assert!(games.path().join("qfg1-ega/SIERRA.BAT").is_file());
     let record = install_record_path(installs.path(), "qfg1-ega");
     assert!(record.exists(), "record should exist at {}", record.display());
 
@@ -243,10 +247,12 @@ fn install_writes_record_when_expects_files_present() {
 #[test]
 fn install_force_writes_record_with_missing_expects_files() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
     // empty game dir; expects_files missing
 
     launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega", "--force"])
         .arg(game.path())
         .assert()
@@ -258,9 +264,11 @@ fn install_force_writes_record_with_missing_expects_files() {
 #[test]
 fn install_aborts_when_prompt_declined() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
 
     launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega"])
         .arg(game.path())
         .write_stdin("n\n")
@@ -274,9 +282,11 @@ fn install_aborts_when_prompt_declined() {
 #[test]
 fn install_writes_record_when_prompt_accepted() {
     let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
 
     launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
         .args(["install", "qfg1-ega"])
         .arg(game.path())
         .write_stdin("y\n")
@@ -306,12 +316,13 @@ fn install_rejects_path_that_is_a_file() {
     let file = tmp.path().join("a-file.txt");
     std::fs::write(&file, b"").unwrap();
 
+    // A plain file is neither a directory nor a recognized installer/image.
     launcher(installs.path())
         .args(["install", "qfg1-ega", "--force"])
         .arg(&file)
         .assert()
         .failure()
-        .stderr(contains("is not a directory"));
+        .stderr(contains("unsupported source"));
 }
 
 // --- migrate-installs tests ----------------------------------------------
@@ -340,8 +351,8 @@ fn migrate_installs_picks_up_legacy_per_id_dirs() {
     let stdout = String::from_utf8(output.stdout).unwrap();
 
     assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
-    assert!(stdout.contains("migrated qfg1-ega"));
-    assert!(stdout.contains("migrated fatman"));
+    assert!(stdout.contains("registered qfg1-ega"));
+    assert!(stdout.contains("registered fatman"));
     assert!(stdout.contains("2 migrated"));
 
     // Both install records were written.
@@ -534,4 +545,53 @@ fn list_format_json_emits_valid_array() {
         .expect("fatman missing from json");
     assert_eq!(fatman["installed"], false);
     assert_eq!(fatman["platform"], "amiga");
+}
+
+/// A source directory holding the files qfg1-ega's catalog entry expects.
+fn dos_source_with_expected_files() -> tempfile::TempDir {
+    let source = tempfile::tempdir().unwrap();
+    std::fs::write(source.path().join("SIERRA.BAT"), b"@echo off\n").unwrap();
+    std::fs::write(source.path().join("RESOURCE.000"), b"data").unwrap();
+    source
+}
+
+#[test]
+fn install_dest_flag_overrides_library_dir() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let dest = tempfile::tempdir().unwrap();
+    let source = dos_source_with_expected_files();
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args([
+            "install",
+            "qfg1-ega",
+            source.path().to_str().unwrap(),
+            "--dest",
+            dest.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    // Installed under the explicit --dest, not the default library dir.
+    assert!(dest.path().join("qfg1-ega/SIERRA.BAT").is_file());
+    assert!(!games.path().join("qfg1-ega").exists());
+}
+
+#[test]
+fn install_rejects_unsupported_source_for_platform() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let adf = tmp.path().join("disk.adf");
+    std::fs::write(&adf, b"x").unwrap();
+
+    // A .adf is not a valid source for a DOS game.
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "qfg1-ega", adf.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(contains("unsupported source"));
 }

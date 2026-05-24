@@ -129,25 +129,35 @@ pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>, 
     Ok(view.all().iter().map(entry_to_dto).collect())
 }
 
-/// Result payload for `install_game`. Mirrors
-/// `install_record::InstallOutcome` but serializes as a tagged JSON
-/// object the Svelte side can `switch` on.
+/// Result payload for `install_game`. Serializes as a tagged JSON object
+/// the Svelte side can `switch` on. `install_path` is the directory the
+/// game was copied/extracted into; on `MissingFiles` the frontend hands it
+/// back to `register_install` if the user chooses to install anyway.
 #[derive(Serialize, Clone)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum InstallGameOutcome {
-    Installed { record_path: String },
-    MissingFiles { missing: Vec<String> },
+    Installed {
+        record_path: String,
+        install_path: String,
+    },
+    MissingFiles {
+        missing: Vec<String>,
+        install_path: String,
+    },
 }
 
-/// Register an install for the catalog entry `id` at `path`. With
-/// `force = false`, missing expects_files cause the call to return
-/// `MissingFiles` without writing — the frontend prompts the user, then
-/// re-invokes with `force = true` if they accept.
+/// Install the catalog entry `id` by copying/extracting `source` into the
+/// managed library (default `~/games/<id>`, or `<dest>/<id>` when `dest` is
+/// given). Streams copy/extract output as `install-output` events. Writes
+/// the install record only when the expected files are present afterward;
+/// otherwise returns `MissingFiles` and the frontend confirms via
+/// `register_install`.
 #[tauri::command]
-pub fn install_game(
+pub async fn install_game(
     id: String,
-    path: PathBuf,
-    force: bool,
+    source: PathBuf,
+    dest: Option<PathBuf>,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<InstallGameOutcome, String> {
     let view = load_catalog_view(&state.repo_root)?;
@@ -155,26 +165,90 @@ pub fn install_game(
         .by_id(&id)
         .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
 
-    let outcome = crate::install_record::install(
-        &entry.catalog.game.id,
-        &entry.tap_id,
-        &entry.catalog.install.expects_files,
-        &path,
-        force,
+    let dest_base = dest.unwrap_or_else(crate::paths::default_library_dir);
+    let spec = crate::game_install::EntrySpec::from_entry(&entry.catalog);
+    let plan =
+        crate::game_install::plan_install(&spec, &source, &dest_base).map_err(|e| e.to_string())?;
+
+    let install_path = plan.install_path.clone();
+    let expects = entry.catalog.install.expects_files.clone();
+    let tap_id = entry.tap_id.clone();
+    let catalog_id = entry.catalog.game.id.clone();
+
+    // Run the copy/extract on a blocking thread; stream each line as an event.
+    let app_for_thread = app.clone();
+    let id_for_emit = id.clone();
+    let exec = tauri::async_runtime::spawn_blocking(move || {
+        crate::game_install::execute(&plan, move |cmds| {
+            let app_cb = app_for_thread.clone();
+            let emit_id = id_for_emit.clone();
+            crate::installer::run_install(cmds.to_vec(), move |line, is_err| {
+                let _ = app_cb.emit(
+                    "install-output",
+                    serde_json::json!({
+                        "id": emit_id.clone(),
+                        "stream": if is_err { "stderr" } else { "stdout" },
+                        "line": line,
+                    }),
+                );
+            })
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    exec.map_err(|e| e.to_string())?;
+
+    let missing = crate::install_record::missing_expects_files(&install_path, &expects);
+    let install_path_str = install_path.to_string_lossy().into_owned();
+    if !missing.is_empty() {
+        return Ok(InstallGameOutcome::MissingFiles {
+            missing,
+            install_path: install_path_str,
+        });
+    }
+
+    let record_path = crate::install_record::register(
+        &catalog_id,
+        &tap_id,
+        &install_path,
         &crate::paths::installs_dir(),
     )
     .map_err(|e| e.to_string())?;
-
-    Ok(match outcome {
-        crate::install_record::InstallOutcome::Installed { record_path } => {
-            InstallGameOutcome::Installed {
-                record_path: record_path.to_string_lossy().into_owned(),
-            }
-        }
-        crate::install_record::InstallOutcome::MissingFiles(missing) => {
-            InstallGameOutcome::MissingFiles { missing }
-        }
+    Ok(InstallGameOutcome::Installed {
+        record_path: record_path.to_string_lossy().into_owned(),
+        install_path: install_path_str,
     })
+}
+
+/// Write the install record for an already-populated directory. Backs the
+/// GUI's "Install anyway" confirm path after `install_game` reports
+/// `MissingFiles`.
+#[tauri::command]
+pub fn register_install(
+    id: String,
+    install_path: PathBuf,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+    let record_path = crate::install_record::register(
+        &entry.catalog.game.id,
+        &entry.tap_id,
+        &install_path,
+        &crate::paths::installs_dir(),
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(record_path.to_string_lossy().into_owned())
+}
+
+/// The default destination shown in the install dialog: `~/games/<id>`.
+#[tauri::command]
+pub fn default_install_dest(id: String) -> String {
+    crate::paths::games_dir(&crate::paths::default_library_dir(), &id)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Open an `http://` or `https://` URL in the user's browser via

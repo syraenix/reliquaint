@@ -4,6 +4,7 @@ pub mod cli;
 pub mod commands;
 pub mod doctor;
 pub mod error;
+pub mod game_install;
 pub mod gui;
 pub mod install_record;
 pub mod installer;

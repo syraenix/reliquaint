@@ -13,13 +13,26 @@
   let launchExitedMessage = null;
   let showDiagnostics = false;
   let unlistenExit = null;
+  let unlistenInstallOutput = null;
 
+  // Install modal state.
+  let showInstallModal = false;
   let installing = false;
   let installError = null;
   let installSuccessMessage = null;
-  // When the backend reports MissingFiles, we hold the picked path and
-  // the list here so the modal can show them and re-invoke with force.
-  let pendingInstall = null; // { path, missing } | null
+  let installSource = null; // selected source path (folder, .exe, or disk image)
+  let customDest = null; // user-chosen library dir; null => default (~/games)
+  let defaultDest = ""; // ~/games/<id>, shown when no custom dest is picked
+  let installLog = []; // streamed copy/extract output lines
+  // After the backend reports MissingFiles: { install_path, missing }.
+  let pendingInstall = null;
+
+  // File-picker filters per platform — DOS installs from a GOG .exe, Amiga
+  // from a disk image. Folders are pickable on either platform.
+  const FILE_FILTERS = {
+    dos: [{ name: "DOS installer", extensions: ["exe"] }],
+    amiga: [{ name: "Amiga disk image", extensions: ["adf", "hdf", "rp9"] }],
+  };
 
   const ACQUISITION_LABELS = [
     ["gog", "Get on GOG"],
@@ -32,6 +45,8 @@
     .map(([key, label]) => ({ key, label, url: game.acquisition?.[key] }))
     .filter((b) => !!b.url);
 
+  $: destDisplay = customDest ? `${customDest}/${game.id}` : defaultDest;
+
   async function handleOpenUrl(url) {
     try {
       await invoke("open_url", { url });
@@ -40,53 +55,120 @@
     }
   }
 
-  async function attemptInstall(path, force) {
+  async function openInstallModal() {
+    installError = null;
+    installSuccessMessage = null;
+    installSource = null;
+    customDest = null;
+    installLog = [];
+    pendingInstall = null;
+    try {
+      defaultDest = await invoke("default_install_dest", { id: game.id });
+    } catch (e) {
+      defaultDest = "";
+    }
+    showInstallModal = true;
+  }
+
+  function closeInstallModal() {
+    if (installing) return;
+    showInstallModal = false;
+  }
+
+  async function chooseSourceFolder() {
+    installError = null;
+    try {
+      const picked = await openDialog({
+        directory: true,
+        multiple: false,
+        title: `Select ${game.title} game folder`,
+      });
+      if (picked) installSource = picked;
+    } catch (e) {
+      installError = String(e);
+    }
+  }
+
+  async function chooseSourceFile() {
+    installError = null;
+    try {
+      const picked = await openDialog({
+        directory: false,
+        multiple: false,
+        filters: FILE_FILTERS[game.platform],
+        title: `Select ${game.title} installer or disk image`,
+      });
+      if (picked) installSource = picked;
+    } catch (e) {
+      installError = String(e);
+    }
+  }
+
+  async function chooseDest() {
+    installError = null;
+    try {
+      const picked = await openDialog({
+        directory: true,
+        multiple: false,
+        title: "Choose library folder",
+      });
+      if (picked) customDest = picked;
+    } catch (e) {
+      installError = String(e);
+    }
+  }
+
+  async function startInstall() {
+    if (!installSource) return;
     installing = true;
     installError = null;
     installSuccessMessage = null;
+    installLog = [];
+    pendingInstall = null;
     try {
       const outcome = await invoke("install_game", {
         id: game.id,
-        path,
-        force,
+        source: installSource,
+        dest: customDest,
       });
       if (outcome.status === "installed") {
-        installSuccessMessage = `Installed (record at ${outcome.record_path}).`;
-        pendingInstall = null;
+        installSuccessMessage = `Installed to ${outcome.install_path}.`;
+        showInstallModal = false;
         dispatch("installed");
       } else if (outcome.status === "missing_files") {
-        pendingInstall = { path, missing: outcome.missing };
+        pendingInstall = {
+          install_path: outcome.install_path,
+          missing: outcome.missing,
+        };
       }
     } catch (e) {
       installError = String(e);
-      pendingInstall = null;
     } finally {
       installing = false;
     }
   }
 
-  async function handleInstallClick() {
+  async function confirmInstallAnyway() {
+    if (!pendingInstall) return;
+    installing = true;
     installError = null;
-    let picked;
     try {
-      picked = await openDialog({
-        directory: true,
-        multiple: false,
-        title: `Select directory containing ${game.title} files`,
+      await invoke("register_install", {
+        id: game.id,
+        installPath: pendingInstall.install_path,
       });
+      installSuccessMessage = `Installed to ${pendingInstall.install_path}.`;
+      pendingInstall = null;
+      showInstallModal = false;
+      dispatch("installed");
     } catch (e) {
       installError = String(e);
-      return;
+    } finally {
+      installing = false;
     }
-    if (!picked) return;
-    await attemptInstall(picked, false);
   }
 
-  function confirmInstallAnyway() {
-    if (pendingInstall) attemptInstall(pendingInstall.path, true);
-  }
-
-  function cancelInstall() {
+  function cancelPending() {
     pendingInstall = null;
   }
 
@@ -119,10 +201,16 @@
         launchError = `emulator exited with code ${payload.code}`;
       }
     });
+    unlistenInstallOutput = await listen("install-output", (e) => {
+      const payload = e.payload || {};
+      if (payload.id !== game.id) return;
+      installLog = [...installLog, payload.line];
+    });
   });
 
   onDestroy(() => {
     unlistenExit?.();
+    unlistenInstallOutput?.();
   });
 </script>
 
@@ -191,17 +279,12 @@
             {launching ? "Launching…" : "Launch"}
           </button>
         {:else}
-          <button class="primary" on:click={handleInstallClick} disabled={installing}>
-            {installing ? "Installing…" : "Install"}
-          </button>
+          <button class="primary" on:click={openInstallModal}>Install</button>
         {/if}
       </div>
 
       {#if installSuccessMessage}
         <p class="msg success">{installSuccessMessage}</p>
-      {/if}
-      {#if installError}
-        <p class="msg error">{installError}</p>
       {/if}
       {#if launchExitedMessage}
         <p class="msg success">{launchExitedMessage}</p>
@@ -218,23 +301,80 @@
     </div>
   </div>
 
-  {#if pendingInstall}
-    <div class="modal-overlay" on:click={cancelInstall}>
+  {#if showInstallModal}
+    <div class="modal-overlay" on:click={closeInstallModal}>
       <div class="modal" on:click|stopPropagation>
-        <h3>Expected files not found</h3>
-        <p>The directory you selected is missing these files the catalog expects:</p>
-        <ul>
-          {#each pendingInstall.missing as f}
-            <li>{f}</li>
-          {/each}
-        </ul>
-        <p class="modal-path">Directory: <code>{pendingInstall.path}</code></p>
-        <div class="modal-actions">
-          <button class="secondary" on:click={cancelInstall}>Cancel</button>
-          <button class="primary" on:click={confirmInstallAnyway} disabled={installing}>
-            Install anyway
-          </button>
-        </div>
+        {#if pendingInstall}
+          <h3>Expected files not found</h3>
+          <p>
+            {game.title} was installed to
+            <code>{pendingInstall.install_path}</code>, but these files the
+            catalog expects are missing:
+          </p>
+          <ul>
+            {#each pendingInstall.missing as f}
+              <li>{f}</li>
+            {/each}
+          </ul>
+          {#if installError}
+            <p class="msg error">{installError}</p>
+          {/if}
+          <div class="modal-actions">
+            <button class="secondary" on:click={cancelPending} disabled={installing}>
+              Back
+            </button>
+            <button class="primary" on:click={confirmInstallAnyway} disabled={installing}>
+              {installing ? "Working…" : "Register anyway"}
+            </button>
+          </div>
+        {:else}
+          <h3>Install {game.title}</h3>
+
+          <div class="install-field">
+            <span class="field-label">Source</span>
+            <div class="source-buttons">
+              <button class="secondary" on:click={chooseSourceFolder} disabled={installing}>
+                Choose folder…
+              </button>
+              <button class="secondary" on:click={chooseSourceFile} disabled={installing}>
+                {game.platform === "dos" ? "Choose .exe…" : "Choose disk image…"}
+              </button>
+            </div>
+            {#if installSource}
+              <p class="chosen"><code>{installSource}</code></p>
+            {/if}
+          </div>
+
+          <div class="install-field">
+            <span class="field-label">Install to</span>
+            <p class="chosen">
+              <code>{destDisplay}</code>
+              <button class="link" on:click={chooseDest} disabled={installing}>
+                Change…
+              </button>
+            </p>
+          </div>
+
+          {#if installLog.length > 0}
+            <pre class="install-log">{installLog.join("\n")}</pre>
+          {/if}
+          {#if installError}
+            <p class="msg error">{installError}</p>
+          {/if}
+
+          <div class="modal-actions">
+            <button class="secondary" on:click={closeInstallModal} disabled={installing}>
+              Cancel
+            </button>
+            <button
+              class="primary"
+              on:click={startInstall}
+              disabled={installing || !installSource}
+            >
+              {installing ? "Installing…" : "Install"}
+            </button>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -462,7 +602,8 @@
     border: 1px solid #3a3a55;
     border-radius: 8px;
     padding: 24px;
-    max-width: 520px;
+    max-width: 560px;
+    width: 90%;
     max-height: 80vh;
     overflow-y: auto;
     color: #ddd;
@@ -487,14 +628,68 @@
     font-size: 0.88rem;
   }
 
-  .modal-path {
-    font-size: 0.82rem;
+  .install-field {
+    margin-bottom: 18px;
+  }
+
+  .field-label {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
     color: #888;
+    margin-bottom: 8px;
+  }
+
+  .source-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .chosen {
+    margin: 8px 0 0;
+    font-size: 0.82rem;
+    color: #aaa;
     word-break: break-all;
   }
 
-  .modal-path code {
-    color: #aaa;
+  .chosen code {
+    color: #c0c8ff;
+  }
+
+  .link {
+    background: none;
+    border: none;
+    color: #7a7add;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 0 0 8px;
+  }
+
+  .link:hover:not(:disabled) {
+    color: #9a9aff;
+    text-decoration: underline;
+  }
+
+  .link:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .install-log {
+    background: #12121e;
+    border: 1px solid #2a2a40;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 0 0 12px;
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.78rem;
+    color: #9a9ab0;
+    white-space: pre-wrap;
+    word-break: break-all;
   }
 
   .modal-actions {
@@ -514,8 +709,13 @@
     font-size: 0.9rem;
   }
 
-  .secondary:hover {
+  .secondary:hover:not(:disabled) {
     background: #252538;
     color: #ddd;
+  }
+
+  .secondary:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 </style>
