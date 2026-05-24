@@ -214,7 +214,7 @@ hard_drives = ["system.hdf"]    # filenames inside install_path, mounted as HD0.
 |---|---|---|---|
 | `model` | string | yes | Amiga model: `a500`, `a600`, `a1200`, `a4000`. Determines the model template if no `config` is specified. |
 | `config` | string | no | Filename of a sibling `.fs-uae` config in `catalog/amiga/`. If absent, the launcher uses a model template. |
-| `floppies` | array of string | no | Filenames (no paths) of `.adf` disk images inside the install path. The launcher mounts them as DF0..DF3 in order. |
+| `floppies` | array of string | no | Filenames (no paths) of `.adf` disk images inside the install path, in disk-swap order. The launcher emulates a single internal drive like a real A500: disk 1 boots in DF0 and all disks form the FS-UAE swap list (`--floppy_image_N`), cycled via the disk menu when the game prompts. |
 | `hard_drives` | array of string | no | Filenames (no paths) of `.hdf` hard-disk images inside the install path. Mounted as `--hard_drive_0..3` in order. |
 
 **Autodetect fallback:** when an Amiga entry declares no `config`, `floppies`, or `hard_drives`, the launcher scans `install_path` for a runnable source — preferring an inner `.fs-uae` config, then `.hdf`, then `.adf`. This is what lets a game installed by unzipping a `.rp9` (whose inner filenames vary) launch without per-entry declaration.
@@ -315,6 +315,8 @@ command = "flatpak run io.github.dosbox-staging"
 [emulators.fs-uae]
 command = "fs-uae"
 kickstart_path = "~/.config/fs-uae/Kickstarts/"
+fullscreen = false   # windowed (default); set true to launch fullscreen
+window_scale = 3      # integer scale of the native frame when windowed
 
 [sidecars.fluidsynth]
 command   = "fluidsynth"
@@ -330,6 +332,8 @@ All fields under `[emulators.*]` and `[sidecars.*]` are optional. Reasonable Deb
 | `emulators.dosbox-staging.command` | string | Invocation prefix for DOSBox-Staging. May be a multi-word command. |
 | `emulators.fs-uae.command` | string | Invocation prefix for FS-UAE. |
 | `emulators.fs-uae.kickstart_path` | string | Directory containing the user's Amiga Kickstart ROMs. |
+| `emulators.fs-uae.fullscreen` | bool | Launch FS-UAE fullscreen. Default `false` (windowed). |
+| `emulators.fs-uae.window_scale` | integer | Integer scale of the native PAL frame when windowed. Default `3`. Ignored when `fullscreen` is set. |
 | `sidecars.fluidsynth.command` | string | Invocation prefix for FluidSynth. |
 | `sidecars.fluidsynth.soundfont` | string | Path to the SoundFont (`.sf2`) FluidSynth should load. |
 
