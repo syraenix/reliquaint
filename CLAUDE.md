@@ -34,14 +34,14 @@ Read before non-trivial changes:
 
 - `catalog`, `install_record`, `tap` — TOML parsers matching `docs/schema.md`. `install_record::register` writes a record for a populated dir.
 - `catalog_view` — joins loaded taps with install records into a single browsable view.
-- `game_install` — copy/extract a source (directory, DOS `.exe` via `innoextract`, or Amiga `.adf`/`.hdf`/`.rp9`) into the managed library (default `~/games/<id>`). Pure `plan_install` (classify + build commands) + `execute` (runs commands via an injected runner, or unzips `.rp9` in-process with the `zip` crate).
+- `game_install` — copy/extract a source (directory, DOS `.exe` via `innoextract`, or Amiga `.adf`/`.hdf`/`.rp9`) into the managed library (default `~/games/<id>`). **Stage-then-commit:** pure `plan_install` (classify + build commands) → `stage` (clears `<library>/.<id>.staging`, then runs commands via an injected runner, or unzips `.rp9` in-process) → `commit_dirs` (atomic rename staging → `<library>/<id>`) or `discard_staging` (cancel). The final dir is created only on commit, so a declined/failed install never strands it. `locations()` gives the canonical paths.
 - `launch` — composes `LaunchPlan` (program + args + sidecars) from `(CatalogEntry, InstallRecord, UserConfig)`. Amiga: floppies → `--floppy_drive_N`, `hard_drives` → `--hard_drive_N`, with an autodetect fallback that scans `install_path` for an inner `.fs-uae`/`.hdf`/`.adf` when nothing is declared.
 - `sidecar` — spawns the plan; SIGTERM/grace/SIGKILL sidecar shutdown; `run_plan_with_callback` streams primary stdout/stderr line-by-line (used by the GUI diagnostic panel).
 - `user_config` — `${XDG_CONFIG_HOME}/reliquaint/config.toml` with Debian-friendly defaults.
 - `doctor::check_install` — host + per-install diagnostics; reuses `ProbeKind`/`ProbeStatus`/`ProbeResult`.
 - `paths` — XDG locations and `find_repo_root` heuristic (recognizes either `tap/tap.toml` or legacy `dos/+amiga/` directory markers).
 - `cli` — `reliquaint list/run/install/doctor`.
-- `commands` — Tauri command handlers: `list_catalog`, `install_game` (async, streams `install-output`), `register_install`, `default_install_dest`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
+- `commands` — Tauri command handlers: `list_catalog`, `install_game` (async, streams `install-output`; stages then commits, or returns `MissingFiles`), `commit_install` / `discard_install` (resolve a `MissingFiles` install anyway / cancel), `default_install_dest`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
 - `gui` — Tauri builder, `AppState`, AppHandle wiring (drives the `logging::TauriBridgeLayer` so tracing events flow to the diagnostic panel).
 - `logging` (ADR-0004), `error` (ADR-0005).
 - `setup`, `installer` — host-dependency install actions backing the `install_dependency` Tauri command (apt + flatpak, distro-detected).

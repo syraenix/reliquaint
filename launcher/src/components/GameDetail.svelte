@@ -70,9 +70,21 @@
     showInstallModal = true;
   }
 
-  function closeInstallModal() {
+  async function closeInstallModal() {
     if (installing) return;
+    // A pending install has files staged but not yet committed — drop them.
+    if (pendingInstall) await discardStaged();
+    pendingInstall = null;
     showInstallModal = false;
+  }
+
+  // Best-effort removal of the staged-but-uncommitted copy.
+  async function discardStaged() {
+    try {
+      await invoke("discard_install", { id: game.id, dest: customDest });
+    } catch (e) {
+      // Non-fatal: a stale staging dir is cleared on the next attempt anyway.
+    }
   }
 
   async function chooseSourceFolder() {
@@ -153,10 +165,8 @@
     installing = true;
     installError = null;
     try {
-      await invoke("register_install", {
-        id: game.id,
-        installPath: pendingInstall.install_path,
-      });
+      // Commit the staged copy into place and write the record.
+      await invoke("commit_install", { id: game.id, dest: customDest });
       installSuccessMessage = `Installed to ${pendingInstall.install_path}.`;
       pendingInstall = null;
       showInstallModal = false;
@@ -168,7 +178,8 @@
     }
   }
 
-  function cancelPending() {
+  async function cancelPending() {
+    await discardStaged();
     pendingInstall = null;
   }
 
@@ -307,7 +318,7 @@
         {#if pendingInstall}
           <h3>Expected files not found</h3>
           <p>
-            {game.title} was installed to
+            {game.title} is staged for
             <code>{pendingInstall.install_path}</code>, but these files the
             catalog expects are missing:
           </p>
@@ -316,15 +327,16 @@
               <li>{f}</li>
             {/each}
           </ul>
+          <p>Install anyway, or cancel to discard the staged copy?</p>
           {#if installError}
             <p class="msg error">{installError}</p>
           {/if}
           <div class="modal-actions">
             <button class="secondary" on:click={cancelPending} disabled={installing}>
-              Back
+              Cancel
             </button>
             <button class="primary" on:click={confirmInstallAnyway} disabled={installing}>
-              {installing ? "Working…" : "Register anyway"}
+              {installing ? "Working…" : "Install anyway"}
             </button>
           </div>
         {:else}

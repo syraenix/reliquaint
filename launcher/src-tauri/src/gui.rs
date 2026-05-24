@@ -20,7 +20,8 @@ pub fn run_gui() {
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_catalog,
             crate::commands::install_game,
-            crate::commands::register_install,
+            crate::commands::commit_install,
+            crate::commands::discard_install,
             crate::commands::default_install_dest,
             crate::commands::launch_game,
             crate::commands::run_doctor,

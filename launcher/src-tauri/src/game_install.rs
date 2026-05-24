@@ -3,18 +3,27 @@
 //! can be recorded as an install record's `install_path`.
 //!
 //! This module is the generic, catalog-driven replacement for the
-//! pre-redesign per-collection installer. It is split into a pure planning
-//! step ([`plan_install`]) — which classifies the source, computes the
-//! destination, and builds the copy/extract commands without touching the
-//! filesystem beyond classification — and an executor ([`execute`]) that
-//! either runs those shell commands through an injected runner (so the
-//! CLI / GUI can stream output) or unzips an `.rp9` bundle in process.
+//! pre-redesign per-collection installer. Installs follow a
+//! **stage-then-commit** model so a declined or failed install never strands
+//! a half-populated `<library>/<id>` (which would dead-end the next attempt
+//! against the occupancy guard):
+//!
+//! 1. [`plan_install`] (pure) classifies the source and computes the
+//!    destination, a sibling **staging** dir (`<library>/.<id>.staging`), and
+//!    the copy/extract commands — without touching the filesystem beyond
+//!    classification + an occupancy check.
+//! 2. [`stage`] clears any stale staging dir and copies/extracts the source
+//!    into it (running shell commands via an injected runner, or unzipping an
+//!    `.rp9` in process). The managed `<library>/<id>` is *not* created yet.
+//! 3. The caller validates `staged_install_path` (expects_files) and then
+//!    either [`commit_dirs`] (atomic rename staging → `<library>/<id>`, same
+//!    filesystem) or [`discard_staging`] (remove the staging dir).
 //!
 //! Supported sources:
 //! - **directory** (any platform) → recursive copy
-//! - **`.exe`** (DOS) → `innoextract` into the destination
+//! - **`.exe`** (DOS) → `innoextract`
 //! - **`.adf` / `.hdf`** (Amiga) → copy the disk image in
-//! - **`.rp9`** (Amiga) → unzip the RetroPlatform bundle into the destination
+//! - **`.rp9`** (Amiga) → unzip the RetroPlatform bundle
 
 use crate::catalog::{CatalogEntry, Platform};
 use std::path::{Path, PathBuf};
@@ -56,24 +65,38 @@ pub enum SourceKind {
     AmigaImage,
 }
 
-/// How the planned install is carried out.
+/// How the planned install populates the staging dir.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CopyAction {
     /// Shell commands to run in order via the injected runner.
     Commands(Vec<Vec<String>>),
-    /// Unzip this `.rp9` archive into `dest_dir` in process.
+    /// Unzip this `.rp9` archive into the staging dir in process.
     UnzipRp9 { archive: PathBuf },
 }
 
-/// A fully-resolved install, ready to [`execute`].
+/// The canonical filesystem locations for an install, derived purely from
+/// the entry id, its optional `subdir`, and the chosen library base.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstallLocations {
+    /// Final `<library>/<id>` — created only on commit.
+    pub dest_dir: PathBuf,
+    /// Scratch `<library>/.<id>.staging` — populated by [`stage`], then
+    /// renamed to `dest_dir` on commit (same filesystem → atomic).
+    pub staging_dir: PathBuf,
+    /// Directory recorded as `install_path` after commit: `dest_dir[/subdir]`.
+    pub install_path: PathBuf,
+    /// Where to validate `expects_files` before commit: `staging_dir[/subdir]`.
+    pub staged_install_path: PathBuf,
+}
+
+/// A fully-resolved install, ready to [`stage`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstallPlan {
     pub kind: SourceKind,
-    /// `<dest_base>/<id>` — what gets populated.
     pub dest_dir: PathBuf,
-    /// The directory recorded as `install_path`: `dest_dir` or
-    /// `dest_dir/<subdir>` when the entry declares a `subdir`.
+    pub staging_dir: PathBuf,
     pub install_path: PathBuf,
+    pub staged_install_path: PathBuf,
     pub action: CopyAction,
 }
 
@@ -100,7 +123,7 @@ pub enum InstallError {
     #[error("install command could not run: {message}")]
     CommandSpawn { message: String },
 
-    #[error("failed to create {path}: {source}")]
+    #[error("filesystem error at {path}: {source}")]
     Io {
         path: PathBuf,
         #[source]
@@ -111,10 +134,33 @@ pub enum InstallError {
     Rp9 { path: PathBuf, message: String },
 }
 
-/// Classify `source` for `platform`, compute the destination under
-/// `dest_base`, and build the copy/extract plan. Reads the filesystem only
-/// to classify the source (file vs directory) and to check destination
-/// occupancy; performs no copying.
+/// Compute the canonical install locations for `id` (with optional `subdir`)
+/// under `dest_base`. Pure — no filesystem access. Shared by [`plan_install`]
+/// and the GUI commit/discard commands so they agree on paths.
+pub fn locations(id: &str, subdir: Option<&str>, dest_base: &Path) -> InstallLocations {
+    let dest_dir = dest_base.join(id);
+    let staging_dir = dest_base.join(format!(".{id}.staging"));
+    let install_path = join_subdir(&dest_dir, subdir);
+    let staged_install_path = join_subdir(&staging_dir, subdir);
+    InstallLocations {
+        dest_dir,
+        staging_dir,
+        install_path,
+        staged_install_path,
+    }
+}
+
+fn join_subdir(dir: &Path, subdir: Option<&str>) -> PathBuf {
+    match subdir {
+        Some(s) => dir.join(s),
+        None => dir.to_path_buf(),
+    }
+}
+
+/// Classify `source` for the entry's platform, compute the destination +
+/// staging locations under `dest_base`, and build the copy/extract action
+/// (which targets the staging dir). Reads the filesystem only to classify the
+/// source and to reject an already-occupied final destination.
 pub fn plan_install(
     spec: &EntrySpec,
     source: &Path,
@@ -128,65 +174,97 @@ pub fn plan_install(
 
     let kind = classify(source, spec.platform)?;
 
-    let dest_dir = dest_base.join(spec.id);
-    if dir_is_nonempty(&dest_dir) {
-        return Err(InstallError::DestinationOccupied { path: dest_dir });
+    let loc = locations(spec.id, spec.subdir, dest_base);
+    // Reject only if a real install already occupies the final dir; staging
+    // is our own scratch space and is cleared by `stage`.
+    if dir_is_nonempty(&loc.dest_dir) {
+        return Err(InstallError::DestinationOccupied {
+            path: loc.dest_dir,
+        });
     }
-
-    let install_path = match spec.subdir {
-        Some(sub) => dest_dir.join(sub),
-        None => dest_dir.clone(),
-    };
 
     let action = match kind {
         SourceKind::Directory => CopyAction::Commands(vec![
-            mkdir_p(&dest_dir),
+            mkdir_p(&loc.staging_dir),
             vec![
                 "cp".into(),
                 "-r".into(),
                 "--".into(),
                 format!("{}/.", source.to_string_lossy()),
-                dest_dir.to_string_lossy().into_owned(),
+                loc.staging_dir.to_string_lossy().into_owned(),
             ],
         ]),
         SourceKind::DosInstaller => CopyAction::Commands(vec![
-            mkdir_p(&dest_dir),
+            mkdir_p(&loc.staging_dir),
             vec![
                 "innoextract".into(),
                 "--exclude-temp".into(),
                 "--silent".into(),
                 "--output-dir".into(),
-                dest_dir.to_string_lossy().into_owned(),
+                loc.staging_dir.to_string_lossy().into_owned(),
                 source.to_string_lossy().into_owned(),
             ],
         ]),
-        SourceKind::AmigaImage => amiga_action(spec, source, &dest_dir),
+        SourceKind::AmigaImage => amiga_action(spec, source, &loc.staging_dir),
     };
 
     Ok(InstallPlan {
         kind,
-        dest_dir,
-        install_path,
+        dest_dir: loc.dest_dir,
+        staging_dir: loc.staging_dir,
+        install_path: loc.install_path,
+        staged_install_path: loc.staged_install_path,
         action,
     })
 }
 
-/// Carry out a planned install. `run_commands` runs a batch of argv vectors
-/// in order and returns the final exit code (the CLI prints to stderr; the
-/// GUI streams Tauri events). `.rp9` bundles are unzipped in process and
-/// bypass the runner.
-pub fn execute<R>(plan: &InstallPlan, run_commands: R) -> Result<(), InstallError>
+/// Clear any stale staging dir (from an abandoned prior attempt), then
+/// copy/extract the source into it. `run_commands` runs a batch of argv
+/// vectors in order and returns the final exit code (the CLI prints to
+/// stderr; the GUI streams Tauri events). `.rp9` bundles are unzipped in
+/// process and bypass the runner.
+pub fn stage<R>(plan: &InstallPlan, run_commands: R) -> Result<(), InstallError>
 where
     R: FnOnce(&[Vec<String>]) -> Result<i32, String>,
 {
+    discard_staging(&plan.staging_dir)?;
     match &plan.action {
         CopyAction::Commands(cmds) => match run_commands(cmds) {
             Ok(0) => Ok(()),
             Ok(code) => Err(InstallError::CommandFailed { code }),
             Err(message) => Err(InstallError::CommandSpawn { message }),
         },
-        CopyAction::UnzipRp9 { archive } => unzip_rp9(archive, &plan.dest_dir),
+        CopyAction::UnzipRp9 { archive } => unzip_rp9(archive, &plan.staging_dir),
     }
+}
+
+/// Commit a staged install: atomically rename `staging_dir` → `dest_dir`.
+/// Both live under the same library base, so this is a same-filesystem rename
+/// (no copy). Errors if `dest_dir` is already a non-empty install.
+pub fn commit_dirs(staging_dir: &Path, dest_dir: &Path) -> Result<(), InstallError> {
+    if dir_is_nonempty(dest_dir) {
+        return Err(InstallError::DestinationOccupied {
+            path: dest_dir.to_path_buf(),
+        });
+    }
+    // `rename` replaces an empty `dest_dir` and creates an absent one; a
+    // non-empty one was rejected above.
+    std::fs::rename(staging_dir, dest_dir).map_err(|source| InstallError::Io {
+        path: dest_dir.to_path_buf(),
+        source,
+    })
+}
+
+/// Remove a staging dir. No-op if it doesn't exist (so cancelling twice, or
+/// cancelling after a crash that left nothing, is safe).
+pub fn discard_staging(staging_dir: &Path) -> Result<(), InstallError> {
+    if staging_dir.exists() {
+        std::fs::remove_dir_all(staging_dir).map_err(|source| InstallError::Io {
+            path: staging_dir.to_path_buf(),
+            source,
+        })?;
+    }
+    Ok(())
 }
 
 fn classify(source: &Path, platform: Platform) -> Result<SourceKind, InstallError> {
@@ -224,11 +302,12 @@ fn classify(source: &Path, platform: Platform) -> Result<SourceKind, InstallErro
     }
 }
 
-/// Build the action for an Amiga disk-image source. `.rp9` is unzipped;
-/// `.adf`/`.hdf` are copied in. When the entry declares exactly one disk of
-/// the matching kind, the copied file is renamed to that declared name so a
-/// differently-named source still launches.
-fn amiga_action(spec: &EntrySpec, source: &Path, dest_dir: &Path) -> CopyAction {
+/// Build the action for an Amiga disk-image source, copying/extracting into
+/// `target_dir` (the staging dir). `.rp9` is unzipped; `.adf`/`.hdf` are
+/// copied in. When the entry declares exactly one disk of the matching kind,
+/// the copied file is renamed to that declared name so a differently-named
+/// source still launches.
+fn amiga_action(spec: &EntrySpec, source: &Path, target_dir: &Path) -> CopyAction {
     let ext = source
         .extension()
         .and_then(|e| e.to_str())
@@ -252,12 +331,12 @@ fn amiga_action(spec: &EntrySpec, source: &Path, dest_dir: &Path) -> CopyAction 
     };
 
     CopyAction::Commands(vec![
-        mkdir_p(dest_dir),
+        mkdir_p(target_dir),
         vec![
             "cp".into(),
             "--".into(),
             source.to_string_lossy().into_owned(),
-            dest_dir.join(target_name).to_string_lossy().into_owned(),
+            target_dir.join(target_name).to_string_lossy().into_owned(),
         ],
     ])
 }
@@ -346,8 +425,29 @@ mod tests {
         }
     }
 
+    // --- locations ---------------------------------------------------------
+
     #[test]
-    fn directory_source_plans_recursive_copy() {
+    fn locations_computes_staging_and_subdir() {
+        let base = Path::new("/lib");
+        let loc = locations("kq5", Some("EGA"), base);
+        assert_eq!(loc.dest_dir, PathBuf::from("/lib/kq5"));
+        assert_eq!(loc.staging_dir, PathBuf::from("/lib/.kq5.staging"));
+        assert_eq!(loc.install_path, PathBuf::from("/lib/kq5/EGA"));
+        assert_eq!(loc.staged_install_path, PathBuf::from("/lib/.kq5.staging/EGA"));
+    }
+
+    #[test]
+    fn locations_without_subdir_uses_dirs_directly() {
+        let loc = locations("fatman", None, Path::new("/lib"));
+        assert_eq!(loc.install_path, loc.dest_dir);
+        assert_eq!(loc.staged_install_path, loc.staging_dir);
+    }
+
+    // --- plan_install ------------------------------------------------------
+
+    #[test]
+    fn directory_source_stages_recursive_copy() {
         let src = tempfile::tempdir().unwrap();
         std::fs::write(src.path().join("GAME.EXE"), b"x").unwrap();
         let base = tempfile::tempdir().unwrap();
@@ -356,18 +456,23 @@ mod tests {
 
         assert_eq!(plan.kind, SourceKind::Directory);
         assert_eq!(plan.dest_dir, base.path().join("kq5"));
+        assert_eq!(plan.staging_dir, base.path().join(".kq5.staging"));
         assert_eq!(plan.install_path, base.path().join("kq5"));
+        assert_eq!(plan.staged_install_path, base.path().join(".kq5.staging"));
         match &plan.action {
             CopyAction::Commands(cmds) => {
                 assert_eq!(cmds[0][0], "mkdir");
-                assert_eq!(cmds.last().unwrap()[0], "cp");
+                let cp = cmds.last().unwrap();
+                assert_eq!(cp[0], "cp");
+                // Copy targets the staging dir, not the final dest.
+                assert!(cp.last().unwrap().ends_with(".kq5.staging"), "got {cp:?}");
             }
             other => panic!("expected Commands, got {other:?}"),
         }
     }
 
     #[test]
-    fn dos_exe_plans_innoextract_with_subdir() {
+    fn dos_exe_stages_innoextract_with_subdir() {
         let tmp = tempfile::tempdir().unwrap();
         let exe = tmp.path().join("qfg1.exe");
         std::fs::write(&exe, b"MZ").unwrap();
@@ -383,21 +488,25 @@ mod tests {
         let plan = plan_install(&s, &exe, base.path()).unwrap();
 
         assert_eq!(plan.kind, SourceKind::DosInstaller);
-        assert_eq!(plan.dest_dir, base.path().join("qfg1-ega"));
         assert_eq!(plan.install_path, base.path().join("qfg1-ega").join("EGA"));
+        assert_eq!(
+            plan.staged_install_path,
+            base.path().join(".qfg1-ega.staging").join("EGA")
+        );
         match &plan.action {
             CopyAction::Commands(cmds) => {
-                assert!(cmds.iter().any(|c| c[0] == "innoextract"));
-                assert!(cmds
-                    .iter()
-                    .any(|c| c.iter().any(|a| a.ends_with("qfg1.exe"))));
+                let inno = cmds.iter().find(|c| c[0] == "innoextract").expect("innoextract cmd");
+                // Extract into staging.
+                let out_idx = inno.iter().position(|a| a == "--output-dir").unwrap();
+                assert!(inno[out_idx + 1].ends_with(".qfg1-ega.staging"), "got {inno:?}");
+                assert!(inno.iter().any(|a| a.ends_with("qfg1.exe")));
             }
             other => panic!("expected Commands, got {other:?}"),
         }
     }
 
     #[test]
-    fn amiga_adf_renames_to_declared_floppy() {
+    fn amiga_adf_renames_to_declared_floppy_in_staging() {
         let tmp = tempfile::tempdir().unwrap();
         let adf = tmp.path().join("MyDisk.adf");
         std::fs::write(&adf, b"DOS").unwrap();
@@ -413,12 +522,11 @@ mod tests {
 
         let plan = plan_install(&s, &adf, base.path()).unwrap();
 
-        assert_eq!(plan.kind, SourceKind::AmigaImage);
         match &plan.action {
             CopyAction::Commands(cmds) => {
                 let cp = cmds.iter().find(|c| c[0] == "cp").unwrap();
                 assert!(
-                    cp.last().unwrap().ends_with("fatman/fatman.adf"),
+                    cp.last().unwrap().ends_with(".fatman.staging/fatman.adf"),
                     "got {cp:?}"
                 );
             }
@@ -439,7 +547,7 @@ mod tests {
             CopyAction::Commands(cmds) => {
                 let cp = cmds.iter().find(|c| c[0] == "cp").unwrap();
                 assert!(
-                    cp.last().unwrap().ends_with("lemmings/lemmings.adf"),
+                    cp.last().unwrap().ends_with(".lemmings.staging/lemmings.adf"),
                     "got {cp:?}"
                 );
             }
@@ -467,7 +575,7 @@ mod tests {
         match &plan.action {
             CopyAction::Commands(cmds) => {
                 let cp = cmds.iter().find(|c| c[0] == "cp").unwrap();
-                assert!(cp.last().unwrap().ends_with("wb/system.hdf"), "got {cp:?}");
+                assert!(cp.last().unwrap().ends_with(".wb.staging/system.hdf"), "got {cp:?}");
             }
             other => panic!("expected Commands, got {other:?}"),
         }
@@ -521,7 +629,7 @@ mod tests {
     }
 
     #[test]
-    fn occupied_destination_errors() {
+    fn occupied_final_destination_errors() {
         let src = tempfile::tempdir().unwrap();
         std::fs::write(src.path().join("a"), b"x").unwrap();
         let base = tempfile::tempdir().unwrap();
@@ -532,16 +640,28 @@ mod tests {
         assert!(matches!(err, InstallError::DestinationOccupied { .. }), "got {err:?}");
     }
 
-    #[test]
-    fn execute_runs_commands_in_order() {
-        let plan = InstallPlan {
+    // --- stage -------------------------------------------------------------
+
+    fn plan_with(staging_dir: PathBuf, action: CopyAction) -> InstallPlan {
+        InstallPlan {
             kind: SourceKind::Directory,
-            dest_dir: PathBuf::from("/x/kq5"),
-            install_path: PathBuf::from("/x/kq5"),
-            action: CopyAction::Commands(vec![vec!["mkdir".into(), "-p".into(), "/x/kq5".into()]]),
-        };
+            dest_dir: staging_dir.with_extension("dest"),
+            staging_dir: staging_dir.clone(),
+            install_path: staging_dir.with_extension("dest"),
+            staged_install_path: staging_dir,
+            action,
+        }
+    }
+
+    #[test]
+    fn stage_runs_commands_in_order() {
+        let tmp = tempfile::tempdir().unwrap();
+        let plan = plan_with(
+            tmp.path().join(".x.staging"),
+            CopyAction::Commands(vec![vec!["mkdir".into(), "-p".into(), "x".into()]]),
+        );
         let captured = std::cell::RefCell::new(Vec::new());
-        execute(&plan, |cmds| {
+        stage(&plan, |cmds| {
             captured.borrow_mut().extend_from_slice(cmds);
             Ok(0)
         })
@@ -550,19 +670,32 @@ mod tests {
     }
 
     #[test]
-    fn execute_propagates_nonzero_exit() {
-        let plan = InstallPlan {
-            kind: SourceKind::DosInstaller,
-            dest_dir: PathBuf::from("/x/q"),
-            install_path: PathBuf::from("/x/q"),
-            action: CopyAction::Commands(vec![vec!["false".into()]]),
-        };
-        let err = execute(&plan, |_| Ok(7)).unwrap_err();
+    fn stage_propagates_nonzero_exit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let plan = plan_with(
+            tmp.path().join(".x.staging"),
+            CopyAction::Commands(vec![vec!["false".into()]]),
+        );
+        let err = stage(&plan, |_| Ok(7)).unwrap_err();
         assert!(matches!(err, InstallError::CommandFailed { code: 7 }), "got {err:?}");
     }
 
     #[test]
-    fn execute_unzips_rp9_into_dest() {
+    fn stage_clears_stale_staging_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join(".x.staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("junk"), b"old").unwrap();
+        // Fake runner is a no-op, so after the clear step staging is gone.
+        let plan = plan_with(staging.clone(), CopyAction::Commands(vec![vec!["true".into()]]));
+
+        stage(&plan, |_| Ok(0)).unwrap();
+
+        assert!(!staging.exists(), "stale staging should have been cleared");
+    }
+
+    #[test]
+    fn stage_unzips_rp9_into_staging() {
         let tmp = tempfile::tempdir().unwrap();
         let rp9 = tmp.path().join("game.rp9");
         {
@@ -574,17 +707,59 @@ mod tests {
             zw.write_all(b"ADFDATA").unwrap();
             zw.finish().unwrap();
         }
-        let dest = tmp.path().join("dest");
-        let plan = InstallPlan {
-            kind: SourceKind::AmigaImage,
-            dest_dir: dest.clone(),
-            install_path: dest.clone(),
-            action: CopyAction::UnzipRp9 { archive: rp9 },
-        };
+        let staging = tmp.path().join(".game.staging");
+        let plan = plan_with(staging.clone(), CopyAction::UnzipRp9 { archive: rp9 });
 
-        execute(&plan, |_| Ok(0)).unwrap();
+        stage(&plan, |_| Ok(0)).unwrap();
 
-        let inner = std::fs::read(dest.join("inner.adf")).unwrap();
+        let inner = std::fs::read(staging.join("inner.adf")).unwrap();
         assert_eq!(inner, b"ADFDATA");
+    }
+
+    // --- commit / discard --------------------------------------------------
+
+    #[test]
+    fn commit_renames_staging_to_dest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join(".kq5.staging");
+        let dest = tmp.path().join("kq5");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("GAME"), b"x").unwrap();
+
+        commit_dirs(&staging, &dest).unwrap();
+
+        assert!(dest.join("GAME").is_file(), "files should be at dest");
+        assert!(!staging.exists(), "staging should be gone after rename");
+    }
+
+    #[test]
+    fn commit_errors_when_dest_occupied() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join(".kq5.staging");
+        let dest = tmp.path().join("kq5");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::create_dir_all(&dest).unwrap();
+        std::fs::write(dest.join("existing"), b"x").unwrap();
+
+        let err = commit_dirs(&staging, &dest).unwrap_err();
+        assert!(matches!(err, InstallError::DestinationOccupied { .. }), "got {err:?}");
+    }
+
+    #[test]
+    fn discard_removes_staging() {
+        let tmp = tempfile::tempdir().unwrap();
+        let staging = tmp.path().join(".kq5.staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        std::fs::write(staging.join("GAME"), b"x").unwrap();
+
+        discard_staging(&staging).unwrap();
+
+        assert!(!staging.exists());
+    }
+
+    #[test]
+    fn discard_absent_staging_is_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        discard_staging(&tmp.path().join(".nope.staging")).unwrap();
     }
 }

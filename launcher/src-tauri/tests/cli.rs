@@ -595,3 +595,35 @@ fn install_rejects_unsupported_source_for_platform() {
         .failure()
         .stderr(contains("unsupported source"));
 }
+
+#[test]
+fn declined_install_leaves_nothing_and_can_be_retried() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+
+    // First attempt: source is missing the expected files; decline the prompt.
+    let bad = tempfile::tempdir().unwrap();
+    std::fs::write(bad.path().join("README.txt"), b"x").unwrap();
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "qfg1-ega", bad.path().to_str().unwrap()])
+        .write_stdin("n\n")
+        .assert()
+        .failure();
+
+    // Declining must not strand <games>/qfg1-ega (stage-then-commit).
+    assert!(
+        !games.path().join("qfg1-ega").exists(),
+        "a declined install should leave no managed directory behind"
+    );
+
+    // Retry with a good source — must succeed, not hit DestinationOccupied.
+    let good = dos_source_with_expected_files();
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["install", "qfg1-ega", good.path().to_str().unwrap()])
+        .assert()
+        .success();
+    assert!(games.path().join("qfg1-ega/SIERRA.BAT").is_file());
+    assert!(installs.path().join("qfg1-ega.toml").is_file());
+}

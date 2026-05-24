@@ -375,7 +375,8 @@ fn cmd_install(
         }
     };
 
-    // Copy/extract, streaming command output to the terminal.
+    // Stage: copy/extract into the staging dir, streaming output. On any
+    // failure, clear staging so the next attempt isn't blocked.
     let run = |cmds: &[Vec<String>]| {
         installer::run_install(cmds.to_vec(), |line, is_err| {
             if is_err {
@@ -385,14 +386,15 @@ fn cmd_install(
             }
         })
     };
-    if let Err(e) = game_install::execute(&plan, run) {
+    if let Err(e) = game_install::stage(&plan, run) {
+        let _ = game_install::discard_staging(&plan.staging_dir);
         eprintln!("error: {e}");
         return ExitCode::FAILURE;
     }
 
-    // Validate the result before registering.
+    // Validate the staged files before committing.
     let missing = install_record::missing_expects_files(
-        &plan.install_path,
+        &plan.staged_install_path,
         &entry.catalog.install.expects_files,
     );
     if !missing.is_empty() && !force {
@@ -400,10 +402,19 @@ fn cmd_install(
         for f in &missing {
             eprintln!("  - {f}");
         }
-        if !prompt_yes_no("Register install anyway? [y/N]") {
-            eprintln!("aborted (files remain at {})", plan.install_path.display());
+        if !prompt_yes_no("Install anyway? [y/N]") {
+            // Nothing committed yet — drop the staged copy so a retry works.
+            let _ = game_install::discard_staging(&plan.staging_dir);
+            eprintln!("aborted");
             return ExitCode::FAILURE;
         }
+    }
+
+    // Commit: move staging into place, then register.
+    if let Err(e) = game_install::commit_dirs(&plan.staging_dir, &plan.dest_dir) {
+        let _ = game_install::discard_staging(&plan.staging_dir);
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
     }
 
     match install_record::register(

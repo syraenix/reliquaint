@@ -155,12 +155,15 @@ pub enum InstallGameOutcome {
     },
 }
 
-/// Install the catalog entry `id` by copying/extracting `source` into the
-/// managed library (default `~/games/<id>`, or `<dest>/<id>` when `dest` is
-/// given). Streams copy/extract output as `install-output` events. Writes
-/// the install record only when the expected files are present afterward;
-/// otherwise returns `MissingFiles` and the frontend confirms via
-/// `register_install`.
+/// Install the catalog entry `id` by staging `source` into the managed
+/// library (default `~/games/<id>`, or `<dest>/<id>` when `dest` is given) and
+/// committing it. Streams copy/extract output as `install-output` events.
+///
+/// Stage-then-commit: the source is copied/extracted into a sibling staging
+/// dir; only when the expected files are present is it committed (atomic
+/// rename) and a record written. If files are missing, returns `MissingFiles`
+/// with the staging left in place — the frontend then calls `commit_install`
+/// ("install anyway") or `discard_install` (cancel).
 #[tauri::command]
 pub async fn install_game(
     id: String,
@@ -179,16 +182,16 @@ pub async fn install_game(
     let plan =
         crate::game_install::plan_install(&spec, &source, &dest_base).map_err(|e| e.to_string())?;
 
-    let install_path = plan.install_path.clone();
     let expects = entry.catalog.install.expects_files.clone();
     let tap_id = entry.tap_id.clone();
     let catalog_id = entry.catalog.game.id.clone();
 
-    // Run the copy/extract on a blocking thread; stream each line as an event.
+    // Stage the copy/extract on a blocking thread; stream each line as an event.
+    let plan_for_thread = plan.clone();
     let app_for_thread = app.clone();
     let id_for_emit = id.clone();
-    let exec = tauri::async_runtime::spawn_blocking(move || {
-        crate::game_install::execute(&plan, move |cmds| {
+    let staged = tauri::async_runtime::spawn_blocking(move || {
+        crate::game_install::stage(&plan_for_thread, move |cmds| {
             let app_cb = app_for_thread.clone();
             let emit_id = id_for_emit.clone();
             crate::installer::run_install(cmds.to_vec(), move |line, is_err| {
@@ -205,21 +208,28 @@ pub async fn install_game(
     })
     .await
     .map_err(|e| e.to_string())?;
-    exec.map_err(|e| e.to_string())?;
+    if let Err(e) = staged {
+        let _ = crate::game_install::discard_staging(&plan.staging_dir);
+        return Err(e.to_string());
+    }
 
-    let missing = crate::install_record::missing_expects_files(&install_path, &expects);
-    let install_path_str = install_path.to_string_lossy().into_owned();
+    let install_path_str = plan.install_path.to_string_lossy().into_owned();
+    let missing =
+        crate::install_record::missing_expects_files(&plan.staged_install_path, &expects);
     if !missing.is_empty() {
+        // Leave staging in place; the frontend decides commit vs discard.
         return Ok(InstallGameOutcome::MissingFiles {
             missing,
             install_path: install_path_str,
         });
     }
 
+    crate::game_install::commit_dirs(&plan.staging_dir, &plan.dest_dir)
+        .map_err(|e| e.to_string())?;
     let record_path = crate::install_record::register(
         &catalog_id,
         &tap_id,
-        &install_path,
+        &plan.install_path,
         &crate::paths::installs_dir(),
     )
     .map_err(|e| e.to_string())?;
@@ -229,27 +239,55 @@ pub async fn install_game(
     })
 }
 
-/// Write the install record for an already-populated directory. Backs the
-/// GUI's "Install anyway" confirm path after `install_game` reports
-/// `MissingFiles`.
+/// Commit a staged install the user chose to keep despite missing expected
+/// files: rename the staging dir into place and write the record. Backs the
+/// GUI's "install anyway" path after `install_game` returns `MissingFiles`.
 #[tauri::command]
-pub fn register_install(
+pub fn commit_install(
     id: String,
-    install_path: PathBuf,
+    dest: Option<PathBuf>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let view = load_catalog_view(&state.repo_root)?;
     let entry = view
         .by_id(&id)
         .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+    let dest_base = dest.unwrap_or_else(crate::paths::default_library_dir);
+    let loc = crate::game_install::locations(
+        &entry.catalog.game.id,
+        entry.catalog.install.subdir.as_deref(),
+        &dest_base,
+    );
+    crate::game_install::commit_dirs(&loc.staging_dir, &loc.dest_dir).map_err(|e| e.to_string())?;
     let record_path = crate::install_record::register(
         &entry.catalog.game.id,
         &entry.tap_id,
-        &install_path,
+        &loc.install_path,
         &crate::paths::installs_dir(),
     )
     .map_err(|e| e.to_string())?;
     Ok(record_path.to_string_lossy().into_owned())
+}
+
+/// Discard a staged install (remove the staging dir) when the user cancels or
+/// backs out after `install_game` returned `MissingFiles`. Idempotent.
+#[tauri::command]
+pub fn discard_install(
+    id: String,
+    dest: Option<PathBuf>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+    let dest_base = dest.unwrap_or_else(crate::paths::default_library_dir);
+    let loc = crate::game_install::locations(
+        &entry.catalog.game.id,
+        entry.catalog.install.subdir.as_deref(),
+        &dest_base,
+    );
+    crate::game_install::discard_staging(&loc.staging_dir).map_err(|e| e.to_string())
 }
 
 /// The default destination shown in the install dialog: `~/games/<id>`.
