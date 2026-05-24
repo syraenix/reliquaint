@@ -1,0 +1,9 @@
+schema_version = 1
+
+id          = "reliquaint-core"
+title       = "Reliquaint Core"
+description = "The default catalog shipped with Reliquaint — a small, quality-focused starter set of DOS and Amiga games."
+version     = "0.1.0"
+maintainer  = "Derek Duncan <derek.b.duncan@gmail.com>"
+url         = "https://github.com/syraenix/reliquaint"
+license     = "CC-BY-SA-4.0"
