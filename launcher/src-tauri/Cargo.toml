@@ -3,7 +3,7 @@ name = "reliquaint"
 version = "0.1.0"
 edition = "2021"
 description = "Launch classic DOS and Amiga games"
-license = "MIT"
+license = "MPL-2.0"
 
 [[bin]]
 name = "reliquaint"
