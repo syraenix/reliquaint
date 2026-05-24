@@ -75,6 +75,15 @@ pub struct AcquisitionDto {
 }
 
 pub fn load_catalog_view(repo_root: &Path) -> Result<crate::catalog_view::CatalogView, String> {
+    load_catalog_view_with(repo_root, &crate::paths::installs_dir())
+}
+
+/// Like [`load_catalog_view`] but with an explicit installs directory, so
+/// tests can isolate from the developer's real `paths::installs_dir()`.
+fn load_catalog_view_with(
+    repo_root: &Path,
+    installs_dir: &Path,
+) -> Result<crate::catalog_view::CatalogView, String> {
     let tap_root = crate::paths::tap_root(repo_root);
     let taps = match crate::tap::load_tap(&tap_root) {
         Ok(t) => vec![t],
@@ -87,7 +96,7 @@ pub fn load_catalog_view(repo_root: &Path) -> Result<crate::catalog_view::Catalo
         }
         Err(e) => return Err(format!("failed to load bundled tap: {e}")),
     };
-    let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+    let installs = crate::install_record::load_all(installs_dir);
     Ok(crate::catalog_view::CatalogView::assemble(taps, installs))
 }
 
@@ -428,7 +437,10 @@ mod tests {
 
     #[test]
     fn load_catalog_view_finds_fixture_tap_entries() {
-        let view = load_catalog_view(&fixture_repo_root()).unwrap();
+        // Isolate from the developer's real installs dir so the test is
+        // deterministic regardless of what is installed on this machine.
+        let installs = tempfile::tempdir().unwrap();
+        let view = load_catalog_view_with(&fixture_repo_root(), installs.path()).unwrap();
         let ids: Vec<&str> = view.all().iter().map(|e| e.catalog.game.id.as_str()).collect();
         assert!(ids.contains(&"qfg1-ega"), "expected qfg1-ega in {ids:?}");
         assert!(ids.contains(&"fatman"), "expected fatman in {ids:?}");
@@ -436,7 +448,9 @@ mod tests {
 
     #[test]
     fn entry_to_dto_carries_metadata_and_acquisition() {
-        let view = load_catalog_view(&fixture_repo_root()).unwrap();
+        // Empty installs dir → qfg1-ega is deterministically "not installed".
+        let installs = tempfile::tempdir().unwrap();
+        let view = load_catalog_view_with(&fixture_repo_root(), installs.path()).unwrap();
         let qfg = view.by_id("qfg1-ega").expect("qfg1-ega fixture missing");
         let dto = entry_to_dto(qfg);
 
