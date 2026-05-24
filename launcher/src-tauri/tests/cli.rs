@@ -206,6 +206,114 @@ fn run_amiga_dry_run_prints_primary_with_no_sidecars() {
     assert!(stdout.contains("--floppy_drive_0=/home/test/games/fatman/fatman.adf"));
 }
 
+// --- install tests -------------------------------------------------------
+
+fn install_record_path(installs_dir: &Path, id: &str) -> PathBuf {
+    installs_dir.join(format!("{id}.toml"))
+}
+
+#[test]
+fn install_writes_record_when_expects_files_present() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+    // qfg1-ega declares expects_files = ["SIERRA.BAT", "RESOURCE.000"]
+    std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
+    std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
+
+    let output = launcher(installs.path())
+        .args(["install", "qfg1-ega"])
+        .arg(game.path())
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "install should succeed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let record = install_record_path(installs.path(), "qfg1-ega");
+    assert!(record.exists(), "record should exist at {}", record.display());
+
+    // list now shows it as installed.
+    let list_out = launcher(installs.path()).arg("list").output().unwrap();
+    let stdout = String::from_utf8(list_out.stdout).unwrap();
+    assert!(stdout.contains("installed"), "list output: {stdout}");
+}
+
+#[test]
+fn install_force_writes_record_with_missing_expects_files() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+    // empty game dir; expects_files missing
+
+    launcher(installs.path())
+        .args(["install", "qfg1-ega", "--force"])
+        .arg(game.path())
+        .assert()
+        .success();
+
+    assert!(install_record_path(installs.path(), "qfg1-ega").exists());
+}
+
+#[test]
+fn install_aborts_when_prompt_declined() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+
+    launcher(installs.path())
+        .args(["install", "qfg1-ega"])
+        .arg(game.path())
+        .write_stdin("n\n")
+        .assert()
+        .failure()
+        .stderr(contains("aborted"));
+
+    assert!(!install_record_path(installs.path(), "qfg1-ega").exists());
+}
+
+#[test]
+fn install_writes_record_when_prompt_accepted() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+
+    launcher(installs.path())
+        .args(["install", "qfg1-ega"])
+        .arg(game.path())
+        .write_stdin("y\n")
+        .assert()
+        .success();
+
+    assert!(install_record_path(installs.path(), "qfg1-ega").exists());
+}
+
+#[test]
+fn install_unknown_id_fails() {
+    let installs = tempfile::tempdir().unwrap();
+    let game = tempfile::tempdir().unwrap();
+
+    launcher(installs.path())
+        .args(["install", "nonexistent"])
+        .arg(game.path())
+        .assert()
+        .failure()
+        .stderr(contains("no catalog entry"));
+}
+
+#[test]
+fn install_rejects_path_that_is_a_file() {
+    let installs = tempfile::tempdir().unwrap();
+    let tmp = tempfile::tempdir().unwrap();
+    let file = tmp.path().join("a-file.txt");
+    std::fs::write(&file, b"").unwrap();
+
+    launcher(installs.path())
+        .args(["install", "qfg1-ega", "--force"])
+        .arg(&file)
+        .assert()
+        .failure()
+        .stderr(contains("is not a directory"));
+}
+
 // --- list tests (continued) ----------------------------------------------
 
 #[test]
