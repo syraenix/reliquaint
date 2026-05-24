@@ -21,6 +21,14 @@ pub struct Install {
     pub installed_at: toml::value::Datetime,
 }
 
+/// A successfully parsed install record paired with its source path on
+/// disk. Returned by [`load_all`].
+#[derive(Debug, Clone)]
+pub struct LoadedInstallRecord {
+    pub source_path: PathBuf,
+    pub record: InstallRecord,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum InstallError {
     #[error("failed to read install record {path}: {source}")]
@@ -99,6 +107,70 @@ pub fn write(record: &InstallRecord, path: &Path) -> Result<(), InstallError> {
     })
 }
 
+/// Scan `dir` for `*.toml` install records and return every one that
+/// parses. Records that fail to parse are logged at WARN and skipped (a
+/// single bad record can't break the launcher's view of the rest).
+///
+/// A missing directory returns an empty Vec — the user simply hasn't
+/// installed anything yet; that is not an error.
+///
+/// Does **not** check whether each record's `install_path` exists, nor
+/// whether the referenced `(tap, catalog_id)` actually appears in any
+/// loaded catalog. Orphan flagging is the join layer's job
+/// (`catalog_view::CatalogView`).
+pub fn load_all(dir: &Path) -> Vec<LoadedInstallRecord> {
+    if !dir.is_dir() {
+        tracing::debug!(dir = %dir.display(), "installs directory absent; treating as empty");
+        return Vec::new();
+    }
+    let read = match std::fs::read_dir(dir) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(
+                dir = %dir.display(),
+                error = %e,
+                "failed to read installs directory; treating as empty"
+            );
+            return Vec::new();
+        }
+    };
+
+    let mut paths = Vec::new();
+    for entry in read.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !name.ends_with(".toml") {
+            continue;
+        }
+        paths.push(path);
+    }
+    paths.sort();
+
+    let mut out = Vec::with_capacity(paths.len());
+    for path in paths {
+        match load(&path) {
+            Ok(record) => out.push(LoadedInstallRecord {
+                source_path: path,
+                record,
+            }),
+            Err(e) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    error = %e,
+                    "skipping unparseable install record"
+                );
+            }
+        }
+    }
+    tracing::info!(dir = %dir.display(), count = out.len(), "loaded install records");
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,6 +244,64 @@ installed_at = 2026-05-23T14:32:00Z
         let s = record.install.install_path.to_string_lossy();
         assert!(!s.starts_with('~'), "tilde should be expanded, got {s}");
         assert!(s.ends_with("/games/qfg1-ega"), "expanded path should retain tail, got {s}");
+    }
+
+    fn write_sample_record(dir: &Path, filename: &str, catalog_id: &str) {
+        let body = format!(
+            r#"schema_version = 1
+
+[install]
+catalog_id   = "{catalog_id}"
+tap          = "reliquaint-core"
+install_path = "/home/test/games/{catalog_id}"
+installed_at = 2026-05-23T14:32:00Z
+"#
+        );
+        std::fs::write(dir.join(filename), body).unwrap();
+    }
+
+    #[test]
+    fn load_all_happy_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_sample_record(tmp.path(), "qfg1-ega.toml", "qfg1-ega");
+        write_sample_record(tmp.path(), "fatman.toml", "fatman");
+
+        let loaded = load_all(tmp.path());
+        assert_eq!(loaded.len(), 2);
+        let ids: Vec<&str> = loaded
+            .iter()
+            .map(|l| l.record.install.catalog_id.as_str())
+            .collect();
+        // load_all sorts source paths alphabetically (fatman before qfg).
+        assert_eq!(ids, vec!["fatman", "qfg1-ega"]);
+    }
+
+    #[test]
+    fn load_all_missing_dir_returns_empty() {
+        let loaded = load_all(Path::new("/definitely/not/a/real/installs/dir"));
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn load_all_skips_unparseable_records_with_warning() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_sample_record(tmp.path(), "good.toml", "qfg1-ega");
+        std::fs::write(tmp.path().join("broken.toml"), "not valid toml [[[").unwrap();
+
+        let loaded = load_all(tmp.path());
+        assert_eq!(loaded.len(), 1, "valid record should still load");
+        assert_eq!(loaded[0].record.install.catalog_id, "qfg1-ega");
+    }
+
+    #[test]
+    fn load_all_ignores_non_toml_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_sample_record(tmp.path(), "qfg1-ega.toml", "qfg1-ega");
+        std::fs::write(tmp.path().join("readme.txt"), "not a record").unwrap();
+        std::fs::write(tmp.path().join("notes.md"), "not a record").unwrap();
+
+        let loaded = load_all(tmp.path());
+        assert_eq!(loaded.len(), 1);
     }
 
     #[test]
