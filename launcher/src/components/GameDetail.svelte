@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
   export let game;
   const dispatch = createEventDispatcher();
@@ -8,6 +9,13 @@
   let launching = false;
   let launchError = null;
   let launchExitedMessage = null;
+
+  let installing = false;
+  let installError = null;
+  let installSuccessMessage = null;
+  // When the backend reports MissingFiles, we hold the picked path and
+  // the list here so the modal can show them and re-invoke with force.
+  let pendingInstall = null; // { path, missing } | null
 
   const ACQUISITION_LABELS = [
     ["gog", "Get on GOG"],
@@ -26,6 +34,56 @@
     } catch (e) {
       launchError = String(e);
     }
+  }
+
+  async function attemptInstall(path, force) {
+    installing = true;
+    installError = null;
+    installSuccessMessage = null;
+    try {
+      const outcome = await invoke("install_game", {
+        id: game.id,
+        path,
+        force,
+      });
+      if (outcome.status === "installed") {
+        installSuccessMessage = `Installed (record at ${outcome.record_path}).`;
+        pendingInstall = null;
+        dispatch("installed");
+      } else if (outcome.status === "missing_files") {
+        pendingInstall = { path, missing: outcome.missing };
+      }
+    } catch (e) {
+      installError = String(e);
+      pendingInstall = null;
+    } finally {
+      installing = false;
+    }
+  }
+
+  async function handleInstallClick() {
+    installError = null;
+    let picked;
+    try {
+      picked = await openDialog({
+        directory: true,
+        multiple: false,
+        title: `Select directory containing ${game.title} files`,
+      });
+    } catch (e) {
+      installError = String(e);
+      return;
+    }
+    if (!picked) return;
+    await attemptInstall(picked, false);
+  }
+
+  function confirmInstallAnyway() {
+    if (pendingInstall) attemptInstall(pendingInstall.path, true);
+  }
+
+  function cancelInstall() {
+    pendingInstall = null;
   }
 
   async function handleLaunch() {
@@ -108,12 +166,18 @@
             {launching ? "Launching…" : "Launch"}
           </button>
         {:else}
-          <button class="primary" disabled title="Install workflow lands in Task 5.3">
-            Install (coming in Task 5.3)
+          <button class="primary" on:click={handleInstallClick} disabled={installing}>
+            {installing ? "Installing…" : "Install"}
           </button>
         {/if}
       </div>
 
+      {#if installSuccessMessage}
+        <p class="msg success">{installSuccessMessage}</p>
+      {/if}
+      {#if installError}
+        <p class="msg error">{installError}</p>
+      {/if}
       {#if launchExitedMessage}
         <p class="msg success">{launchExitedMessage}</p>
       {/if}
@@ -122,6 +186,27 @@
       {/if}
     </div>
   </div>
+
+  {#if pendingInstall}
+    <div class="modal-overlay" on:click={cancelInstall}>
+      <div class="modal" on:click|stopPropagation>
+        <h3>Expected files not found</h3>
+        <p>The directory you selected is missing these files the catalog expects:</p>
+        <ul>
+          {#each pendingInstall.missing as f}
+            <li>{f}</li>
+          {/each}
+        </ul>
+        <p class="modal-path">Directory: <code>{pendingInstall.path}</code></p>
+        <div class="modal-actions">
+          <button class="secondary" on:click={cancelInstall}>Cancel</button>
+          <button class="primary" on:click={confirmInstallAnyway} disabled={installing}>
+            Install anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -324,5 +409,77 @@
   .error {
     background: #2e1a1a;
     color: #ff8080;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+
+  .modal {
+    background: #1e1e30;
+    border: 1px solid #3a3a55;
+    border-radius: 8px;
+    padding: 24px;
+    max-width: 520px;
+    max-height: 80vh;
+    overflow-y: auto;
+    color: #ddd;
+  }
+
+  .modal h3 {
+    font-size: 1.05rem;
+    color: #ffaa44;
+    margin-bottom: 14px;
+  }
+
+  .modal p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  .modal ul {
+    margin: 0 0 16px 20px;
+    color: #bbb;
+    font-family: monospace;
+    font-size: 0.88rem;
+  }
+
+  .modal-path {
+    font-size: 0.82rem;
+    color: #888;
+    word-break: break-all;
+  }
+
+  .modal-path code {
+    color: #aaa;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+  }
+
+  .secondary {
+    background: transparent;
+    border: 1px solid #3a3a55;
+    color: #aaa;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+
+  .secondary:hover {
+    background: #252538;
+    color: #ddd;
   }
 </style>

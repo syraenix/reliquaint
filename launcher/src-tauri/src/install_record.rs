@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct InstallRecord {
@@ -62,6 +63,132 @@ pub enum InstallError {
         "unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)"
     )]
     UnsupportedSchema { path: PathBuf, version: u32 },
+
+    #[error("cannot access {path}: {source}")]
+    PathAccess {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("{path} is not a directory")]
+    NotADirectory { path: PathBuf },
+
+    #[error("failed to create installs directory {path}: {source}")]
+    CreateInstallsDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("internal error formatting timestamp: {source}")]
+    TimestampFormat {
+        #[source]
+        source: toml::value::DatetimeParseError,
+    },
+}
+
+/// Result of [`install`]: either the record was written, or the
+/// requested directory is missing some of the catalog entry's
+/// `expects_files` and the caller needs to confirm before forcing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstallOutcome {
+    Installed { record_path: PathBuf },
+    MissingFiles(Vec<String>),
+}
+
+/// Register an install: canonicalize `requested_path`, check the
+/// catalog entry's `expects_files`, and write the record under
+/// `installs_dir/<catalog_id>.toml`.
+///
+/// When some `expects_files` are missing and `force` is false, returns
+/// `Ok(InstallOutcome::MissingFiles(...))` instead of writing. Callers
+/// (CLI prompt, GUI modal) decide whether to re-invoke with
+/// `force = true`.
+pub fn install(
+    catalog_id: &str,
+    tap_id: &str,
+    expects_files: &[String],
+    requested_path: &Path,
+    force: bool,
+    installs_dir: &Path,
+) -> Result<InstallOutcome, InstallError> {
+    let abs = requested_path
+        .canonicalize()
+        .map_err(|source| InstallError::PathAccess {
+            path: requested_path.to_path_buf(),
+            source,
+        })?;
+    if !abs.is_dir() {
+        return Err(InstallError::NotADirectory { path: abs });
+    }
+
+    let missing = missing_expects_files(&abs, expects_files);
+    if !missing.is_empty() && !force {
+        return Ok(InstallOutcome::MissingFiles(missing));
+    }
+
+    let installed_at = toml::value::Datetime::from_str(&now_iso8601())
+        .map_err(|source| InstallError::TimestampFormat { source })?;
+
+    let record = InstallRecord {
+        schema_version: 1,
+        install: Install {
+            catalog_id: catalog_id.to_string(),
+            tap: tap_id.to_string(),
+            install_path: abs,
+            installed_at,
+        },
+    };
+
+    std::fs::create_dir_all(installs_dir).map_err(|source| InstallError::CreateInstallsDir {
+        path: installs_dir.to_path_buf(),
+        source,
+    })?;
+    let record_path = installs_dir.join(format!("{catalog_id}.toml"));
+    write(&record, &record_path)?;
+    Ok(InstallOutcome::Installed { record_path })
+}
+
+/// Case-insensitive check for each expected filename at the top level of
+/// `install_dir`. Returns the names that weren't found.
+pub fn missing_expects_files(install_dir: &Path, expected: &[String]) -> Vec<String> {
+    let entries: Vec<String> = match std::fs::read_dir(install_dir) {
+        Ok(read) => read
+            .flatten()
+            .filter_map(|e| e.file_name().to_str().map(String::from))
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    expected
+        .iter()
+        .filter(|exp| !entries.iter().any(|e| e.eq_ignore_ascii_case(exp)))
+        .cloned()
+        .collect()
+}
+
+/// Current UTC time formatted as ISO 8601 (YYYY-MM-DDTHH:MM:SSZ), built
+/// from libc::gmtime_r to avoid pulling in chrono / time crates.
+fn now_iso8601() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as libc::time_t)
+        .unwrap_or(0);
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    // SAFETY: gmtime_r is reentrant and takes valid pointers to a
+    // time_t and a tm we own.
+    unsafe {
+        libc::gmtime_r(&secs, &mut tm);
+    }
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec
+    )
 }
 
 /// Read and parse an installation record from disk. Does not check whether
@@ -302,6 +429,121 @@ installed_at = 2026-05-23T14:32:00Z
 
         let loaded = load_all(tmp.path());
         assert_eq!(loaded.len(), 1);
+    }
+
+    #[test]
+    fn install_happy_path_writes_record() {
+        let installs = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+        std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
+
+        let outcome = install(
+            "qfg1-ega",
+            "reliquaint-core",
+            &["SIERRA.BAT".into()],
+            game.path(),
+            false,
+            installs.path(),
+        )
+        .unwrap();
+
+        match outcome {
+            InstallOutcome::Installed { record_path } => {
+                assert!(record_path.is_file(), "record should be written");
+                let r = load(&record_path).unwrap();
+                assert_eq!(r.install.catalog_id, "qfg1-ega");
+                assert_eq!(r.install.tap, "reliquaint-core");
+                assert_eq!(r.install.install_path, game.path().canonicalize().unwrap());
+            }
+            other => panic!("expected Installed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn install_returns_missing_files_when_not_force() {
+        let installs = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+        // expects_files not present in the (empty) game dir.
+
+        let outcome = install(
+            "qfg1-ega",
+            "reliquaint-core",
+            &["SIERRA.BAT".into(), "RESOURCE.000".into()],
+            game.path(),
+            false,
+            installs.path(),
+        )
+        .unwrap();
+
+        match outcome {
+            InstallOutcome::MissingFiles(missing) => {
+                assert_eq!(missing.len(), 2);
+                assert!(missing.contains(&"SIERRA.BAT".to_string()));
+            }
+            other => panic!("expected MissingFiles, got {other:?}"),
+        }
+        // No record written.
+        assert!(!installs.path().join("qfg1-ega.toml").exists());
+    }
+
+    #[test]
+    fn install_force_writes_record_with_missing_files() {
+        let installs = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+
+        let outcome = install(
+            "qfg1-ega",
+            "reliquaint-core",
+            &["SIERRA.BAT".into()],
+            game.path(),
+            true,
+            installs.path(),
+        )
+        .unwrap();
+
+        assert!(matches!(outcome, InstallOutcome::Installed { .. }));
+    }
+
+    #[test]
+    fn install_errors_when_path_is_file() {
+        let installs = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("not-a-dir.txt");
+        std::fs::write(&file, b"").unwrap();
+
+        let err = install(
+            "qfg1-ega",
+            "reliquaint-core",
+            &[],
+            &file,
+            true,
+            installs.path(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, InstallError::NotADirectory { .. }));
+    }
+
+    #[test]
+    fn install_errors_when_path_does_not_exist() {
+        let installs = tempfile::tempdir().unwrap();
+        let err = install(
+            "qfg1-ega",
+            "reliquaint-core",
+            &[],
+            Path::new("/definitely/not/a/real/path/anywhere"),
+            true,
+            installs.path(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, InstallError::PathAccess { .. }));
+    }
+
+    #[test]
+    fn missing_expects_files_is_case_insensitive() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("sierra.bat"), b"").unwrap();
+        let missing = missing_expects_files(tmp.path(), &["SIERRA.BAT".into()]);
+        assert!(missing.is_empty(), "should match case-insensitively");
     }
 
     #[test]

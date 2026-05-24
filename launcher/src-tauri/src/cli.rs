@@ -2,14 +2,13 @@ use crate::catalog::Platform;
 use crate::catalog_view::{CatalogView, CatalogViewEntry};
 use crate::paths::find_repo_root;
 use crate::doctor::{check_install, ProbeStatus};
-use crate::install_record::{self, Install as InstallRec, InstallRecord};
+use crate::install_record::{self, InstallOutcome};
 use crate::launch;
 use crate::sidecar;
 use crate::user_config;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::str::FromStr;
 
 #[derive(Parser)]
 #[command(name = "reliquaint", about = "Launch classic games from manifests")]
@@ -330,85 +329,66 @@ fn cmd_install(view: &CatalogView, id: &str, path: &Path, force: bool) -> ExitCo
         }
     };
 
-    // canonicalize handles both existence and absolutization.
-    let abs_path = match path.canonicalize() {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("error: cannot access {}: {e}", path.display());
-            return ExitCode::FAILURE;
-        }
-    };
-    if !abs_path.is_dir() {
-        eprintln!("error: {} is not a directory", abs_path.display());
-        return ExitCode::FAILURE;
-    }
-
-    let missing = missing_expects_files(&abs_path, &entry.catalog.install.expects_files);
-    if !missing.is_empty() {
-        eprintln!(
-            "warning: expected files not found in {}:",
-            abs_path.display()
-        );
-        for f in &missing {
-            eprintln!("  - {f}");
-        }
-        if !force && !prompt_yes_no("Write install record anyway? [y/N]") {
-            eprintln!("aborted");
-            return ExitCode::FAILURE;
-        }
-    }
-
-    let installed_at = match toml::value::Datetime::from_str(&now_iso8601()) {
-        Ok(dt) => dt,
-        Err(e) => {
-            eprintln!("error: failed to construct timestamp: {e}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    let record = InstallRecord {
-        schema_version: 1,
-        install: InstallRec {
-            catalog_id: entry.catalog.game.id.clone(),
-            tap: entry.tap_id.clone(),
-            install_path: abs_path.clone(),
-            installed_at,
-        },
-    };
-
     let installs_dir = crate::paths::installs_dir();
-    if let Err(e) = std::fs::create_dir_all(&installs_dir) {
-        eprintln!(
-            "error: cannot create installs directory {}: {e}",
-            installs_dir.display()
-        );
-        return ExitCode::FAILURE;
-    }
-    let record_path = installs_dir.join(format!("{}.toml", entry.catalog.game.id));
-    if let Err(e) = install_record::write(&record, &record_path) {
-        eprintln!("error: {e}");
-        return ExitCode::FAILURE;
-    }
 
-    println!("installed {} at {}", entry.catalog.game.id, abs_path.display());
-    ExitCode::SUCCESS
-}
-
-/// Case-insensitive check for each expected filename at the top level of
-/// `install_dir`. Returns the names that weren't found.
-fn missing_expects_files(install_dir: &Path, expected: &[String]) -> Vec<String> {
-    let entries: Vec<String> = match std::fs::read_dir(install_dir) {
-        Ok(read) => read
-            .flatten()
-            .filter_map(|e| e.file_name().to_str().map(String::from))
-            .collect(),
-        Err(_) => Vec::new(),
+    // First pass: don't force. If expects_files are missing, prompt the
+    // user, then re-invoke with force=true if they accept.
+    let outcome = match install_record::install(
+        &entry.catalog.game.id,
+        &entry.tap_id,
+        &entry.catalog.install.expects_files,
+        path,
+        force,
+        &installs_dir,
+    ) {
+        Ok(o) => o,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
     };
-    expected
-        .iter()
-        .filter(|exp| !entries.iter().any(|e| e.eq_ignore_ascii_case(exp)))
-        .cloned()
-        .collect()
+
+    let final_outcome = match outcome {
+        InstallOutcome::Installed { .. } => outcome,
+        InstallOutcome::MissingFiles(missing) => {
+            eprintln!("warning: expected files not found:");
+            for f in &missing {
+                eprintln!("  - {f}");
+            }
+            if !prompt_yes_no("Write install record anyway? [y/N]") {
+                eprintln!("aborted");
+                return ExitCode::FAILURE;
+            }
+            // Re-invoke with force=true now that the user has accepted.
+            match install_record::install(
+                &entry.catalog.game.id,
+                &entry.tap_id,
+                &entry.catalog.install.expects_files,
+                path,
+                true,
+                &installs_dir,
+            ) {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    };
+
+    match final_outcome {
+        InstallOutcome::Installed { record_path } => {
+            println!(
+                "installed {} (record at {})",
+                entry.catalog.game.id,
+                record_path.display()
+            );
+            ExitCode::SUCCESS
+        }
+        // Cannot reach here — force=true above doesn't return MissingFiles.
+        InstallOutcome::MissingFiles(_) => unreachable!(),
+    }
 }
 
 fn prompt_yes_no(question: &str) -> bool {
@@ -421,30 +401,6 @@ fn prompt_yes_no(question: &str) -> bool {
         return false;
     }
     line.trim().eq_ignore_ascii_case("y")
-}
-
-/// Current UTC time formatted as ISO 8601 (YYYY-MM-DDTHH:MM:SSZ), built
-/// from libc::gmtime_r to avoid pulling in chrono / time crates.
-fn now_iso8601() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as libc::time_t)
-        .unwrap_or(0);
-    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-    // SAFETY: gmtime_r is reentrant and takes valid pointers to a
-    // time_t and a tm we own.
-    unsafe {
-        libc::gmtime_r(&secs, &mut tm);
-    }
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        tm.tm_year + 1900,
-        tm.tm_mon + 1,
-        tm.tm_mday,
-        tm.tm_hour,
-        tm.tm_min,
-        tm.tm_sec
-    )
 }
 
 fn cmd_doctor(view: &CatalogView) -> ExitCode {

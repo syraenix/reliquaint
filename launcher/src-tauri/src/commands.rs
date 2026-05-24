@@ -180,6 +180,54 @@ pub fn list_catalog(state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>, 
     Ok(view.all().iter().map(entry_to_dto).collect())
 }
 
+/// Result payload for `install_game`. Mirrors
+/// `install_record::InstallOutcome` but serializes as a tagged JSON
+/// object the Svelte side can `switch` on.
+#[derive(Serialize, Clone)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum InstallGameOutcome {
+    Installed { record_path: String },
+    MissingFiles { missing: Vec<String> },
+}
+
+/// Register an install for the catalog entry `id` at `path`. With
+/// `force = false`, missing expects_files cause the call to return
+/// `MissingFiles` without writing — the frontend prompts the user, then
+/// re-invokes with `force = true` if they accept.
+#[tauri::command]
+pub fn install_game(
+    id: String,
+    path: PathBuf,
+    force: bool,
+    state: State<'_, AppState>,
+) -> Result<InstallGameOutcome, String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+
+    let outcome = crate::install_record::install(
+        &entry.catalog.game.id,
+        &entry.tap_id,
+        &entry.catalog.install.expects_files,
+        &path,
+        force,
+        &crate::paths::installs_dir(),
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(match outcome {
+        crate::install_record::InstallOutcome::Installed { record_path } => {
+            InstallGameOutcome::Installed {
+                record_path: record_path.to_string_lossy().into_owned(),
+            }
+        }
+        crate::install_record::InstallOutcome::MissingFiles(missing) => {
+            InstallGameOutcome::MissingFiles { missing }
+        }
+    })
+}
+
 /// Open an `http://` or `https://` URL in the user's browser via
 /// `xdg-open`. Rejects other schemes (e.g. `file:`, `javascript:`) as
 /// defense in depth — the URL ultimately came from a catalog entry,
