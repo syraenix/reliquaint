@@ -15,11 +15,11 @@ tags        = ["sierra", "sci", "fantasy", "point-and-click", "voice-acted"]
 description = "Often regarded as the high-water mark of the series. Full voice acting in the CD version, FMV intro by Kelly Rowan, and multiple endings."
 
 [acquisition]
-steam = "https://store.steampowered.com/app/10110"
-notes = "Bundled in King's Quest 4+5+6 on Steam (app 10110)."
+steam = "https://store.steampowered.com/app/10100"
+notes = "Bundled in King's Quest Collection on Steam (app 10100)."
 
 [install]
-expects_files = ["DOKQ6.EXE", "RESOURCE.000"]
+expects_files = ["DOKQ6.EXE"]
 
 [runtime]
 emulator = "dosbox-staging"

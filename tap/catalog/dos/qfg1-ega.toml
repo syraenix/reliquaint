@@ -15,11 +15,11 @@ tags        = ["sierra", "sci", "fantasy", "parser"]
 description = "Sierra's hybrid of adventure game and stat-based RPG. Originally released as Hero's Quest; this is the first EGA edition with the SCI parser interface."
 
 [acquisition]
-gog   = "https://www.gog.com/en/game/quest_for_glory_15"
+gog   = "https://www.gog.com/en/game/quest_for_glory"
 notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
 
 [install]
-expects_files = ["SCIV.exe", "RESOURCE.000"]
+expects_files = ["SCIV.exe"]
 subdir = "EGA"
 
 [runtime]
