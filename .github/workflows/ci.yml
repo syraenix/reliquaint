@@ -48,10 +48,10 @@ jobs:
           workspaces: launcher
       - uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: launcher/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -81,10 +81,10 @@ jobs:
           workspaces: launcher
       - uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: launcher/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -102,10 +102,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: 11
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: launcher/pnpm-lock.yaml
       - name: Install Tauri system dependencies
