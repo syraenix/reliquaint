@@ -130,13 +130,16 @@ pub fn run_plan_with_callback<F>(plan: LaunchPlan, on_line: F) -> Result<ExitSta
 where
     F: Fn(OutputSource, &str) + Send + Sync + 'static,
 {
-    let cb: Arc<dyn Fn(OutputSource, &str) + Send + Sync> = Arc::new(on_line);
+    let cb: LineCallback = Arc::new(on_line);
     run_plan_inner(plan, Some(cb))
 }
 
+/// Per-line callback shared across the stdout/stderr reader threads.
+type LineCallback = Arc<dyn Fn(OutputSource, &str) + Send + Sync>;
+
 fn run_plan_inner(
     plan: LaunchPlan,
-    on_line: Option<Arc<dyn Fn(OutputSource, &str) + Send + Sync>>,
+    on_line: Option<LineCallback>,
 ) -> Result<ExitStatus, SidecarError> {
     let mut handles: Vec<SidecarHandle> = Vec::with_capacity(plan.sidecars.len());
     for spec in &plan.sidecars {
@@ -174,7 +177,7 @@ fn run_plan_inner(
                 let cb = cb.clone();
                 reader_handles.push(std::thread::spawn(move || {
                     let reader = std::io::BufReader::new(stdout);
-                    for line in reader.lines().flatten() {
+                    for line in reader.lines().map_while(Result::ok) {
                         cb(OutputSource::Stdout, &line);
                     }
                 }));
@@ -183,7 +186,7 @@ fn run_plan_inner(
                 let cb = cb.clone();
                 reader_handles.push(std::thread::spawn(move || {
                     let reader = std::io::BufReader::new(stderr);
-                    for line in reader.lines().flatten() {
+                    for line in reader.lines().map_while(Result::ok) {
                         cb(OutputSource::Stderr, &line);
                     }
                 }));
