@@ -1,0 +1,81 @@
+name: Catalog entry request
+description: Request that a game be added to the bundled reliquaint-core catalog.
+labels: ["catalog-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to ask for a game to be added to the `reliquaint-core` catalog.
+
+        **Better than a request: a pull request.** If you have the game and can produce a working manifest yourself, see `CONTRIBUTING.md` for the PR flow. Manifests are TOML files; no Rust knowledge is required.
+
+  - type: input
+    id: title
+    attributes:
+      label: Game title
+      description: Full title as it appears on the box or original release.
+      placeholder: "Quest for Glory I: So You Want to Be a Hero (EGA)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - dos
+        - amiga
+    validations:
+      required: true
+
+  - type: input
+    id: year
+    attributes:
+      label: Release year
+      placeholder: "1989"
+    validations:
+      required: false
+
+  - type: input
+    id: publisher
+    attributes:
+      label: Publisher
+      placeholder: Sierra On-Line
+    validations:
+      required: false
+
+  - type: textarea
+    id: acquisition
+    attributes:
+      label: Legal acquisition source
+      description: Where can a user legally obtain this game today? GOG, Steam, developer's site, Internet Archive (where the rights holder has released it), etc. Please link to the specific listing where possible.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: have-you-tested
+    attributes:
+      label: Have you successfully run this game in Reliquaint with a manifest you wrote yourself?
+      options:
+        - "Yes — manifest attached below"
+        - "No — I have the game and could help test"
+        - "No — I'm just requesting"
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: Working manifest (if you have one)
+      description: Paste the TOML of a working catalog entry. Even an incomplete one helps.
+      render: toml
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Quirks, multi-disk-swap notes, MIDI/audio configuration, anything else worth knowing.
+    validations:
+      required: false

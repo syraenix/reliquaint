@@ -214,8 +214,7 @@ pub async fn install_game(
     }
 
     let install_path_str = plan.install_path.to_string_lossy().into_owned();
-    let missing =
-        crate::install_record::missing_expects_files(&plan.staged_install_path, &expects);
+    let missing = crate::install_record::missing_expects_files(&plan.staged_install_path, &expects);
     if !missing.is_empty() {
         // Leave staging in place; the frontend decides commit vs discard.
         return Ok(InstallGameOutcome::MissingFiles {
@@ -353,18 +352,12 @@ pub async fn launch_game(
     let user_config = crate::user_config::load_or_default(&crate::paths::user_config_path());
 
     let plan = match entry.catalog.game.platform {
-        crate::catalog::Platform::Dos => crate::launch::compose_dosbox(
-            &entry.catalog,
-            &entry.source_path,
-            install,
-            &user_config,
-        ),
-        crate::catalog::Platform::Amiga => crate::launch::compose_fs_uae(
-            &entry.catalog,
-            &entry.source_path,
-            install,
-            &user_config,
-        ),
+        crate::catalog::Platform::Dos => {
+            crate::launch::compose_dosbox(&entry.catalog, &entry.source_path, install, &user_config)
+        }
+        crate::catalog::Platform::Amiga => {
+            crate::launch::compose_fs_uae(&entry.catalog, &entry.source_path, install, &user_config)
+        }
     }
     .map_err(|e| e.to_string())?;
 
@@ -436,11 +429,11 @@ struct InstallFinishedPayload {
 
 #[tauri::command]
 pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, String> {
-    let parsed =
-        parse_kind_tag(&kind).ok_or_else(|| format!("unknown dependency kind: {kind}"))?;
+    let parsed = parse_kind_tag(&kind).ok_or_else(|| format!("unknown dependency kind: {kind}"))?;
     let distro = detect_distro();
-    let action = action_for(&parsed, distro)
-        .ok_or_else(|| "no install action available for this dependency on this distro".to_string())?;
+    let action = action_for(&parsed, distro).ok_or_else(|| {
+        "no install action available for this dependency on this distro".to_string()
+    })?;
     let cmds = build_commands(&action);
     if cmds.is_empty() {
         return Err("this dependency cannot be installed automatically".to_string());
@@ -456,7 +449,11 @@ pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, Str
             let payload = InstallOutputPayload {
                 kind: emit_kind.clone(),
                 line: line.to_string(),
-                stream: if is_err { "stderr".into() } else { "stdout".into() },
+                stream: if is_err {
+                    "stderr".into()
+                } else {
+                    "stdout".into()
+                },
             };
             let _ = emit_app.emit("install-output", payload);
         })
@@ -475,7 +472,6 @@ pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, Str
     Ok(exit_code)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,7 +487,11 @@ mod tests {
         // deterministic regardless of what is installed on this machine.
         let installs = tempfile::tempdir().unwrap();
         let view = load_catalog_view_with(&fixture_repo_root(), installs.path()).unwrap();
-        let ids: Vec<&str> = view.all().iter().map(|e| e.catalog.game.id.as_str()).collect();
+        let ids: Vec<&str> = view
+            .all()
+            .iter()
+            .map(|e| e.catalog.game.id.as_str())
+            .collect();
         assert!(ids.contains(&"qfg1-ega"), "expected qfg1-ega in {ids:?}");
         assert!(ids.contains(&"fatman"), "expected fatman in {ids:?}");
     }
@@ -539,10 +539,7 @@ mod tests {
             "",
             "/etc/passwd",
         ] {
-            assert!(
-                validate_external_url(url).is_err(),
-                "should reject {url:?}"
-            );
+            assert!(validate_external_url(url).is_err(), "should reject {url:?}");
         }
     }
 }

@@ -225,7 +225,12 @@ mod tests {
         let nested = tmp.path().join("a/b/c");
         std::fs::create_dir_all(&nested).unwrap();
         let root = find_repo_root(&nested).unwrap();
-        assert_eq!(root, tmp.path().canonicalize().unwrap_or_else(|_| tmp.path().to_path_buf()));
+        assert_eq!(
+            root,
+            tmp.path()
+                .canonicalize()
+                .unwrap_or_else(|_| tmp.path().to_path_buf())
+        );
     }
 
     #[test]
@@ -234,7 +239,12 @@ mod tests {
         std::fs::create_dir(tmp.path().join("dos")).unwrap();
         std::fs::create_dir(tmp.path().join("amiga")).unwrap();
         let root = find_repo_root(tmp.path()).unwrap();
-        assert_eq!(root, tmp.path().canonicalize().unwrap_or_else(|_| tmp.path().to_path_buf()));
+        assert_eq!(
+            root,
+            tmp.path()
+                .canonicalize()
+                .unwrap_or_else(|_| tmp.path().to_path_buf())
+        );
     }
 
     #[test]
@@ -268,7 +278,11 @@ mod tests {
         let saved = std::env::var("RELIQUAINT_GAMES_DIR").ok();
         std::env::remove_var("RELIQUAINT_GAMES_DIR");
         let dir = default_library_dir();
-        assert!(dir.ends_with("games"), "expected ~/games, got {}", dir.display());
+        assert!(
+            dir.ends_with("games"),
+            "expected ~/games, got {}",
+            dir.display()
+        );
         match saved {
             Some(v) => std::env::set_var("RELIQUAINT_GAMES_DIR", v),
             None => std::env::remove_var("RELIQUAINT_GAMES_DIR"),

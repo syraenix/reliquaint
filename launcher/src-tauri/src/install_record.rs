@@ -59,16 +59,17 @@ pub enum InstallError {
         source: toml::ser::Error,
     },
 
-    #[error(
-        "unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)"
-    )]
+    #[error("unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)")]
     UnsupportedSchema { path: PathBuf, version: u32 },
 
     #[error(
         "install_path {install_path} in {path} is not absolute (after ~ expansion); \
          docs/schema.md requires an absolute path"
     )]
-    NonAbsoluteInstallPath { path: PathBuf, install_path: PathBuf },
+    NonAbsoluteInstallPath {
+        path: PathBuf,
+        install_path: PathBuf,
+    },
 
     #[error("cannot access {path}: {source}")]
     PathAccess {
@@ -198,7 +199,10 @@ pub fn parse_str(text: &str, path: &Path) -> Result<InstallRecord, InstallError>
     let mut record: InstallRecord = toml::from_str(text).map_err(|source| {
         let owned = path.to_path_buf();
         tracing::error!(path = %owned.display(), error = %source, "install record parse failed");
-        InstallError::Parse { path: owned, source }
+        InstallError::Parse {
+            path: owned,
+            source,
+        }
     })?;
     if record.schema_version != 1 {
         return Err(InstallError::UnsupportedSchema {
@@ -366,7 +370,10 @@ installed_at = 2026-05-23T14:32:00Z
         let record = parse_str(text, Path::new("test.toml")).unwrap();
         let s = record.install.install_path.to_string_lossy();
         assert!(!s.starts_with('~'), "tilde should be expanded, got {s}");
-        assert!(s.ends_with("/games/qfg1-ega"), "expanded path should retain tail, got {s}");
+        assert!(
+            s.ends_with("/games/qfg1-ega"),
+            "expanded path should retain tail, got {s}"
+        );
     }
 
     #[test]
@@ -449,8 +456,7 @@ installed_at = 2026-05-23T14:32:00Z
     fn register_writes_record_for_existing_dir() {
         let installs = tempfile::tempdir().unwrap();
         let game = tempfile::tempdir().unwrap();
-        let record_path =
-            register("kq5", "reliquaint-core", game.path(), installs.path()).unwrap();
+        let record_path = register("kq5", "reliquaint-core", game.path(), installs.path()).unwrap();
         assert!(record_path.is_file());
         let r = load(&record_path).unwrap();
         assert_eq!(r.install.catalog_id, "kq5");
@@ -491,6 +497,9 @@ install_path = "/x"
 installed_at = 2026-05-23T14:32:00Z
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(err, InstallError::UnsupportedSchema { version: 2, .. }));
+        assert!(matches!(
+            err,
+            InstallError::UnsupportedSchema { version: 2, .. }
+        ));
     }
 }

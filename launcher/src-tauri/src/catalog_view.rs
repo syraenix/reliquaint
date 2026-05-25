@@ -41,7 +41,10 @@ impl CatalogView {
         let mut install_by_key: HashMap<(String, String), LoadedInstallRecord> =
             HashMap::with_capacity(installs.len());
         for li in installs {
-            let key = (li.record.install.tap.clone(), li.record.install.catalog_id.clone());
+            let key = (
+                li.record.install.tap.clone(),
+                li.record.install.catalog_id.clone(),
+            );
             install_by_key.insert(key, li);
         }
 
@@ -127,8 +130,8 @@ impl CatalogView {
 mod tests {
     use super::*;
     use crate::catalog::{
-        AmigaModel, CatalogEntry, DosboxRuntime, Emulator, FsUaeRuntime, Game, Install as CatInstall,
-        Meta, Acquisition, Platform, Runtime,
+        Acquisition, AmigaModel, CatalogEntry, DosboxRuntime, Emulator, FsUaeRuntime, Game,
+        Install as CatInstall, Meta, Platform, Runtime,
     };
     use crate::install_record::{Install as InstallRec, InstallRecord};
     use crate::tap::{LoadedEntry, LoadedTap, TapMetadata};
@@ -227,8 +230,7 @@ mod tests {
                     catalog_id: catalog_id.into(),
                     tap: tap.into(),
                     install_path: PathBuf::from(format!("/games/{catalog_id}")),
-                    installed_at: toml::value::Datetime::from_str("2026-05-23T14:32:00Z")
-                        .unwrap(),
+                    installed_at: toml::value::Datetime::from_str("2026-05-23T14:32:00Z").unwrap(),
                 },
             },
         }
@@ -238,7 +240,11 @@ mod tests {
     fn join_marks_installed_and_not_installed() {
         let tap = loaded_tap(
             "core",
-            vec![dos_entry("qfg1-ega"), dos_entry("qfg2"), amiga_entry("fatman")],
+            vec![
+                dos_entry("qfg1-ega"),
+                dos_entry("qfg2"),
+                amiga_entry("fatman"),
+            ],
         );
         let installs = vec![
             loaded_install("core", "qfg1-ega"),
@@ -299,7 +305,11 @@ mod tests {
     fn by_platform_filters_correctly() {
         let tap = loaded_tap(
             "core",
-            vec![dos_entry("qfg1-ega"), dos_entry("qfg2"), amiga_entry("fatman")],
+            vec![
+                dos_entry("qfg1-ega"),
+                dos_entry("qfg2"),
+                amiga_entry("fatman"),
+            ],
         );
         let view = CatalogView::assemble(vec![tap], vec![]);
 
@@ -311,11 +321,19 @@ mod tests {
     fn all_returns_stable_order_by_tap_then_id() {
         let tap = loaded_tap(
             "core",
-            vec![amiga_entry("fatman"), dos_entry("qfg2"), dos_entry("qfg1-ega")],
+            vec![
+                amiga_entry("fatman"),
+                dos_entry("qfg2"),
+                dos_entry("qfg1-ega"),
+            ],
         );
         let view = CatalogView::assemble(vec![tap], vec![]);
 
-        let ids: Vec<&str> = view.all().iter().map(|e| e.catalog.game.id.as_str()).collect();
+        let ids: Vec<&str> = view
+            .all()
+            .iter()
+            .map(|e| e.catalog.game.id.as_str())
+            .collect();
         assert_eq!(ids, vec!["fatman", "qfg1-ega", "qfg2"]);
     }
 }
