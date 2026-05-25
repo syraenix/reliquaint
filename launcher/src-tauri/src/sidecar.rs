@@ -52,12 +52,14 @@ struct SidecarHandle {
 
 impl SidecarHandle {
     fn spawn(spec: &SidecarSpec) -> Result<Self, SidecarError> {
-        let child = spec.command.to_command().spawn().map_err(|source| {
-            SidecarError::SpawnFailed {
-                name: spec.name.clone(),
-                source,
-            }
-        })?;
+        let child =
+            spec.command
+                .to_command()
+                .spawn()
+                .map_err(|source| SidecarError::SpawnFailed {
+                    name: spec.name.clone(),
+                    source,
+                })?;
         tracing::info!(name = %spec.name, pid = child.id(), "sidecar started");
         Ok(Self {
             name: spec.name.clone(),
@@ -279,16 +281,16 @@ mod tests {
             // sh -c writes to both stdout and stderr.
             primary: cmd(
                 "sh",
-                &[
-                    "-c",
-                    "echo hello-out; echo hello-err 1>&2; echo line-two",
-                ],
+                &["-c", "echo hello-out; echo hello-err 1>&2; echo line-two"],
             ),
             sidecars: vec![],
         };
 
         let status = run_plan_with_callback(plan, move |src, line| {
-            captured_for_cb.lock().unwrap().push((src, line.to_string()));
+            captured_for_cb
+                .lock()
+                .unwrap()
+                .push((src, line.to_string()));
         })
         .unwrap();
         assert!(status.success());
@@ -304,9 +306,15 @@ mod tests {
             .filter(|(s, _)| *s == OutputSource::Stderr)
             .map(|(_, l)| l.as_str())
             .collect();
-        assert!(stdout_lines.contains(&"hello-out"), "stdout lines: {stdout_lines:?}");
+        assert!(
+            stdout_lines.contains(&"hello-out"),
+            "stdout lines: {stdout_lines:?}"
+        );
         assert!(stdout_lines.contains(&"line-two"));
-        assert!(stderr_lines.contains(&"hello-err"), "stderr lines: {stderr_lines:?}");
+        assert!(
+            stderr_lines.contains(&"hello-err"),
+            "stderr lines: {stderr_lines:?}"
+        );
     }
 
     #[test]

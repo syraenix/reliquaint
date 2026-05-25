@@ -42,20 +42,35 @@ fn list_shows_fixture_entries_grouped_by_collection() {
     let output = launcher(installs.path()).arg("list").output().unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    assert!(output.status.success(), "list should succeed; stderr={}",
-        String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "list should succeed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     // Both fixture entries appear:
-    assert!(stdout.contains("qfg1-ega"), "stdout missing qfg1-ega: {stdout}");
+    assert!(
+        stdout.contains("qfg1-ega"),
+        "stdout missing qfg1-ega: {stdout}"
+    );
     assert!(stdout.contains("fatman"), "stdout missing fatman: {stdout}");
 
     // Grouped under collection headers (qfg1-ega has collection
     // "quest-for-glory"; fatman has no collection):
-    assert!(stdout.contains("quest-for-glory"), "missing collection header: {stdout}");
-    assert!(stdout.contains("(no collection)"), "missing no-collection bucket: {stdout}");
+    assert!(
+        stdout.contains("quest-for-glory"),
+        "missing collection header: {stdout}"
+    );
+    assert!(
+        stdout.contains("(no collection)"),
+        "missing no-collection bucket: {stdout}"
+    );
 
     // Status column present:
-    assert!(stdout.contains("not installed"), "missing not-installed status: {stdout}");
+    assert!(
+        stdout.contains("not installed"),
+        "missing not-installed status: {stdout}"
+    );
 }
 
 #[test]
@@ -69,7 +84,10 @@ fn list_platform_dos_excludes_amiga() {
 
     assert!(output.status.success());
     assert!(stdout.contains("qfg1-ega"));
-    assert!(!stdout.contains("fatman"), "amiga entry leaked into --platform dos: {stdout}");
+    assert!(
+        !stdout.contains("fatman"),
+        "amiga entry leaked into --platform dos: {stdout}"
+    );
 }
 
 #[test]
@@ -83,7 +101,10 @@ fn list_platform_amiga_excludes_dos() {
 
     assert!(output.status.success());
     assert!(stdout.contains("fatman"));
-    assert!(!stdout.contains("qfg1-ega"), "dos entry leaked into --platform amiga: {stdout}");
+    assert!(
+        !stdout.contains("qfg1-ega"),
+        "dos entry leaked into --platform amiga: {stdout}"
+    );
 }
 
 #[test]
@@ -100,7 +121,10 @@ fn list_installed_filter_only_shows_entries_with_records() {
 
     assert!(output.status.success());
     assert!(stdout.contains("qfg1-ega"));
-    assert!(!stdout.contains("fatman"), "uninstalled entry shouldn't appear: {stdout}");
+    assert!(
+        !stdout.contains("fatman"),
+        "uninstalled entry shouldn't appear: {stdout}"
+    );
     assert!(stdout.contains("installed"));
 }
 
@@ -177,10 +201,22 @@ fn run_dos_dry_run_prints_primary_and_fluidsynth_sidecar() {
         stdout.contains("[sidecar:fluidsynth]"),
         "missing sidecar line: {stdout}"
     );
-    assert!(stdout.contains("[primary]"), "missing primary line: {stdout}");
-    assert!(stdout.contains("flatpak"), "primary should use flatpak: {stdout}");
-    assert!(stdout.contains("io.github.dosbox-staging"), "missing dosbox id: {stdout}");
-    assert!(stdout.contains("SIERRA.BAT"), "missing entry command: {stdout}");
+    assert!(
+        stdout.contains("[primary]"),
+        "missing primary line: {stdout}"
+    );
+    assert!(
+        stdout.contains("flatpak"),
+        "primary should use flatpak: {stdout}"
+    );
+    assert!(
+        stdout.contains("io.github.dosbox-staging"),
+        "missing dosbox id: {stdout}"
+    );
+    assert!(
+        stdout.contains("SIERRA.BAT"),
+        "missing entry command: {stdout}"
+    );
     assert!(
         stdout.contains("/home/test/games/qfg1-ega"),
         "missing install path: {stdout}"
@@ -198,8 +234,15 @@ fn run_amiga_dry_run_prints_primary_with_no_sidecars() {
         .unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
-    assert!(!stdout.contains("[sidecar:"), "fatman should have no sidecars: {stdout}");
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !stdout.contains("[sidecar:"),
+        "fatman should have no sidecars: {stdout}"
+    );
     assert!(stdout.contains("[primary]"));
     assert!(stdout.contains("fs-uae"));
     assert!(stdout.contains("--amiga_model=A500"));
@@ -236,7 +279,11 @@ fn install_writes_record_when_expects_files_present() {
     // Files copied into the managed library; record written.
     assert!(games.path().join("qfg1-ega/SIERRA.BAT").is_file());
     let record = install_record_path(installs.path(), "qfg1-ega");
-    assert!(record.exists(), "record should exist at {}", record.display());
+    assert!(
+        record.exists(),
+        "record should exist at {}",
+        record.display()
+    );
 
     // list now shows it as installed.
     let list_out = launcher(installs.path()).arg("list").output().unwrap();
@@ -350,7 +397,11 @@ fn migrate_installs_picks_up_legacy_per_id_dirs() {
         .unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(stdout.contains("registered qfg1-ega"));
     assert!(stdout.contains("registered fatman"));
     assert!(stdout.contains("2 migrated"));
@@ -387,7 +438,11 @@ fn migrate_installs_skips_already_installed_entries() {
 fn migrate_installs_errors_when_base_missing() {
     let installs = tempfile::tempdir().unwrap();
     launcher(installs.path())
-        .args(["migrate-installs", "--base", "/definitely/not/a/real/games/dir"])
+        .args([
+            "migrate-installs",
+            "--base",
+            "/definitely/not/a/real/games/dir",
+        ])
         .assert()
         .failure()
         .stderr(contains("does not exist"));
@@ -400,7 +455,10 @@ fn doctor_always_includes_emulator_probes() {
     let installs = tempfile::tempdir().unwrap();
     let output = launcher(installs.path()).arg("doctor").output().unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("dosbox-staging"), "missing dosbox probe: {stdout}");
+    assert!(
+        stdout.contains("dosbox-staging"),
+        "missing dosbox probe: {stdout}"
+    );
     assert!(stdout.contains("fs-uae"), "missing fs-uae probe: {stdout}");
 }
 
@@ -446,7 +504,10 @@ fn doctor_reports_missing_install_path() {
         stdout.contains("install path for qfg1-ega"),
         "missing install path not reported: {stdout}"
     );
-    assert!(stdout.contains("missing"), "expected a missing-status line: {stdout}");
+    assert!(
+        stdout.contains("missing"),
+        "expected a missing-status line: {stdout}"
+    );
     // Deliberately-broken state → exit code 2.
     assert_eq!(output.status.code(), Some(2));
 }
@@ -457,16 +518,15 @@ fn doctor_reports_ok_for_valid_install_with_expects_files() {
     let game = tempfile::tempdir().unwrap();
     std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
     std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
-    write_install_record(
-        installs.path(),
-        "qfg1-ega",
-        game.path().to_str().unwrap(),
-    );
+    write_install_record(installs.path(), "qfg1-ega", game.path().to_str().unwrap());
 
     let output = launcher(installs.path()).arg("doctor").output().unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
     // The per-install probe should be Ok (no "missing" against it).
-    assert!(stdout.contains("install for qfg1-ega"), "missing install probe line: {stdout}");
+    assert!(
+        stdout.contains("install for qfg1-ega"),
+        "missing install probe line: {stdout}"
+    );
     assert!(
         !stdout.contains("expects_files for qfg1-ega"),
         "expects_files probe should not appear when all present: {stdout}"
@@ -478,11 +538,7 @@ fn doctor_reports_missing_expects_files() {
     let installs = tempfile::tempdir().unwrap();
     let game = tempfile::tempdir().unwrap();
     // Game dir exists but has none of the expected files.
-    write_install_record(
-        installs.path(),
-        "qfg1-ega",
-        game.path().to_str().unwrap(),
-    );
+    write_install_record(installs.path(), "qfg1-ega", game.path().to_str().unwrap());
 
     let output = launcher(installs.path()).arg("doctor").output().unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -490,7 +546,10 @@ fn doctor_reports_missing_expects_files() {
         stdout.contains("expects_files for qfg1-ega"),
         "expects_files probe missing: {stdout}"
     );
-    assert!(stdout.contains("SIERRA.BAT"), "should name missing file: {stdout}");
+    assert!(
+        stdout.contains("SIERRA.BAT"),
+        "should name missing file: {stdout}"
+    );
     assert_eq!(output.status.code(), Some(2));
 }
 
@@ -506,7 +565,10 @@ fn doctor_reports_orphan_install_records() {
         stdout.contains("orphan install record"),
         "orphan not reported: {stdout}"
     );
-    assert!(stdout.contains("ghost-game"), "orphan id missing from output: {stdout}");
+    assert!(
+        stdout.contains("ghost-game"),
+        "orphan id missing from output: {stdout}"
+    );
 }
 
 // --- list tests (continued) ----------------------------------------------
@@ -685,7 +747,12 @@ fn forced_install_missing_subdir_fails_and_can_be_retried() {
     launcher(installs.path())
         .env("RELIQUAINT_REPO_ROOT", root.path())
         .env("RELIQUAINT_GAMES_DIR", games.path())
-        .args(["install", "subgame", bad.path().to_str().unwrap(), "--force"])
+        .args([
+            "install",
+            "subgame",
+            bad.path().to_str().unwrap(),
+            "--force",
+        ])
         .assert()
         .failure();
     assert!(

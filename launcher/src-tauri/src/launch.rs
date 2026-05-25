@@ -109,11 +109,14 @@ pub fn compose_dosbox(
 ) -> Result<LaunchPlan, LaunchError> {
     debug_assert_eq!(entry.game.platform, Platform::Dos);
 
-    let dosbox = entry.runtime.dosbox.as_ref().ok_or_else(|| {
-        LaunchError::MissingDosboxRuntime {
-            entry_id: entry.game.id.clone(),
-        }
-    })?;
+    let dosbox =
+        entry
+            .runtime
+            .dosbox
+            .as_ref()
+            .ok_or_else(|| LaunchError::MissingDosboxRuntime {
+                entry_id: entry.game.id.clone(),
+            })?;
 
     let conf_path = entry_source
         .parent()
@@ -165,20 +168,29 @@ pub fn compose_fs_uae(
 ) -> Result<LaunchPlan, LaunchError> {
     debug_assert_eq!(entry.game.platform, Platform::Amiga);
 
-    let fs_uae = entry.runtime.fs_uae.as_ref().ok_or_else(|| {
-        LaunchError::MissingFsUaeRuntime {
+    let fs_uae = entry
+        .runtime
+        .fs_uae
+        .as_ref()
+        .ok_or_else(|| LaunchError::MissingFsUaeRuntime {
             entry_id: entry.game.id.clone(),
-        }
-    })?;
+        })?;
 
     let (program, mut args) = split_command(&user_config.emulators.fs_uae.command)?;
 
     let install_path = &install.install.install_path;
 
     // Explicitly declared disks, resolved relative to install_path.
-    let mut floppies: Vec<PathBuf> = fs_uae.floppies.iter().map(|f| install_path.join(f)).collect();
-    let mut hard_drives: Vec<PathBuf> =
-        fs_uae.hard_drives.iter().map(|h| install_path.join(h)).collect();
+    let mut floppies: Vec<PathBuf> = fs_uae
+        .floppies
+        .iter()
+        .map(|f| install_path.join(f))
+        .collect();
+    let mut hard_drives: Vec<PathBuf> = fs_uae
+        .hard_drives
+        .iter()
+        .map(|h| install_path.join(h))
+        .collect();
 
     // Positional config (shipped sibling `.fs-uae`) OR inline model
     // template. Per the schema doc, if `config` is set we use the sibling
@@ -216,7 +228,10 @@ pub fn compose_fs_uae(
     }
 
     if !used_config {
-        args.push(format!("--amiga_model={}", fs_uae_model_string(fs_uae.model)));
+        args.push(format!(
+            "--amiga_model={}",
+            fs_uae_model_string(fs_uae.model)
+        ));
     }
 
     // Historic A500: one internal drive (DF0). Disk 1 boots in DF0; every
@@ -398,13 +413,17 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let catalog_dos = tmp.path().join("catalog/dos");
         std::fs::create_dir_all(&catalog_dos).unwrap();
-        let toml_src = std::fs::read_to_string(fixture_catalog_dir().join("dos/qfg1-ega.toml"))
-            .unwrap();
+        let toml_src =
+            std::fs::read_to_string(fixture_catalog_dir().join("dos/qfg1-ega.toml")).unwrap();
         let toml_dst = catalog_dos.join("qfg1-ega.toml");
         std::fs::write(&toml_dst, toml_src).unwrap();
         // Sibling shipped .conf — content irrelevant to composition,
         // just has to exist.
-        std::fs::write(catalog_dos.join("qfg1-ega.conf"), "[sdl]\nfullscreen=false\n").unwrap();
+        std::fs::write(
+            catalog_dos.join("qfg1-ega.conf"),
+            "[sdl]\nfullscreen=false\n",
+        )
+        .unwrap();
         (tmp, toml_dst)
     }
 
@@ -476,15 +495,15 @@ mod tests {
         let catalog_dos = tmp.path().join("catalog/dos");
         std::fs::create_dir_all(&catalog_dos).unwrap();
         // Write the .toml but NOT the .conf.
-        let toml_src = std::fs::read_to_string(fixture_catalog_dir().join("dos/qfg1-ega.toml"))
-            .unwrap();
+        let toml_src =
+            std::fs::read_to_string(fixture_catalog_dir().join("dos/qfg1-ega.toml")).unwrap();
         let source_path = catalog_dos.join("qfg1-ega.toml");
         std::fs::write(&source_path, toml_src).unwrap();
         let entry = crate::catalog::load(&source_path).unwrap();
         let install = synthetic_install("qfg1-ega", "/games/qfg1-ega");
 
-        let err = compose_dosbox(&entry, &source_path, &install, &UserConfig::default())
-            .unwrap_err();
+        let err =
+            compose_dosbox(&entry, &source_path, &install, &UserConfig::default()).unwrap_err();
         assert!(matches!(err, LaunchError::ShippedConfigNotFound { .. }));
     }
 
@@ -492,8 +511,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let catalog_amiga = tmp.path().join("catalog/amiga");
         std::fs::create_dir_all(&catalog_amiga).unwrap();
-        let toml_src = std::fs::read_to_string(fixture_catalog_dir().join("amiga/fatman.toml"))
-            .unwrap();
+        let toml_src =
+            std::fs::read_to_string(fixture_catalog_dir().join("amiga/fatman.toml")).unwrap();
         let source_path = catalog_amiga.join("fatman.toml");
         std::fs::write(&source_path, toml_src).unwrap();
         (tmp, source_path)
@@ -526,8 +545,8 @@ mod tests {
     #[test]
     fn compose_fs_uae_uses_shipped_config_when_present() {
         use crate::catalog::{
-            Acquisition, CatalogEntry, FsUaeRuntime, Emulator, Game, Install as CatInstall,
-            Meta, Runtime,
+            Acquisition, CatalogEntry, Emulator, FsUaeRuntime, Game, Install as CatInstall, Meta,
+            Runtime,
         };
 
         let tmp = tempfile::tempdir().unwrap();
@@ -567,7 +586,11 @@ mod tests {
 
         // First positional arg is the shipped config; no --amiga_model.
         assert_eq!(plan.primary.args[0], shipped.to_string_lossy());
-        assert!(!plan.primary.args.iter().any(|a| a.starts_with("--amiga_model=")));
+        assert!(!plan
+            .primary
+            .args
+            .iter()
+            .any(|a| a.starts_with("--amiga_model=")));
         assert!(plan
             .primary
             .args
@@ -578,8 +601,8 @@ mod tests {
     #[test]
     fn compose_fs_uae_handles_multiple_floppies_in_order() {
         use crate::catalog::{
-            Acquisition, CatalogEntry, FsUaeRuntime, Emulator, Game, Install as CatInstall,
-            Meta, Runtime,
+            Acquisition, CatalogEntry, Emulator, FsUaeRuntime, Game, Install as CatInstall, Meta,
+            Runtime,
         };
         let entry = CatalogEntry {
             schema_version: 1,
@@ -614,9 +637,15 @@ mod tests {
         )
         .unwrap();
 
-        assert!(plan.primary.args.contains(&"--amiga_model=A1200".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--amiga_model=A1200".to_string()));
         // Single internal drive boots disk 1; all disks form the swap list.
-        assert!(plan.primary.args.contains(&"--floppy_drive_count=1".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--floppy_drive_count=1".to_string()));
         assert!(plan
             .primary
             .args
@@ -685,7 +714,10 @@ mod tests {
         )
         .unwrap();
 
-        assert!(plan.primary.args.contains(&"--amiga_model=A1200".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--amiga_model=A1200".to_string()));
         assert!(plan
             .primary
             .args
@@ -775,7 +807,11 @@ mod tests {
 
         assert_eq!(plan.primary.args[0], cfg.to_string_lossy());
         assert!(
-            !plan.primary.args.iter().any(|a| a.starts_with("--amiga_model=")),
+            !plan
+                .primary
+                .args
+                .iter()
+                .any(|a| a.starts_with("--amiga_model=")),
             "autodetected .fs-uae config should replace --amiga_model: {:?}",
             plan.primary.args
         );
@@ -807,8 +843,14 @@ mod tests {
 
         // Default scale is 3 → 640×480 × 3 = 1920×1440, windowed.
         assert!(plan.primary.args.contains(&"--fullscreen=0".to_string()));
-        assert!(plan.primary.args.contains(&"--window_width=1920".to_string()));
-        assert!(plan.primary.args.contains(&"--window_height=1440".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--window_width=1920".to_string()));
+        assert!(plan
+            .primary
+            .args
+            .contains(&"--window_height=1440".to_string()));
     }
 
     #[test]
@@ -841,6 +883,9 @@ mod tests {
             working_dir: None,
         };
         let line = cmd.display_line();
-        assert!(line.contains(r#""MOUNT C \"/home/me/games/qfg1\"""#), "got {line}");
+        assert!(
+            line.contains(r#""MOUNT C \"/home/me/games/qfg1\"""#),
+            "got {line}"
+        );
     }
 }

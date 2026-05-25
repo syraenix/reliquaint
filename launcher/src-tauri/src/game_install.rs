@@ -105,9 +105,7 @@ pub enum InstallError {
     #[error("source path {path} does not exist")]
     SourceMissing { path: PathBuf },
 
-    #[error(
-        "unsupported source {path} for {platform:?}: expected a directory{hint}"
-    )]
+    #[error("unsupported source {path} for {platform:?}: expected a directory{hint}")]
     UnsupportedSource {
         path: PathBuf,
         platform: Platform,
@@ -184,9 +182,7 @@ pub fn plan_install(
     // Reject only if a real install already occupies the final dir; staging
     // is our own scratch space and is cleared by `stage`.
     if dir_is_nonempty(&loc.dest_dir) {
-        return Err(InstallError::DestinationOccupied {
-            path: loc.dest_dir,
-        });
+        return Err(InstallError::DestinationOccupied { path: loc.dest_dir });
     }
 
     let action = match kind {
@@ -460,7 +456,10 @@ mod tests {
         assert_eq!(loc.dest_dir, PathBuf::from("/lib/kq5"));
         assert_eq!(loc.staging_dir, PathBuf::from("/lib/.kq5.staging"));
         assert_eq!(loc.install_path, PathBuf::from("/lib/kq5/EGA"));
-        assert_eq!(loc.staged_install_path, PathBuf::from("/lib/.kq5.staging/EGA"));
+        assert_eq!(
+            loc.staged_install_path,
+            PathBuf::from("/lib/.kq5.staging/EGA")
+        );
     }
 
     #[test]
@@ -521,10 +520,16 @@ mod tests {
         );
         match &plan.action {
             CopyAction::Commands(cmds) => {
-                let inno = cmds.iter().find(|c| c[0] == "innoextract").expect("innoextract cmd");
+                let inno = cmds
+                    .iter()
+                    .find(|c| c[0] == "innoextract")
+                    .expect("innoextract cmd");
                 // Extract into staging.
                 let out_idx = inno.iter().position(|a| a == "--output-dir").unwrap();
-                assert!(inno[out_idx + 1].ends_with(".qfg1-ega.staging"), "got {inno:?}");
+                assert!(
+                    inno[out_idx + 1].ends_with(".qfg1-ega.staging"),
+                    "got {inno:?}"
+                );
                 assert!(inno.iter().any(|a| a.ends_with("qfg1.exe")));
             }
             other => panic!("expected Commands, got {other:?}"),
@@ -573,7 +578,9 @@ mod tests {
             CopyAction::Commands(cmds) => {
                 let cp = cmds.iter().find(|c| c[0] == "cp").unwrap();
                 assert!(
-                    cp.last().unwrap().ends_with(".lemmings.staging/lemmings.adf"),
+                    cp.last()
+                        .unwrap()
+                        .ends_with(".lemmings.staging/lemmings.adf"),
                     "got {cp:?}"
                 );
             }
@@ -601,7 +608,10 @@ mod tests {
         match &plan.action {
             CopyAction::Commands(cmds) => {
                 let cp = cmds.iter().find(|c| c[0] == "cp").unwrap();
-                assert!(cp.last().unwrap().ends_with(".wb.staging/system.hdf"), "got {cp:?}");
+                assert!(
+                    cp.last().unwrap().ends_with(".wb.staging/system.hdf"),
+                    "got {cp:?}"
+                );
             }
             other => panic!("expected Commands, got {other:?}"),
         }
@@ -631,7 +641,10 @@ mod tests {
         let base = tempfile::tempdir().unwrap();
 
         let err = plan_install(&spec("game", Platform::Amiga), &exe, base.path()).unwrap_err();
-        assert!(matches!(err, InstallError::UnsupportedSource { .. }), "got {err:?}");
+        assert!(
+            matches!(err, InstallError::UnsupportedSource { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -642,16 +655,25 @@ mod tests {
         let base = tempfile::tempdir().unwrap();
 
         let err = plan_install(&spec("game", Platform::Dos), &adf, base.path()).unwrap_err();
-        assert!(matches!(err, InstallError::UnsupportedSource { .. }), "got {err:?}");
+        assert!(
+            matches!(err, InstallError::UnsupportedSource { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
     fn missing_source_errors() {
         let base = tempfile::tempdir().unwrap();
-        let err =
-            plan_install(&spec("game", Platform::Dos), Path::new("/no/such/path"), base.path())
-                .unwrap_err();
-        assert!(matches!(err, InstallError::SourceMissing { .. }), "got {err:?}");
+        let err = plan_install(
+            &spec("game", Platform::Dos),
+            Path::new("/no/such/path"),
+            base.path(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, InstallError::SourceMissing { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -663,7 +685,10 @@ mod tests {
         std::fs::write(base.path().join("kq5/existing"), b"x").unwrap();
 
         let err = plan_install(&spec("kq5", Platform::Dos), src.path(), base.path()).unwrap_err();
-        assert!(matches!(err, InstallError::DestinationOccupied { .. }), "got {err:?}");
+        assert!(
+            matches!(err, InstallError::DestinationOccupied { .. }),
+            "got {err:?}"
+        );
     }
 
     // --- stage -------------------------------------------------------------
@@ -703,7 +728,10 @@ mod tests {
             CopyAction::Commands(vec![vec!["false".into()]]),
         );
         let err = stage(&plan, |_| Ok(7)).unwrap_err();
-        assert!(matches!(err, InstallError::CommandFailed { code: 7 }), "got {err:?}");
+        assert!(
+            matches!(err, InstallError::CommandFailed { code: 7 }),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -713,7 +741,10 @@ mod tests {
         std::fs::create_dir_all(&staging).unwrap();
         std::fs::write(staging.join("junk"), b"old").unwrap();
         // Fake runner is a no-op, so after the clear step staging is gone.
-        let plan = plan_with(staging.clone(), CopyAction::Commands(vec![vec!["true".into()]]));
+        let plan = plan_with(
+            staging.clone(),
+            CopyAction::Commands(vec![vec!["true".into()]]),
+        );
 
         stage(&plan, |_| Ok(0)).unwrap();
 
@@ -785,9 +816,18 @@ mod tests {
 
         let err = commit(&staging, &staged_install, &dest).unwrap_err();
 
-        assert!(matches!(err, InstallError::IncompleteStaging { .. }), "got {err:?}");
-        assert!(!dest.exists(), "must not commit when the staged subdir is missing");
-        assert!(staging.exists(), "staging is left for the caller to discard");
+        assert!(
+            matches!(err, InstallError::IncompleteStaging { .. }),
+            "got {err:?}"
+        );
+        assert!(
+            !dest.exists(),
+            "must not commit when the staged subdir is missing"
+        );
+        assert!(
+            staging.exists(),
+            "staging is left for the caller to discard"
+        );
     }
 
     #[test]
@@ -800,7 +840,10 @@ mod tests {
         std::fs::write(dest.join("existing"), b"x").unwrap();
 
         let err = commit_dirs(&staging, &dest).unwrap_err();
-        assert!(matches!(err, InstallError::DestinationOccupied { .. }), "got {err:?}");
+        assert!(
+            matches!(err, InstallError::DestinationOccupied { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]

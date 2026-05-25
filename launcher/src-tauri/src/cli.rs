@@ -1,11 +1,11 @@
 use crate::catalog::Platform;
 use crate::catalog_view::{CatalogView, CatalogViewEntry};
-use crate::paths::find_repo_root;
 use crate::doctor::{check_install, ProbeStatus};
 use crate::game_install;
 use crate::install_record;
 use crate::installer;
 use crate::launch;
+use crate::paths::find_repo_root;
 use crate::sidecar;
 use crate::user_config;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -13,7 +13,11 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "reliquaint", version, about = "Launch classic games from manifests")]
+#[command(
+    name = "reliquaint",
+    version,
+    about = "Launch classic games from manifests"
+)]
 struct Cli {
     /// Increase log verbosity. `-v` enables DEBUG, `-vv` enables TRACE.
     /// `RUST_LOG`, if set, overrides this.
@@ -413,7 +417,8 @@ fn cmd_install(
     // Commit: verify the staged tree contains the install path (e.g. the
     // declared subdir), move staging into place, then register. On any
     // failure, leave nothing behind so a retry isn't blocked.
-    if let Err(e) = game_install::commit(&plan.staging_dir, &plan.staged_install_path, &plan.dest_dir)
+    if let Err(e) =
+        game_install::commit(&plan.staging_dir, &plan.staged_install_path, &plan.dest_dir)
     {
         let _ = game_install::discard_staging(&plan.staging_dir);
         eprintln!("error: {e}");
@@ -447,7 +452,10 @@ fn cmd_install(
 fn cmd_migrate_installs(view: &CatalogView, base: &str) -> ExitCode {
     let base_path = crate::paths::expand_tilde(base);
     if !base_path.is_dir() {
-        eprintln!("error: base directory {} does not exist", base_path.display());
+        eprintln!(
+            "error: base directory {} does not exist",
+            base_path.display()
+        );
         return ExitCode::FAILURE;
     }
 
