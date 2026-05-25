@@ -2,6 +2,11 @@
 
 > *REL-i-kwaynt* — a portmanteau of *relic* and *quaint*.
 
+[![CI](https://github.com/syraenix/reliquaint/actions/workflows/ci.yml/badge.svg)](https://github.com/syraenix/reliquaint/actions/workflows/ci.yml)
+[![Release](https://github.com/syraenix/reliquaint/actions/workflows/release.yml/badge.svg)](https://github.com/syraenix/reliquaint/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/syraenix/reliquaint)](https://github.com/syraenix/reliquaint/releases/latest)
+[![License: MPL 2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
+
 A preservation hub for classic DOS and Amiga games that happens to launch. One catalog, one install command, one launch button — plus the future scaffolding for the maps, hint sheets, and manuals that gave these games their flavour.
 
 ## What it is
