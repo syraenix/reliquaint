@@ -39,6 +39,7 @@
     ["steam", "Get on Steam"],
     ["developer_site", "Developer's site"],
     ["archive", "Internet Archive"],
+    ["amiga_forever", "Amiga Forever"],
   ];
 
   $: acquisitionButtons = ACQUISITION_LABELS

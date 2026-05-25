@@ -14,7 +14,7 @@ tags        = ["amiga", "coverdisk"]
 description = "Eat-em-up platformer originally distributed on the Amiga Power coverdisk. A superhero whose only superpower is an insatiable appetite."
 
 [acquisition]
-archive = "https://www.amigaforever.com/plus/"
+amiga_forever = "https://www.amigaforever.com/plus/"
 notes   = "Four-disk Amiga 500 game. Released by Black Legend; widely circulated as freeware via Amiga Power coverdisk 51 (1994)."
 
 [install]
