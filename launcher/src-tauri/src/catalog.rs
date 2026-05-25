@@ -62,6 +62,8 @@ pub struct Acquisition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub archive: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub amiga_forever: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
 

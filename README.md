@@ -2,13 +2,18 @@
 
 > *REL-i-kwaynt* — a portmanteau of *relic* and *quaint*.
 
+[![CI](https://github.com/syraenix/reliquaint/actions/workflows/ci.yml/badge.svg)](https://github.com/syraenix/reliquaint/actions/workflows/ci.yml)
+[![Release](https://github.com/syraenix/reliquaint/actions/workflows/release.yml/badge.svg)](https://github.com/syraenix/reliquaint/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/syraenix/reliquaint)](https://github.com/syraenix/reliquaint/releases/latest)
+[![License: MPL 2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
+
 A preservation hub for classic DOS and Amiga games that happens to launch. One catalog, one install command, one launch button — plus the future scaffolding for the maps, hint sheets, and manuals that gave these games their flavour.
 
 ## What it is
 
 Reliquaint is a Linux launcher built on top of [DOSBox-Staging](https://www.dosbox-staging.org/) (DOS) and [FS-UAE](https://fs-uae.net/) (Amiga). You bring your own legally-acquired game files; Reliquaint handles the configuration, mounting, sidecars (FluidSynth for MIDI), and a small catalog of curated metadata.
 
-The bundled `reliquaint-core` tap ships with 12 entries — Quest for Glory I–IV, King's Quest I (SCI remake) through VI, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) is designed for community-maintained additions in future versions.
+The bundled `reliquaint-core` tap ships with 11 entries — Quest for Glory I–IV, King's Quest I (SCI remake) through V, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) is designed for community-maintained additions in future versions.
 
 It does **not** acquire game files for you. It does **not** circumvent DRM. The user provides their own copies; the launcher tells them where to put them.
 

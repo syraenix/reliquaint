@@ -15,11 +15,11 @@ tags        = ["sierra", "sci", "fantasy", "point-and-click"]
 description = "The first VGA + point-and-click King's Quest. CD versions added voice acting; this DOS release uses the original 256-color visuals."
 
 [acquisition]
-steam = "https://store.steampowered.com/app/10110"
-notes = "Bundled in King's Quest 4+5+6 on Steam (app 10110)."
+steam = "https://store.steampowered.com/app/10100"
+notes = "Bundled in King's Quest Collection on Steam (app 10100)."
 
 [install]
-expects_files = ["SCIKQ5.EXE", "RESOURCE.000"]
+expects_files = ["SIERRA.EXE"]
 
 [runtime]
 emulator = "dosbox-staging"
@@ -27,5 +27,5 @@ sidecars = ["fluidsynth"]
 
 [runtime.dosbox]
 config = "kq5.conf"
-entry  = "SCIKQ5.EXE"
+entry  = "SIERRA.EXE"
 mount  = "c"

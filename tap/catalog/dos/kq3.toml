@@ -16,7 +16,7 @@ description = "Gwydion, slave to the wizard Manannan, must find his way to freed
 
 [acquisition]
 steam = "https://store.steampowered.com/app/10100"
-notes = "Bundled in King's Quest 1+2+3 on Steam (app 10100)."
+notes = "Bundled in King's Quest Collection on Steam (app 10100)."
 
 [install]
 expects_files = ["SIERRA.COM"]

@@ -71,6 +71,7 @@ pub struct AcquisitionDto {
     pub steam: Option<String>,
     pub developer_site: Option<String>,
     pub archive: Option<String>,
+    pub amiga_forever: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -121,6 +122,7 @@ pub fn entry_to_dto(e: &crate::catalog_view::CatalogViewEntry) -> CatalogEntryDt
             steam: acq.steam.clone(),
             developer_site: acq.developer_site.clone(),
             archive: acq.archive.clone(),
+            amiga_forever: acq.amiga_forever.clone(),
             notes: acq.notes.clone(),
         },
         tap_id: e.tap_id.clone(),

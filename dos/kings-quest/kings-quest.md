@@ -1,8 +1,8 @@
 # King's Quest - DOSBox Staging Guide
 
-[King's Quest](https://en.wikipedia.org/wiki/King%27s_Quest) is a series of adventure games developed by [Sierra On-Line](https://en.wikipedia.org/wiki/Sierra_Entertainment). This guide walks through copying, configuring, and running King's Quest 1 (SCI remake) through King's Quest 6 with [DOSBox Staging](https://www.dosbox-staging.org/).
+[King's Quest](https://en.wikipedia.org/wiki/King%27s_Quest) is a series of adventure games developed by [Sierra On-Line](https://en.wikipedia.org/wiki/Sierra_Entertainment). This guide walks through copying, configuring, and running King's Quest 1 (SCI remake) through King's Quest 5 with [DOSBox Staging](https://www.dosbox-staging.org/).
 
-> The original AGI version of King's Quest 1 (1984) is not covered here; this guide uses the 1990 SCI remake (`kq1sci`). King's Quest 7 and 8 are not DOS games and need to be installed and configured differently.
+> The original AGI version of King's Quest 1 (1984) is not covered here; this guide uses the 1990 SCI remake (`kq1sci`). King's Quest 6 is omitted: the King's Quest Collection ships only its Windows hi-res interpreter (`DOKQ6.EXE`, with no DOS executable), so it can't run under DOSBox. King's Quest 7 and 8 are not DOS games and need to be installed and configured differently.
 
 ## Prerequisites
 
@@ -12,12 +12,15 @@ Follow the steps in the [prerequisites guide](../../docs/prerequisites.md) to in
 
 ## Obtaining the game files
 
-The King's Quest games covered here are available on Steam in two bundles:
+The King's Quest games covered here are available on Steam as the [King's Quest Collection](https://store.steampowered.com/app/10100), a single package that bundles:
 
-- [King's Quest 1+2+3](https://store.steampowered.com/app/10100) — includes the SCI remake of KQ1 (1990), the AGI original of KQ2 (1985), and the AGI original of KQ3 (1986)
-- [King's Quest 4+5+6](https://store.steampowered.com/app/10110) — includes KQ4 SCI (1988), KQ5 (1990), and KQ6 (1992)
+- KQ1 — the SCI remake (1990)
+- KQ2 — the AGI original (1985)
+- KQ3 — the AGI original (1986)
+- KQ4 — the SCI version (1988)
+- KQ5 (1990)
 
-Purchase and install both bundles via Steam. Steam will install them as ready-to-run game folders, not as DOS installers, so the workflow is to copy the DOS game files from the Steam install directory directly into `~/games/`.
+The collection also includes KQ6 (1992), but that title isn't covered here (see the note above). Purchase and install the collection via Steam. Steam installs it as ready-to-run game folders, not as DOS installers, so the workflow is to copy the DOS game files from the Steam install directory directly into `~/games/`.
 
 ### Locating the Steam install directory
 
@@ -26,7 +29,7 @@ On Linux, Steam typically installs games under one of:
 - `~/.steam/steam/steamapps/common/`
 - `~/.local/share/Steam/steamapps/common/`
 
-Each bundle installs to a folder such as `Kings Quest 1+2+3/` or `Kings Quest 4+5+6/`. Inside each you'll find one subfolder per game.
+The collection installs to a folder such as `King's Quest Collection/`. Inside it you'll find one subfolder per game (`kq1sci/`, `kq2/`, `kq3/`, `kq4/`, `kq5/`).
 
 ### Copying game files to ~/games
 
@@ -37,13 +40,12 @@ Each game ends up at `~/games/<id>` using the folder names below. The DOSBox con
 - King's Quest 3 => `~/games/kq3/`
 - King's Quest 4 (SCI) => `~/games/kq4/`
 - King's Quest 5 => `~/games/kq5/`
-- King's Quest 6 => `~/games/kq6/`
 
 > The exact path of the DOS files inside the Steam folder varies by game — some Steam packages put them at the top level, others bury them in a subfolder. The source you pick (or copy) must contain the game's `.EXE`/`.COM` launcher and resource files at its top level (e.g. the folder that holds `SCIKQ5.EXE`, not its parent).
 
 #### Using the launcher GUI (recommended)
 
-Open `reliquaint` (run it with no arguments), click the **Install** button in the header, and select the **King's Quest** tab. For each game, click **Pick folder…** and navigate into the appropriate Steam bundle (`Kings Quest 1+2+3/` or `Kings Quest 4+5+6/`) to select the subfolder that contains that game's DOS files. Once you've picked at least one game, click **Install** — the launcher copies each picked folder into `~/games/<id>/` and streams progress inline.
+Open `reliquaint` (run it with no arguments), click the **Install** button in the header, and select the **King's Quest** tab. For each game, click **Pick folder…** and navigate into the `King's Quest Collection/` Steam folder to select the subfolder that contains that game's DOS files. Once you've picked at least one game, click **Install** — the launcher copies each picked folder into `~/games/<id>/` and streams progress inline.
 
 #### Terminal alternative
 
@@ -63,7 +65,6 @@ Starting cycle values are picked to roughly match each game's target hardware. I
 | kq3 | AGI | 1500 |
 | kq4 | SCI0 | 5000 |
 | kq5 | SCI1 | 6000 |
-| kq6 | SCI1.1 | 8000 |
 
 ## Running the games
 
@@ -75,7 +76,6 @@ reliquaint run kq2
 reliquaint run kq3
 reliquaint run kq4
 reliquaint run kq5
-reliquaint run kq6
 ```
 
 The games must live at `~/games/<game>`. Copy the game files from Steam directly into `~/games/<game>` (see [Copying game files to ~/games](#copying-game-files-to-games)) before launching.
