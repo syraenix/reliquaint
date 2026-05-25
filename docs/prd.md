@@ -1,6 +1,6 @@
 # Reliquaint — Product Requirements Document
 
-> **Status:** Draft, pre-v0.1
+> **Status:** v0.1 — feature-complete foundation, shipping.
 > **Name:** *Reliquaint* — a portmanteau of *relic* and *quaint*, pronounced *REL-i-kwaynt*.
 
 ## Vision
@@ -70,9 +70,12 @@ These are sequencing guidance, not commitments. Each phase ends in a state where
 
 **Beyond.** Submission tooling for catalog/companion contributions. Cross-tap content de-duplication. Possibly: ScummVM backend, MS-DOS hard-drive image support, additional platforms.
 
+## Resolved
+
+- **License.** Code is [MPL-2.0](../LICENSE); catalog content is [CC-BY-SA-4.0](../LICENSE-CONTENT).
+- **Default tap contents.** The bundled tap is `reliquaint-core` — a small, quality-focused starter set (the Quest for Glory, King's Quest, and Amiga starter entries).
+
 ## Open questions
 
-- **License.** Likely a copyleft or weak-copyleft choice (GPLv3, MPL-2.0); needs explicit choice before public release.
-- **Default tap contents.** What ships in the core tap on v0.3+ release? Likely Derek's curated personal collection as a starting point — possibly named `reliquaint-core` or similar.
 - **Tap discovery.** How do users find good taps? Possibilities: maintained `awesome-reliquaint-taps` repo, in-launcher search backed by a small registry, or just documentation pointers.
 - **Companion content rendering security.** Tauri webview + arbitrary Markdown from third-party taps. Decision needed on Markdown renderer, sanitization policy, and remote resource loading policy.

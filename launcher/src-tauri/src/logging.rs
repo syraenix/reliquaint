@@ -32,8 +32,7 @@ pub fn init_cli(verbosity: u8) {
         1 => "reliquaint=debug,info",
         _ => "reliquaint=trace,debug",
     };
-    let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default));
 
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
@@ -47,8 +46,7 @@ pub fn init_cli(verbosity: u8) {
 /// Composes a stderr formatter with the stub Tauri bridge layer that
 /// Milestone 5 will wire to the frontend's diagnostic panel.
 pub fn init_gui() {
-    let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let stderr_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)

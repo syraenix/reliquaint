@@ -43,7 +43,7 @@ Each game ends up at `~/games/<id>` using the folder names below. The DOSBox con
 
 #### Using the launcher GUI (recommended)
 
-Open `classic-launcher` (run it with no arguments), click the **Install** button in the header, and select the **King's Quest** tab. For each game, click **Pick folder…** and navigate into the appropriate Steam bundle (`Kings Quest 1+2+3/` or `Kings Quest 4+5+6/`) to select the subfolder that contains that game's DOS files. Once you've picked at least one game, click **Install** — the launcher copies each picked folder into `~/games/<id>/` and streams progress inline.
+Open `reliquaint` (run it with no arguments), click the **Install** button in the header, and select the **King's Quest** tab. For each game, click **Pick folder…** and navigate into the appropriate Steam bundle (`Kings Quest 1+2+3/` or `Kings Quest 4+5+6/`) to select the subfolder that contains that game's DOS files. Once you've picked at least one game, click **Install** — the launcher copies each picked folder into `~/games/<id>/` and streams progress inline.
 
 #### Terminal alternative
 
@@ -67,15 +67,15 @@ Starting cycle values are picked to roughly match each game's target hardware. I
 
 ## Running the games
 
-`classic-launcher` starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
+`reliquaint` starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The shipped config carries no `[autoexec]`; the launcher composes one at launch that mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
 
 ```bash
-classic-launcher run kq1sci
-classic-launcher run kq2
-classic-launcher run kq3
-classic-launcher run kq4
-classic-launcher run kq5
-classic-launcher run kq6
+reliquaint run kq1sci
+reliquaint run kq2
+reliquaint run kq3
+reliquaint run kq4
+reliquaint run kq5
+reliquaint run kq6
 ```
 
 The games must live at `~/games/<game>`. Copy the game files from Steam directly into `~/games/<game>` (see [Copying game files to ~/games](#copying-game-files-to-games)) before launching.
@@ -83,5 +83,5 @@ The games must live at `~/games/<game>`. Copy the game files from Steam directly
 To preview the commands that would be run without launching anything:
 
 ```bash
-classic-launcher run kq1sci --dry-run
+reliquaint run kq1sci --dry-run
 ```

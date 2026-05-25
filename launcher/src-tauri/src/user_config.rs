@@ -149,9 +149,7 @@ pub enum ConfigError {
         source: toml::de::Error,
     },
 
-    #[error(
-        "unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)"
-    )]
+    #[error("unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)")]
     UnsupportedSchema { path: PathBuf, version: u32 },
 }
 
@@ -273,13 +271,19 @@ soundfont = "/opt/sounds/custom.sf2"
 "#;
         let parsed = parse_str(text, Path::new("test.toml")).unwrap();
 
-        assert_eq!(parsed.emulators.dosbox_staging.command, "/usr/bin/dosbox-staging");
+        assert_eq!(
+            parsed.emulators.dosbox_staging.command,
+            "/usr/bin/dosbox-staging"
+        );
         assert_eq!(parsed.emulators.fs_uae.command, "/opt/fs-uae/bin/fs-uae");
         assert_eq!(
             parsed.emulators.fs_uae.kickstart_path,
             Some(PathBuf::from("/home/me/kickstarts"))
         );
-        assert_eq!(parsed.sidecars.fluidsynth.command, "/usr/local/bin/fluidsynth");
+        assert_eq!(
+            parsed.sidecars.fluidsynth.command,
+            "/usr/local/bin/fluidsynth"
+        );
         assert_eq!(
             parsed.sidecars.fluidsynth.soundfont,
             PathBuf::from("/opt/sounds/custom.sf2")
@@ -300,7 +304,10 @@ soundfont = "/opt/sounds/custom.sf2"
     fn rejects_unsupported_schema_version() {
         let text = "schema_version = 2\n";
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(err, ConfigError::UnsupportedSchema { version: 2, .. }));
+        assert!(matches!(
+            err,
+            ConfigError::UnsupportedSchema { version: 2, .. }
+        ));
     }
 
     #[test]

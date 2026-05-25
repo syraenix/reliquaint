@@ -1,0 +1,89 @@
+name: Bug report
+description: Report something Reliquaint does that it shouldn't, or fails to do that it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The more concrete the report, the faster it can be fixed.
+
+  - type: input
+    id: version
+    attributes:
+      label: Reliquaint version
+      description: Output of `reliquaint --version`.
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and distribution
+      description: Include distro and version (e.g., Debian 12, Fedora 41, Ubuntu 24.04).
+      placeholder: Debian 12 (Bookworm)
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `reliquaint doctor`
+      description: Run `reliquaint doctor` and paste the output here. This catches a large fraction of issues before they need investigation.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Be specific. "What I did → what I expected → what happened."
+      placeholder: |
+        1. Ran `reliquaint run qfg1-ega`
+        2. Expected the game to launch
+        3. Instead, DOSBox opened and immediately closed with no error message
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Verbose log output
+      description: |
+        Re-run the failing command with `-vv` (or set `RUST_LOG=reliquaint=trace`) and paste the relevant output.
+        You may redact your username from paths if you prefer not to share them.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: game
+    attributes:
+      label: Game involved (if applicable)
+      description: The catalog id (e.g. `qfg1-ega`). Leave blank if the bug is not specific to a game.
+      placeholder: qfg1-ega
+    validations:
+      required: false
+
+  - type: dropdown
+    id: catalog-source
+    attributes:
+      label: Catalog source
+      description: Where does the affected manifest come from?
+      options:
+        - Bundled (reliquaint-core)
+        - User-created
+        - Third-party tap
+        - Not applicable
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else
+      description: Notes about emulator versions, recent changes to your setup, screenshots — anything you think might be relevant.
+    validations:
+      required: false

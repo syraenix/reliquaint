@@ -29,7 +29,6 @@ pub struct ProbeResult {
     pub kind: ProbeKind,
 }
 
-
 // --- New install-aware doctor (Milestone 4, Task 4.4) -------------------
 //
 // run_all (above) stays the source of truth for the legacy code path that
@@ -228,4 +227,3 @@ fn missing_expects_files(install_dir: &Path, expected: &[String]) -> Vec<String>
         .cloned()
         .collect()
 }
-

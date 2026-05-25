@@ -31,7 +31,7 @@ You will need to rename the installers to match the list below, and copy them to
 
 #### Using the launcher GUI (recommended)
 
-Open `classic-launcher` (run it with no arguments), click the **Install** button in the header, and select the **Quest for Glory** tab. The launcher defaults to this collection's `installers/` directory; clicking **Install selected** runs `innoextract` for each game and streams the output inline. After completion, every Quest for Glory entry in the **Doctor** panel turns green.
+Open `reliquaint` (run it with no arguments), click the **Install** button in the header, and select the **Quest for Glory** tab. The launcher defaults to this collection's `installers/` directory; clicking **Install selected** runs `innoextract` for each game and streams the output inline. After completion, every Quest for Glory entry in the **Doctor** panel turns green.
 
 #### Terminal alternative
 
@@ -49,14 +49,14 @@ Once the script has finished running, the game files will be extracted directly 
 
 ## Running the games
 
-`classic-launcher` starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The config's `[autoexec]` section auto-mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
+`reliquaint` starts FluidSynth (so MIDI works), then launches DOSBox Staging with the matching per-game config. The shipped config carries no `[autoexec]`; the launcher composes one at launch that mounts `~/games/<game>` as `c:` and runs the game executable, so no manual `mount` or `cd` is needed inside DOSBox.
 
 ```bash
-classic-launcher run qfg1-vga
-classic-launcher run qfg1-ega
-classic-launcher run qfg2
-classic-launcher run qfg3
-classic-launcher run qfg4
+reliquaint run qfg1-vga
+reliquaint run qfg1-ega
+reliquaint run qfg2
+reliquaint run qfg3
+reliquaint run qfg4
 ```
 
 The games must live at `~/games/<game>`. Use the launcher's **Install** panel — or run `./scripts/extract-installers.sh` — once during extraction (see [Extracting games installers](#extracting-games-installers)) to put them there.
@@ -64,5 +64,5 @@ The games must live at `~/games/<game>`. Use the launcher's **Install** panel �
 To preview the commands that would be run without launching anything:
 
 ```bash
-classic-launcher run qfg1-ega --dry-run
+reliquaint run qfg1-ega --dry-run
 ```

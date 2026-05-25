@@ -145,9 +145,7 @@ pub enum CatalogError {
         source: toml::de::Error,
     },
 
-    #[error(
-        "unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)"
-    )]
+    #[error("unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)")]
     UnsupportedSchema { path: PathBuf, version: u32 },
 
     #[error(
@@ -183,7 +181,9 @@ pub enum CatalogError {
         value: String,
     },
 
-    #[error("invalid mount {value:?} in {path}: must be a single ASCII letter (see docs/schema.md)")]
+    #[error(
+        "invalid mount {value:?} in {path}: must be a single ASCII letter (see docs/schema.md)"
+    )]
     InvalidMount { path: PathBuf, value: String },
 }
 
@@ -202,7 +202,10 @@ pub fn parse_str(text: &str, path: &Path) -> Result<CatalogEntry, CatalogError> 
     let entry: CatalogEntry = toml::from_str(text).map_err(|source| {
         let owned = path.to_path_buf();
         tracing::error!(path = %owned.display(), error = %source, "catalog entry parse failed");
-        CatalogError::Parse { path: owned, source }
+        CatalogError::Parse {
+            path: owned,
+            source,
+        }
     })?;
     validate(&entry, path)?;
     Ok(entry)
@@ -363,7 +366,13 @@ mod tests {
 
     #[test]
     fn id_validation_accepts_canonical_examples() {
-        for id in &["qfg1-ega", "kings-quest-6", "fatman", "reliquaint-core", "kq1sci"] {
+        for id in &[
+            "qfg1-ega",
+            "kings-quest-6",
+            "fatman",
+            "reliquaint-core",
+            "kq1sci",
+        ] {
             assert!(is_valid_id(id), "{id} should be valid");
         }
     }
@@ -388,8 +397,8 @@ mod tests {
 
     #[test]
     fn loads_dos_fixture_qfg1_ega() {
-        let entry = load(&fixtures_dir().join("dos/qfg1-ega.toml"))
-            .expect("qfg1-ega fixture should parse");
+        let entry =
+            load(&fixtures_dir().join("dos/qfg1-ega.toml")).expect("qfg1-ega fixture should parse");
         assert_eq!(entry.schema_version, 1);
         assert_eq!(entry.game.id, "qfg1-ega");
         assert_eq!(entry.game.platform, Platform::Dos);
@@ -404,8 +413,8 @@ mod tests {
 
     #[test]
     fn loads_amiga_fixture_fatman() {
-        let entry = load(&fixtures_dir().join("amiga/fatman.toml"))
-            .expect("fatman fixture should parse");
+        let entry =
+            load(&fixtures_dir().join("amiga/fatman.toml")).expect("fatman fixture should parse");
         assert_eq!(entry.game.id, "fatman");
         assert_eq!(entry.game.platform, Platform::Amiga);
         assert_eq!(entry.runtime.emulator, Emulator::FsUae);
@@ -450,7 +459,10 @@ config = "x.conf"
 entry = "X.BAT"
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(err, CatalogError::UnsupportedSchema { version: 2, .. }));
+        assert!(matches!(
+            err,
+            CatalogError::UnsupportedSchema { version: 2, .. }
+        ));
     }
 
     #[test]
@@ -519,8 +531,19 @@ model = "a500"
         for ok in &["qfg1-ega.conf", "SIERRA.BAT", "fatman.adf", "RESOURCE.000"] {
             assert!(is_bare_filename(ok), "{ok} should be a bare filename");
         }
-        for bad in &["", ".", "..", "/etc/passwd", "../escape.conf", "sub/dir.conf", "a\\b.conf"] {
-            assert!(!is_bare_filename(bad), "{bad} should not be a bare filename");
+        for bad in &[
+            "",
+            ".",
+            "..",
+            "/etc/passwd",
+            "../escape.conf",
+            "sub/dir.conf",
+            "a\\b.conf",
+        ] {
+            assert!(
+                !is_bare_filename(bad),
+                "{bad} should not be a bare filename"
+            );
         }
     }
 
@@ -561,34 +584,52 @@ mount = "{mount}"
     fn rejects_absolute_dosbox_config() {
         let text = dos_entry_with("/etc/evil.conf", "c", "\"SIERRA.BAT\"");
         let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(
-            err,
-            CatalogError::InvalidPathField { field: "runtime.dosbox.config", .. }
-        ), "got {err:?}");
+        assert!(
+            matches!(
+                err,
+                CatalogError::InvalidPathField {
+                    field: "runtime.dosbox.config",
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
     }
 
     #[test]
     fn rejects_traversal_dosbox_config() {
         let text = dos_entry_with("../escape.conf", "c", "\"SIERRA.BAT\"");
         let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(err, CatalogError::InvalidPathField { .. }), "got {err:?}");
+        assert!(
+            matches!(err, CatalogError::InvalidPathField { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
     fn rejects_multichar_mount() {
         let text = dos_entry_with("qfg1-ega.conf", "cc", "\"SIERRA.BAT\"");
         let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(err, CatalogError::InvalidMount { .. }), "got {err:?}");
+        assert!(
+            matches!(err, CatalogError::InvalidMount { .. }),
+            "got {err:?}"
+        );
     }
 
     #[test]
     fn rejects_pathful_expects_file() {
         let text = dos_entry_with("qfg1-ega.conf", "c", "\"sub/RESOURCE.000\"");
         let err = parse_str(&text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(
-            err,
-            CatalogError::InvalidPathField { field: "expects_files entry", .. }
-        ), "got {err:?}");
+        assert!(
+            matches!(
+                err,
+                CatalogError::InvalidPathField {
+                    field: "expects_files entry",
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -608,10 +649,16 @@ model = "a500"
 floppies = ["../sneaky.adf"]
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(
-            err,
-            CatalogError::InvalidPathField { field: "runtime.fs_uae.floppies entry", .. }
-        ), "got {err:?}");
+        assert!(
+            matches!(
+                err,
+                CatalogError::InvalidPathField {
+                    field: "runtime.fs_uae.floppies entry",
+                    ..
+                }
+            ),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -671,7 +718,13 @@ entry = "SIERRA.BAT"
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
         assert!(
-            matches!(err, CatalogError::InvalidPathField { field: "install.subdir", .. }),
+            matches!(
+                err,
+                CatalogError::InvalidPathField {
+                    field: "install.subdir",
+                    ..
+                }
+            ),
             "got {err:?}"
         );
     }
@@ -701,7 +754,13 @@ hard_drives = ["game.hdf"]
     fn hard_drives_defaults_to_empty() {
         let path = fixtures_dir().join("amiga/fatman.toml");
         let entry = load(&path).unwrap();
-        assert!(entry.runtime.fs_uae.as_ref().unwrap().hard_drives.is_empty());
+        assert!(entry
+            .runtime
+            .fs_uae
+            .as_ref()
+            .unwrap()
+            .hard_drives
+            .is_empty());
     }
 
     #[test]
@@ -722,7 +781,13 @@ hard_drives = ["../sneaky.hdf"]
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
         assert!(
-            matches!(err, CatalogError::InvalidPathField { field: "runtime.fs_uae.hard_drives entry", .. }),
+            matches!(
+                err,
+                CatalogError::InvalidPathField {
+                    field: "runtime.fs_uae.hard_drives entry",
+                    ..
+                }
+            ),
             "got {err:?}"
         );
     }

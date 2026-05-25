@@ -14,7 +14,7 @@ It does **not** acquire game files for you. It does **not** circumvent DRM. The 
 
 ## Status
 
-**Pre-v0.1.** The CLI is feature-complete against the v0.1 design (`list`, `run`, `install`, `migrate-installs`, `doctor`). The GUI is end-to-end usable for browsing, installing, and launching. The bundled tap is populated. Companion content (walkthroughs, maps, hint files) and tap subscription are explicit non-goals for v0.1 — they land in v0.4 and v0.3 respectively per the [PRD](docs/prd.md).
+**v0.1.** The CLI is feature-complete against the v0.1 design (`list`, `run`, `install`, `migrate-installs`, `doctor`). The GUI is end-to-end usable for browsing, installing, and launching. The bundled tap is populated. Companion content (walkthroughs, maps, hint files) and tap subscription are explicit non-goals for v0.1 — they land in v0.4 and v0.3 respectively per the [PRD](docs/prd.md).
 
 The project is Linux-only by design (Flatpak DOSBox-Staging, apt-installed FluidSynth/FS-UAE). Cross-platform support is a non-goal for v0.1.
 

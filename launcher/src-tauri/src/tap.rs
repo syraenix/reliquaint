@@ -54,9 +54,7 @@ pub enum TapError {
         source: toml::de::Error,
     },
 
-    #[error(
-        "unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)"
-    )]
+    #[error("unsupported schema_version {version} in {path} (expected 1 — see docs/schema.md)")]
     UnsupportedSchema { path: PathBuf, version: u32 },
 
     #[error(
@@ -74,9 +72,7 @@ pub enum TapError {
         source: std::io::Error,
     },
 
-    #[error(
-        "duplicate game id {game_id:?} in tap {tap_id:?}: {first} and {second}"
-    )]
+    #[error("duplicate game id {game_id:?} in tap {tap_id:?}: {first} and {second}")]
     DuplicateGameId {
         tap_id: String,
         game_id: String,
@@ -199,7 +195,10 @@ pub fn parse_str(text: &str, path: &Path) -> Result<TapMetadata, TapError> {
     let meta: TapMetadata = toml::from_str(text).map_err(|source| {
         let owned = path.to_path_buf();
         tracing::error!(path = %owned.display(), error = %source, "tap metadata parse failed");
-        TapError::Parse { path: owned, source }
+        TapError::Parse {
+            path: owned,
+            source,
+        }
     })?;
     if meta.schema_version != 1 {
         return Err(TapError::UnsupportedSchema {
@@ -327,11 +326,7 @@ model = "a500"
         let root = tmp.path();
         write_tap_metadata(root, "test-tap");
         write_catalog_entry(root, "dos", "qfg1-ega");
-        std::fs::write(
-            root.join("catalog/dos/broken.toml"),
-            "not valid toml [[[",
-        )
-        .unwrap();
+        std::fs::write(root.join("catalog/dos/broken.toml"), "not valid toml [[[").unwrap();
 
         let loaded = load_tap(root).unwrap();
         assert_eq!(
@@ -370,8 +365,7 @@ model = "a500"
 
     #[test]
     fn load_tap_missing_root_errors() {
-        let err = load_tap(Path::new("/definitely/not/a/real/path/for/this/test"))
-            .unwrap_err();
+        let err = load_tap(Path::new("/definitely/not/a/real/path/for/this/test")).unwrap_err();
         assert!(matches!(err, TapError::MissingRoot { .. }));
     }
 
@@ -400,7 +394,10 @@ url         = "https://x"
 license     = "x"
 "#;
         let err = parse_str(text, Path::new("test.toml")).unwrap_err();
-        assert!(matches!(err, TapError::UnsupportedSchema { version: 2, .. }));
+        assert!(matches!(
+            err,
+            TapError::UnsupportedSchema { version: 2, .. }
+        ));
     }
 
     #[test]
