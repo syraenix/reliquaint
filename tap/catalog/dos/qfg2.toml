@@ -15,11 +15,11 @@ tags        = ["sierra", "sci", "arabian", "parser"]
 description = "Continues the Hero's story in an Arabian-inspired setting. EGA-era SCI parser game; no official VGA remake exists, though the AGD Interactive fan remake is well-known."
 
 [acquisition]
-gog   = "https://www.gog.com/en/game/quest_for_glory_15"
+gog   = "https://www.gog.com/en/game/quest_for_glory"
 notes = "Bundled in the Quest for Glory 1-5 collection on GOG."
 
 [install]
-expects_files = ["sciv.exe", "RESOURCE.000"]
+expects_files = ["sciv.exe"]
 
 [runtime]
 emulator = "dosbox-staging"

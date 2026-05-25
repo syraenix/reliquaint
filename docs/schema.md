@@ -170,6 +170,7 @@ How a user can legally obtain the game. All fields optional; include what applie
 | `steam` | string | URL to the Steam listing. |
 | `developer_site` | string | URL where the developer / rights holder offers the game. |
 | `archive` | string | URL to an Internet Archive page if the rights holder has released the game. |
+| `amiga_forever` | string | URL to the Amiga Forever (Cloanto) store/product page where the game is available. |
 | `notes` | string | Free-form notes: bundle information, abandonware status, regional availability caveats. |
 
 The launcher surfaces these as labelled buttons in the GUI ("Get on GOG", etc.). No auto-fetching; clicking opens the URL in the user's browser.

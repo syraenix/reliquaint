@@ -16,10 +16,10 @@ description = "The 1990 SCI remake of the 1984 AGI original. Sir Graham's quest 
 
 [acquisition]
 steam = "https://store.steampowered.com/app/10100"
-notes = "Bundled in King's Quest 1+2+3 on Steam (app 10100)."
+notes = "Bundled in King's Quest Collection on Steam (app 10100)."
 
 [install]
-expects_files = ["SCIV.EXE", "RESOURCE.000"]
+expects_files = ["SCIV.EXE"]
 
 [runtime]
 emulator = "dosbox-staging"

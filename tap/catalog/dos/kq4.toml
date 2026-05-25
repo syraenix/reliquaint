@@ -15,11 +15,11 @@ tags        = ["sierra", "sci", "fantasy", "parser"]
 description = "The series' first SCI entry and first female protagonist. Princess Rosella's day-and-night quest to save her dying father."
 
 [acquisition]
-steam = "https://store.steampowered.com/app/10110"
-notes = "Bundled in King's Quest 4+5+6 on Steam (app 10110)."
+steam = "https://store.steampowered.com/app/10100"
+notes = "Bundled in King's Quest Collection on Steam (app 10100)."
 
 [install]
-expects_files = ["SCIV.EXE", "RESOURCE.000"]
+expects_files = ["SCIV.EXE"]
 
 [runtime]
 emulator = "dosbox-staging"
