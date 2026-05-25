@@ -25,6 +25,7 @@ Read before non-trivial changes:
 - `README.md`, `CONTRIBUTING.md`, `docs/prerequisites.md` — front door.
 - `docs/` — design docs.
 - `config/default-dosbox-staging.conf` — reference DOSBox config used as a starting point for per-entry `.conf` files.
+- `img/` — shared screenshots referenced by the docs.
 - `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` / `<id>.fs-uae` — the bundled `reliquaint-core` tap. Tests use the smaller fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
 - `scripts/extract-installers.sh` — extracts QFG GOG installers into `~/games/`.
 - `dos/<game-collection>/`, `amiga/` — collection guide markdown + screenshots. Originally also held the pre-redesign per-game manifests and configs; those migrated into the tap in Milestone 6. The guide prose becomes companion content in v0.4 per ADR-0003. The gitignored `installers/` (QFG) and `games/` (KQ) subdirectories stay put.
@@ -40,7 +41,7 @@ Read before non-trivial changes:
 - `user_config` — `${XDG_CONFIG_HOME}/reliquaint/config.toml` with Debian-friendly defaults.
 - `doctor::check_install` — host + per-install diagnostics; reuses `ProbeKind`/`ProbeStatus`/`ProbeResult`.
 - `paths` — XDG locations and `find_repo_root` heuristic (recognizes either `tap/tap.toml` or legacy `dos/+amiga/` directory markers).
-- `cli` — `reliquaint list/run/install/doctor`.
+- `cli` — `reliquaint list/run/install/migrate-installs/doctor`.
 - `commands` — Tauri command handlers: `list_catalog`, `install_game` (async, streams `install-output`; stages then commits, or returns `MissingFiles`), `commit_install` / `discard_install` (resolve a `MissingFiles` install anyway / cancel), `default_install_dest`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
 - `gui` — Tauri builder, `AppState`, AppHandle wiring (drives the `logging::TauriBridgeLayer` so tracing events flow to the diagnostic panel).
 - `logging` (ADR-0004), `error` (ADR-0005).
@@ -89,7 +90,7 @@ RUST_LOG=trace reliquaint list             # TRACE
 ### Develop the launcher
 
 ```bash
-cd launcher && cargo test                  # 100+ unit + 24 integration tests
+cd launcher && cargo test                  # 143 unit + 31 integration tests
 cd launcher && cargo build --bin reliquaint
 cd launcher && pnpm install && pnpm tauri dev   # GUI dev (Node + pnpm + Tauri system libs)
 cd launcher && pnpm tauri build            # release build
