@@ -40,7 +40,7 @@ Read before non-trivial changes:
 - `sidecar` — spawns the plan; SIGTERM/grace/SIGKILL sidecar shutdown; `run_plan_with_callback` streams primary stdout/stderr line-by-line (used by the GUI diagnostic panel).
 - `user_config` — `${XDG_CONFIG_HOME}/reliquaint/config.toml` with Debian-friendly defaults.
 - `doctor::check_install` — host + per-install diagnostics; reuses `ProbeKind`/`ProbeStatus`/`ProbeResult`.
-- `paths` — XDG locations and `find_repo_root` heuristic (recognizes either `tap/tap.toml` or legacy `dos/+amiga/` directory markers).
+- `paths` — XDG locations and `find_repo_root` heuristic (recognizes either `tap/tap.toml` or legacy `dos/+amiga/` directory markers). `packaged_repo_root` locates the tap shipped as a Tauri bundle resource (deb `/usr/lib/<name>/tap`, AppImage `$APPDIR`) for runs outside a git checkout. Resolution order in both entry points: `RELIQUAINT_REPO_ROOT` → `find_repo_root(cwd)` (dev) → bundled resource (GUI uses Tauri's `resource_dir`, CLI uses `packaged_repo_root`).
 - `cli` — `reliquaint list/run/install/migrate-installs/doctor`.
 - `commands` — Tauri command handlers: `list_catalog`, `install_game` (async, streams `install-output`; stages then commits, or returns `MissingFiles`), `commit_install` / `discard_install` (resolve a `MissingFiles` install anyway / cancel), `default_install_dest`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
 - `gui` — Tauri builder, `AppState`, AppHandle wiring (drives the `logging::TauriBridgeLayer` so tracing events flow to the diagnostic panel).
