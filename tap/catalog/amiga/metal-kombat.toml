@@ -4,6 +4,7 @@ schema_version = 1
 id       = "metal-kombat"
 title    = "Metal Kombat"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1995

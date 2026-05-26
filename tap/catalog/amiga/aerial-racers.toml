@@ -4,6 +4,7 @@ schema_version = 1
 id       = "aerial-racers"
 title    = "Aerial Racers"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1996

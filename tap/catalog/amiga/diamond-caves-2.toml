@@ -4,6 +4,7 @@ schema_version = 1
 id       = "diamond-caves-2"
 title    = "Diamond Caves 2"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1997

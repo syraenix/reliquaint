@@ -4,6 +4,7 @@ schema_version = 1
 id       = "soccer-kid"
 title    = "Soccer Kid"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1993

@@ -4,6 +4,7 @@ schema_version = 1
 id       = "tactical-manager-2"
 title    = "Tactical Manager 2"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1995

@@ -4,6 +4,7 @@ schema_version = 1
 id       = "ums-ii-nations-at-war"
 title    = "UMS II - Nations at War"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1991

@@ -4,6 +4,7 @@ schema_version = 1
 id       = "tip-off"
 title    = "Tip Off"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1992

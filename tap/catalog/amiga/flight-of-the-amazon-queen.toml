@@ -4,6 +4,7 @@ schema_version = 1
 id       = "flight-of-the-amazon-queen"
 title    = "Flight of the Amazon Queen"
 platform = "amiga"
+collection = "amiga-forever"
 
 [meta]
 year      = 1995
