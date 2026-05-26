@@ -1,5 +1,4 @@
 <script>
-  import { onMount } from "svelte";
   import { createEventDispatcher } from "svelte";
   import GameCard from "./GameCard.svelte";
 
@@ -8,16 +7,15 @@
 
   const STORAGE_KEY = "reliquaint:collection:expanded";
 
-  let expanded = {};
-
-  onMount(() => {
+  let expanded = (() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      expanded = raw ? JSON.parse(raw) : {};
+      const parsed = raw ? JSON.parse(raw) : {};
+      return (typeof parsed === "object" && parsed !== null) ? parsed : {};
     } catch {
-      expanded = {};
+      return {};
     }
-  });
+  })();
 
   function saveExpanded() {
     try {
