@@ -189,7 +189,7 @@
   h2 {
     font-size: 1.1rem;
     font-weight: 600;
-    color: #a0a8ff;
+    color: var(--gold-ink);
     margin-bottom: 16px;
   }
 
@@ -199,7 +199,7 @@
 
   .probe {
     padding: 8px 0;
-    border-bottom: 1px solid #1e1e30;
+    border-bottom: 1px solid var(--border-on-light);
     font-size: 0.88rem;
   }
 
@@ -217,15 +217,15 @@
     margin: 6px auto 0;
   }
 
-  .status-ok .dot { background: #4caf50; }
-  .status-missing .dot { background: #f44336; }
-  .status-unknown .dot { background: #888; }
+  .status-ok .dot { background: var(--status-installed); }
+  .status-missing .dot { background: var(--status-error); }
+  .status-unknown .dot { background: var(--ink-muted); }
 
   .text { min-width: 0; }
-  .name { color: #ccc; }
+  .name { color: var(--ink-primary); }
 
   .detail {
-    color: #666;
+    color: var(--ink-muted);
     font-size: 0.8rem;
     font-family: monospace;
     margin-top: 2px;
@@ -233,12 +233,12 @@
   }
 
   .hint {
-    color: #888;
+    color: var(--ink-secondary);
     font-size: 0.78rem;
     margin-top: 4px;
   }
 
-  .hint.error { color: #ff8080; }
+  .hint.error { color: var(--status-error-ink); }
 
   .actions {
     display: flex;
@@ -247,22 +247,22 @@
   }
 
   .fix-btn {
-    background: #2a2a45;
-    border: 1px solid #4a4a70;
-    color: #cfd2ff;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-light);
+    color: var(--text-primary);
     padding: 4px 10px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.8rem;
   }
 
-  .fix-btn:hover:not(:disabled) { background: #34345a; }
+  .fix-btn:hover:not(:disabled) { background: var(--bg-hover); }
   .fix-btn:disabled { opacity: 0.6; cursor: default; }
 
   .toggle-btn {
     background: transparent;
     border: none;
-    color: #888;
+    color: var(--ink-secondary);
     cursor: pointer;
     font-size: 0.9rem;
     padding: 4px 6px;
@@ -271,8 +271,8 @@
   .log {
     margin: 8px 0 0 24px;
     padding: 8px 10px;
-    background: #0d0d18;
-    border: 1px solid #1e1e30;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
     border-radius: 4px;
     max-height: 240px;
     overflow-y: auto;
@@ -280,12 +280,12 @@
     font-size: 0.78rem;
     line-height: 1.35;
     white-space: pre-wrap;
-    color: #b8b8c8;
+    color: var(--text-secondary);
   }
 
-  .log-line.stderr { color: #ff9090; }
+  .log-line.stderr { color: var(--status-error); }
 
-  .status { color: #888; font-size: 0.9rem; }
-  .error { color: #ff8080; }
-  .warn { color: #e0c060; font-size: 0.8rem; margin-bottom: 8px; }
+  .status { color: var(--ink-secondary); font-size: 0.9rem; }
+  .error { color: var(--status-error-ink); }
+  .warn { color: var(--status-warn-ink); font-size: 0.8rem; margin-bottom: 8px; }
 </style>

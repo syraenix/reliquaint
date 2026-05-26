@@ -136,21 +136,21 @@
     justify-content: space-between;
     padding: 6px 2px;
     margin-bottom: 4px;
-    border-bottom: 1px solid #2a2a40;
+    border-bottom: 1px solid var(--border-on-light);
   }
 
   .toolbar-label {
     font-size: 0.7rem;
     font-weight: 600;
-    color: #555;
+    color: var(--ink-muted);
     text-transform: uppercase;
     letter-spacing: 0.1em;
   }
 
   .toolbar-btn {
     background: none;
-    border: 1px solid #3a3a55;
-    color: #888;
+    border: 1px solid var(--border-on-light);
+    color: var(--ink-secondary);
     padding: 2px 10px;
     border-radius: 4px;
     cursor: pointer;
@@ -159,8 +159,8 @@
   }
 
   .toolbar-btn:hover {
-    color: #ccc;
-    border-color: #5555aa;
+    color: var(--ink-primary);
+    border-color: var(--gold-ink);
   }
 
   .collection {
@@ -174,19 +174,19 @@
     padding: 10px 2px;
     background: none;
     border: none;
-    border-bottom: 1px solid #2a2a40;
+    border-bottom: 1px solid var(--border-on-light);
     cursor: pointer;
     text-align: left;
     gap: 8px;
   }
 
   .collection-header:hover .collection-name {
-    color: #c0c8ff;
+    color: var(--gold-ink-deep);
   }
 
   .toggle-icon {
     font-size: 0.65rem;
-    color: #a0a8ff;
+    color: var(--gold-ink);
     width: 12px;
     flex-shrink: 0;
   }
@@ -195,7 +195,7 @@
     flex: 1;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #a0a8ff;
+    color: var(--gold-ink);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     transition: color 0.15s;
@@ -203,7 +203,7 @@
 
   .game-count {
     font-size: 0.75rem;
-    color: #555;
+    color: var(--ink-muted);
   }
 
   .grid {
@@ -219,12 +219,12 @@
 
   .other-label {
     font-size: 0.75rem;
-    color: #555;
+    color: var(--ink-muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 10px;
     padding-bottom: 6px;
-    border-bottom: 1px solid #2a2a40;
+    border-bottom: 1px solid var(--border-on-light);
   }
 
   .empty {
@@ -232,7 +232,7 @@
     align-items: center;
     justify-content: center;
     height: 200px;
-    color: #555;
+    color: var(--ink-muted);
     font-size: 0.95rem;
   }
 </style>

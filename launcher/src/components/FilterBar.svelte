@@ -25,9 +25,9 @@
   }
 
   button {
-    background: #252538;
-    border: 1px solid #3a3a55;
-    color: #888;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
     padding: 5px 14px;
     border-radius: 5px;
     cursor: pointer;
@@ -36,13 +36,13 @@
   }
 
   button:hover {
-    background: #2e2e4a;
-    color: #ccc;
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   button.active {
-    background: #3a3a7a;
-    border-color: #5555aa;
-    color: #c0c8ff;
+    background: var(--burgundy);
+    border-color: var(--burgundy-soft);
+    color: var(--text-primary);
   }
 </style>
