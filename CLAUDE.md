@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories — with the bundled `reliquaint-core` tap at `tap/` (18 entries: 5 QFG, 5 KQ, 7 Space Quest, 1 Amiga).
+The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories — with the bundled `reliquaint-core` tap at `tap/` (21 DOS entries: 5 QFG, 5 KQ, 7 Space Quest, 4 Police Quest, plus the bundled Amiga set).
 
 ## Design docs
 

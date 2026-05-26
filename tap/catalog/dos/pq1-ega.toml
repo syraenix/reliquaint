@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "pq1-ega"
+title      = "Police Quest: In Pursuit of the Death Angel (EGA)"
+platform   = "dos"
+collection = "police-quest"
+
+[meta]
+year        = 1987
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "agi", "crime", "parser"]
+description = "Sierra's by-the-book police procedural, designed by real California Highway Patrol officer Jim Walls. The original 1987 EGA release, patrolling the streets of Lytton through a typed parser."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/police_quest_collection"
+notes = "Bundled in the Police Quest Collection on GOG and Steam."
+
+[install]
+expects_files = ["SIERRA.COM", "WORDS.TOK"]
+subdir = "EGA"
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "pq1-ega.conf"
+entry  = "SIERRA.COM"
+mount  = "c"
