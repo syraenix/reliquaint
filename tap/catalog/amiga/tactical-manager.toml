@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "tactical-manager"
+title    = "Tactical Manager"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1994
+developer = "Black Legend"
+publisher = "Black Legend"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Tactical Manager (Black Legend, 1994, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+hard_drives = ["af-application.hdf"]

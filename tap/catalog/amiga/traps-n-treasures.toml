@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "traps-n-treasures"
+title    = "Traps 'n Treasures"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1993
+developer = "Roman Werner"
+publisher = "Roman Werner"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Traps 'n Treasures (Roman Werner, 1993, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["trapsntreasures1.adf", "trapsntreasures2.adf"]

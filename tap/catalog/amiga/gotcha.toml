@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "gotcha"
+title    = "Gotcha"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1991
+developer = "Nils Meier"
+publisher = "Nils Meier"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Gotcha (Nils Meier, 1991, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["gotcha.adf"]

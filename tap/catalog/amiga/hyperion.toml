@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "hyperion"
+title    = "Hyperion"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1993
+developer = "Black Legend"
+publisher = "Black Legend"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Hyperion (Black Legend, 1993, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["hyperion.adf"]

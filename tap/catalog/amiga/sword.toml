@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "sword"
+title    = "Sword"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1998
+developer = "Titan Computer"
+publisher = "Titan Computer"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Sword (Titan Computer, 1998, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["sword1.adf", "sword2.adf", "sword3.adf", "sword4.adf"]

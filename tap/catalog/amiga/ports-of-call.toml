@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "ports-of-call"
+title    = "Ports of Call"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1987
+developer = "Rolf-Dieter Klein & Martin Ulrich"
+publisher = "Rolf-Dieter Klein & Martin Ulrich"
+genre     = ["role", "adventure"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Ports of Call (Rolf-Dieter Klein & Martin Ulrich, 1987, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["portsofcall.adf"]

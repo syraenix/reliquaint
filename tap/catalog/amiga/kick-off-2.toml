@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "kick-off-2"
+title    = "Kick Off 2"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Dino Dini"
+publisher = "Dino Dini"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Kick Off 2 (Dino Dini, 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["kickoff2.adf"]

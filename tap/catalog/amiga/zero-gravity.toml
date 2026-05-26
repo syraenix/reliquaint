@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "zero-gravity"
+title    = "Zero Gravity"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1997
+developer = "Matthijs Hollemans"
+publisher = "Matthijs Hollemans"
+genre     = ["miscellaneous"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Zero Gravity (Matthijs Hollemans, 1997, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["zerogravity.adf"]

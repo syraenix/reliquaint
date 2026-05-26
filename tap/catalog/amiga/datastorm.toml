@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "datastorm"
+title    = "Datastorm"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1989
+developer = "Visionary Design Technology"
+publisher = "Visionary Design Technology"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Datastorm (Visionary Design Technology, 1989, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["datastorm.adf"]

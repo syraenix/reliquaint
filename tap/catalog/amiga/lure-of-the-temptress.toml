@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "lure-of-the-temptress"
+title    = "Lure of the Temptress"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1992
+developer = "Revolution Software"
+publisher = "Revolution Software"
+genre     = ["role", "adventure"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Lure of the Temptress (Revolution Software, 1992, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["lureofthetemptress4.adf", "lureofthetemptress1.adf", "lureofthetemptress2.adf", "lureofthetemptress3.adf"]

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "kick-off-96"
+title    = "Kick Off '96"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1996
+developer = "Anco"
+publisher = "Anco"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Kick Off '96 (Anco, 1996, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["kickoff961.adf", "kickoff962.adf", "kickoff963.adf"]

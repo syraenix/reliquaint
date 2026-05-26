@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "terramex"
+title    = "Terramex"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1987
+developer = "Teque"
+publisher = "Teque"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Terramex (Teque, 1987, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["terramex.adf"]

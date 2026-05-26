@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "over-the-net"
+title    = "Over the Net"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Dardari Bros."
+publisher = "Dardari Bros."
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Over the Net (Dardari Bros., 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["overthenet.adf"]

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "christmas-breakdown"
+title    = "Christmas Breakdown"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1997
+developer = "D6 Team"
+publisher = "D6 Team"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Christmas Breakdown (D6 Team, 1997, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["christmas.adf"]

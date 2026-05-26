@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "hammer-boy"
+title    = "Hammer Boy"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Dinamic"
+publisher = "Dinamic"
+genre     = ["mind", "puzzle"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Hammer Boy (Dinamic, 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["hammerboy.adf"]

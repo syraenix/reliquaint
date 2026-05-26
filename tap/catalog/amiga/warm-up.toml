@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "warm-up"
+title    = "Warm Up"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1991
+developer = "Dardari Bros."
+publisher = "Dardari Bros."
+genre     = ["driving", "simulation"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Warm Up (Dardari Bros., 1991, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["warmup1.adf", "warmup2.adf"]

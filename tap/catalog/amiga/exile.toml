@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "exile"
+title    = "Exile"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1991
+developer = "Audiogenic Software"
+publisher = "Audiogenic Software"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Exile (Audiogenic Software, 1991, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["exile.adf"]

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "kid-pool"
+title    = "Kid Pool"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1993
+developer = "Black Legend"
+publisher = "Black Legend"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Kid Pool (Black Legend, 1993, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["kidpool.adf"]

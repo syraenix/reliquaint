@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "overdose"
+title    = "Overdose"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1996
+developer = "Matthijs Hollemans"
+publisher = "Matthijs Hollemans"
+genre     = ["mind", "puzzle"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Overdose (Matthijs Hollemans, 1996, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["overdose.adf"]

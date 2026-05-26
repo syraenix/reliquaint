@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "satan"
+title    = "Satan"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Dinamic"
+publisher = "Dinamic"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Satan (Dinamic, 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["satan.adf"]

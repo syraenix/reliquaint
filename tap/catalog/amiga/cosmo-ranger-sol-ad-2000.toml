@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "cosmo-ranger-sol-ad-2000"
+title    = "Cosmo Ranger - SOL AD 2000"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1989
+developer = "Nils Meier"
+publisher = "Nils Meier"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Cosmo Ranger - SOL AD 2000 (Nils Meier, 1989, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["cosmoranger.adf"]

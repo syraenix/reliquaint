@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "aunt-arctic-adventure"
+title    = "Aunt Arctic Adventure"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1988
+developer = "Andreas Seebeck"
+publisher = "Andreas Seebeck"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Aunt Arctic Adventure (Andreas Seebeck, 1988, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["auntarcticadventure.adf"]

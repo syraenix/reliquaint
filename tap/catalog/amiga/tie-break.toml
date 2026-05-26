@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "tie-break"
+title    = "Tie Break"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Andreas Seebeck"
+publisher = "Andreas Seebeck"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Tie Break (Andreas Seebeck, 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["tiebreak.adf"]

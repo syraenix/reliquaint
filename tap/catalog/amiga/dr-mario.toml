@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "dr-mario"
+title    = "Dr. Mario"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1994
+developer = "Trash"
+publisher = "Trash"
+genre     = ["mind", "puzzle"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Dr. Mario (Trash, 1994, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["drmario.adf"]

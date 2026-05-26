@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "charon-5"
+title    = "Charon 5"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1988
+developer = "Andreas Seebeck"
+publisher = "Andreas Seebeck"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Charon 5 (Andreas Seebeck, 1988, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["charon5.adf"]

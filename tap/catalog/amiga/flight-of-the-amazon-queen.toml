@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "flight-of-the-amazon-queen"
+title    = "Flight of the Amazon Queen"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "Interactive Binary Illusions"
+publisher = "Interactive Binary Illusions"
+genre     = ["role", "adventure"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Flight of the Amazon Queen (Interactive Binary Illusions, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+hard_drives = ["af-application.hdf"]

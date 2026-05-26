@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "ums-the-universal-military-simulator"
+title    = "UMS - The Universal Military Simulator"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1987
+developer = "Intergalactic Development"
+publisher = "Intergalactic Development"
+genre     = ["miscellaneous"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["UMS - The Universal Military Simulator (Intergalactic Development, 1987, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["ums1.adf", "ums2.adf"]
