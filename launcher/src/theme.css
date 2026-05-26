@@ -1,0 +1,137 @@
+/* ============================================================================
+ * Reliquaint — Color Palette
+ *
+ * A warm, preservation-minded palette derived from the project icon.
+ * These :root custom properties are the single source of truth for color;
+ * component <style> blocks reference them via var(--…) only.
+ *
+ * Hierarchy:
+ *   - Surfaces (bg-*): the dark warm-brown foundation
+ *   - Text: cream-on-dark with three weights
+ *   - Brand (burgundy, gold): the two interactive accents
+ *   - Platforms (DOS, Amiga): warm, era-appropriate identifiers
+ *   - Status: muted signal colors that don't fight the warm scheme
+ * ========================================================================== */
+
+:root {
+  /* --- Surfaces ----------------------------------------------------------- */
+
+  /* Deepest background — page body, top bar (or use bg-base for a flatter feel) */
+  --bg-deep: #140B08;
+
+  /* Default surface — the parchment "page" behind the dark cards (two-tone).
+   * Dark cards/modals/panels float on this; text drawn directly on it uses the
+   * --ink-* / --gold-ink tokens below, NOT the cream --text-* tokens. */
+  --bg-base: #E7DAB8;
+
+  /* Lifted surface — cards, the platform-header zone of game cards, modals */
+  --bg-elevated: #2C1D17;
+
+  /* Hover state for elevated surfaces */
+  --bg-hover: #38251C;
+
+  /* Subtle divider / border between sections */
+  --border: #3A2C25;
+
+  /* Lighter border, e.g. for card outlines on hover */
+  --border-light: #4A3830;
+
+  /* --- Text --------------------------------------------------------------- */
+
+  /* Primary text — game titles, body copy, button labels */
+  --text-primary: #E8DDB7;
+
+  /* Secondary text — metadata, year/developer lines, description paragraphs */
+  --text-secondary: #B0A486;
+
+  /* Tertiary text — labels, IDs, dates, anything de-emphasized */
+  --text-muted: #7C715A;
+
+  /* --- Ink: text drawn directly on the parchment page (--bg-base) ---------
+   * Dark warm-brown counterparts to the cream --text-* tokens. Used only by
+   * page-level selectors; dark surfaces keep the cream tokens above. */
+  --ink-primary: #2A1E14;     /* page titles / names                          */
+  --ink-secondary: #5C4B36;   /* page metadata / descriptions                 */
+  --ink-muted: #6E5C40;       /* page labels / ids / counts                   */
+  --border-on-light: #C9B68C; /* dividers drawn on the parchment page         */
+
+  /* Antique-gold headings on parchment — darker than --gold for AA legibility */
+  --gold-ink: #7E5F1E;
+  --gold-ink-deep: #5E4615;   /* gold heading hover (darkens)                 */
+
+  /* Signal text on the parchment page — the dark-theme --status-* colors are
+   * too light to read on --bg-base, so page-level warn/error text uses these. */
+  --status-warn-ink: #8F5612;  /* burnt amber, distinct from --gold-ink        */
+  --status-error-ink: #9E2E20; /* deep red                                     */
+
+  /* --- Action: primary "go" buttons (Install / Launch) -------------------- */
+
+  /* Sage green — positive action; reserves burgundy/red for destructive ones */
+  --action: #8A9A5B;
+  --action-deep: #6E7E45;     /* hover / pressed                              */
+
+  /* --- Brand: burgundy (primary accent) ----------------------------------- */
+
+  /* Primary button fill, "All" filter selected, primary CTAs */
+  --burgundy: #8E2D44;
+
+  /* Hover/pressed state for burgundy elements */
+  --burgundy-deep: #6B2237;
+
+  /* Subtle burgundy tint — focus rings, soft highlights */
+  --burgundy-soft: #A53E5A;
+
+  /* --- Brand: gold (secondary accent) ------------------------------------- */
+
+  /* Wordmark, collection group titles, section labels */
+  --gold: #C99D4C;
+
+  /* Brighter gold for emphasis or hover */
+  --gold-bright: #DCB565;
+
+  /* Translucent gold for subtle backgrounds (rgba would let you tune alpha) */
+  --gold-dim: #6E5524;
+
+  /* --- Platform colors ---------------------------------------------------- */
+
+  /* DOS — warm amber, era-appropriate */
+  --platform-dos: #B98742;
+  --platform-dos-bg: #3D2C16;
+
+  /* Amiga — muted slate-teal with warm undertone, distinct from DOS */
+  --platform-amiga: #6E8088;
+  --platform-amiga-bg: #1F2528;
+
+  /* Reserved for future platforms (ScummVM, etc.) */
+  /* --platform-scummvm: ... */
+
+  /* --- Status ------------------------------------------------------------- */
+
+  /* Installed indicator — sage/olive green, signals "ready" without neon */
+  --status-installed: #8A9A5B;
+  --status-installed-bg: #2B341E;
+  --status-installed-border: #5E6B3F;
+
+  /* Warning — muted amber, for doctor issues */
+  --status-warn: #C99A4C;
+  --status-warn-bg: #3D2E16;
+
+  /* Error — muted red distinct from brand burgundy */
+  --status-error: #C04A3A;
+  --status-error-bg: #3D1A14;
+}
+
+/* --- Global reset + base ---------------------------------------------------
+ * Migrated out of index.html so the body styling references the palette. */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: system-ui, sans-serif;
+}

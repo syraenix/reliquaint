@@ -24,8 +24,8 @@
 
 <style>
   .card {
-    background: #1e1e30;
-    border: 1px solid #2a2a40;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
     text-align: left;
@@ -38,7 +38,7 @@
   }
 
   .card:hover {
-    border-color: #5555aa;
+    border-color: var(--burgundy-soft);
     transform: translateY(-2px);
   }
 
@@ -63,24 +63,24 @@
     letter-spacing: 0.08em;
     padding: 3px 8px;
     border-radius: 3px;
-    background: rgba(106, 191, 106, 0.2);
-    color: #6abf6a;
-    border: 1px solid #6abf6a;
+    background: var(--status-installed-bg);
+    color: var(--status-installed);
+    border: 1px solid var(--status-installed-border);
   }
 
   .platform-dos {
-    background: #1a2e1a;
-    color: #6abf6a;
+    background: var(--platform-dos-bg);
+    color: var(--platform-dos);
   }
 
   .platform-amiga {
-    background: #2e1a1a;
-    color: #bf6a6a;
+    background: var(--platform-amiga-bg);
+    color: var(--platform-amiga);
   }
 
   .info {
     padding: 10px 12px;
-    border-top: 1px solid #2a2a40;
+    border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -88,7 +88,7 @@
 
   .title {
     font-size: 0.88rem;
-    color: #ddd;
+    color: var(--text-primary);
     line-height: 1.3;
     white-space: nowrap;
     overflow: hidden;
@@ -97,7 +97,7 @@
 
   .meta {
     font-size: 0.75rem;
-    color: #777;
+    color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

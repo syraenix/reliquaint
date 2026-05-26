@@ -403,7 +403,7 @@
   .back {
     background: none;
     border: none;
-    color: #888;
+    color: var(--ink-secondary);
     cursor: pointer;
     font-size: 0.9rem;
     padding: 4px 0;
@@ -411,7 +411,7 @@
   }
 
   .back:hover {
-    color: #ccc;
+    color: var(--ink-primary);
   }
 
   .layout {
@@ -446,19 +446,19 @@
     letter-spacing: 0.1em;
     padding: 5px 12px;
     border-radius: 4px;
-    background: rgba(106, 191, 106, 0.2);
-    color: #6abf6a;
-    border: 1px solid #6abf6a;
+    background: var(--status-installed-bg);
+    color: var(--status-installed);
+    border: 1px solid var(--status-installed-border);
   }
 
   .platform-dos {
-    background: #1a2e1a;
-    color: #6abf6a;
+    background: var(--platform-dos-bg);
+    color: var(--platform-dos);
   }
 
   .platform-amiga {
-    background: #2e1a1a;
-    color: #bf6a6a;
+    background: var(--platform-amiga-bg);
+    color: var(--platform-amiga);
   }
 
   .info {
@@ -469,7 +469,7 @@
   h2 {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #e0e0f0;
+    color: var(--ink-primary);
     margin-bottom: 16px;
   }
 
@@ -481,7 +481,7 @@
   }
 
   dt {
-    color: #666;
+    color: var(--ink-muted);
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -489,19 +489,19 @@
   }
 
   dd {
-    color: #bbb;
+    color: var(--ink-secondary);
     font-size: 0.9rem;
     word-break: break-word;
   }
 
   .id {
     font-family: monospace;
-    color: #888;
+    color: var(--ink-muted);
     font-size: 0.85rem;
   }
 
   .description {
-    color: #bbb;
+    color: var(--ink-secondary);
     font-size: 0.92rem;
     line-height: 1.6;
     margin-bottom: 20px;
@@ -516,7 +516,7 @@
   .acquisition h3 {
     font-size: 0.78rem;
     font-weight: 600;
-    color: #888;
+    color: var(--gold-ink);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 10px;
@@ -530,9 +530,9 @@
   }
 
   .acq-btn {
-    background: #252538;
-    border: 1px solid #3a3a55;
-    color: #c0c8ff;
+    background: transparent;
+    border: 1px solid var(--gold-ink);
+    color: var(--gold-ink);
     padding: 7px 14px;
     border-radius: 5px;
     cursor: pointer;
@@ -540,12 +540,13 @@
   }
 
   .acq-btn:hover {
-    background: #2e2e4a;
-    border-color: #5555aa;
+    background: var(--gold-ink);
+    border-color: var(--gold-ink);
+    color: var(--bg-base);
   }
 
   .acquisition-notes {
-    color: #999;
+    color: var(--ink-secondary);
     font-size: 0.85rem;
     line-height: 1.5;
     font-style: italic;
@@ -558,9 +559,9 @@
   }
 
   .primary {
-    background: #3a3a7a;
-    border: 1px solid #5555aa;
-    color: #c0c8ff;
+    background: var(--action);
+    border: 1px solid var(--action-deep);
+    color: var(--ink-primary);
     padding: 10px 28px;
     border-radius: 7px;
     cursor: pointer;
@@ -570,7 +571,7 @@
   }
 
   .primary:hover:not(:disabled) {
-    background: #4a4a9a;
+    background: var(--action-deep);
   }
 
   .primary:disabled {
@@ -586,13 +587,13 @@
   }
 
   .success {
-    background: #1a2e1a;
-    color: #6abf6a;
+    background: var(--status-installed-bg);
+    color: var(--status-installed);
   }
 
   .error {
-    background: #2e1a1a;
-    color: #ff8080;
+    background: var(--status-error-bg);
+    color: var(--status-error);
   }
 
   .diagnostics {
@@ -611,20 +612,20 @@
   }
 
   .modal {
-    background: #1e1e30;
-    border: 1px solid #3a3a55;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-light);
     border-radius: 8px;
     padding: 24px;
     max-width: 560px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
-    color: #ddd;
+    color: var(--text-primary);
   }
 
   .modal h3 {
     font-size: 1.05rem;
-    color: #ffaa44;
+    color: var(--status-warn);
     margin-bottom: 14px;
   }
 
@@ -636,7 +637,7 @@
 
   .modal ul {
     margin: 0 0 16px 20px;
-    color: #bbb;
+    color: var(--text-secondary);
     font-family: monospace;
     font-size: 0.88rem;
   }
@@ -650,7 +651,7 @@
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: #888;
+    color: var(--text-muted);
     margin-bottom: 8px;
   }
 
@@ -663,25 +664,25 @@
   .chosen {
     margin: 8px 0 0;
     font-size: 0.82rem;
-    color: #aaa;
+    color: var(--text-secondary);
     word-break: break-all;
   }
 
   .chosen code {
-    color: #c0c8ff;
+    color: var(--gold-bright);
   }
 
   .link {
     background: none;
     border: none;
-    color: #7a7add;
+    color: var(--gold-bright);
     cursor: pointer;
     font-size: 0.8rem;
     padding: 0 0 0 8px;
   }
 
   .link:hover:not(:disabled) {
-    color: #9a9aff;
+    color: var(--gold);
     text-decoration: underline;
   }
 
@@ -691,8 +692,8 @@
   }
 
   .install-log {
-    background: #12121e;
-    border: 1px solid #2a2a40;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
     border-radius: 5px;
     padding: 10px;
     margin: 0 0 12px;
@@ -700,7 +701,7 @@
     overflow-y: auto;
     font-family: monospace;
     font-size: 0.78rem;
-    color: #9a9ab0;
+    color: var(--text-secondary);
     white-space: pre-wrap;
     word-break: break-all;
   }
@@ -714,8 +715,8 @@
 
   .secondary {
     background: transparent;
-    border: 1px solid #3a3a55;
-    color: #aaa;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
     padding: 8px 18px;
     border-radius: 6px;
     cursor: pointer;
@@ -723,8 +724,8 @@
   }
 
   .secondary:hover:not(:disabled) {
-    background: #252538;
-    color: #ddd;
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .secondary:disabled {
