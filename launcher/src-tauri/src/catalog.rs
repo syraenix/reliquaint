@@ -26,6 +26,8 @@ pub struct Game {
     pub platform: Platform,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collection: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collection_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -792,5 +794,44 @@ hard_drives = ["../sneaky.hdf"]
             ),
             "got {err:?}"
         );
+    }
+
+    #[test]
+    fn parses_collection_name() {
+        let text = r#"
+schema_version = 1
+[game]
+id = "kq1"
+title = "King's Quest"
+platform = "dos"
+collection = "kings-quest"
+collection_name = "King's Quest"
+[runtime]
+emulator = "dosbox-staging"
+[runtime.dosbox]
+config = "kq1.conf"
+entry = "KQ.BAT"
+"#;
+        let entry = parse_str(text, Path::new("kq1.toml")).unwrap();
+        assert_eq!(entry.game.collection_name, Some("King's Quest".to_string()));
+    }
+
+    #[test]
+    fn collection_name_defaults_to_none() {
+        let text = r#"
+schema_version = 1
+[game]
+id = "kq1"
+title = "King's Quest"
+platform = "dos"
+collection = "kings-quest"
+[runtime]
+emulator = "dosbox-staging"
+[runtime.dosbox]
+config = "kq1.conf"
+entry = "KQ.BAT"
+"#;
+        let entry = parse_str(text, Path::new("kq1.toml")).unwrap();
+        assert_eq!(entry.game.collection_name, None);
     }
 }
