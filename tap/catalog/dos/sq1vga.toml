@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq1vga"
+title      = "Space Quest I: Roger Wilco in the Sarien Encounter (VGA)"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1991
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "sci-fi", "point-and-click", "humor"]
+description = "The 1991 SCI remake of the original Space Quest, rebuilt with 256-color VGA art and a point-and-click interface in place of the parser."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_1_2_3"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 1+2+3 pack on GOG."
+
+[install]
+expects_files = ["SCIDHUV.EXE"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq1vga.conf"
+entry  = "SCIDHUV.EXE"
+mount  = "c"

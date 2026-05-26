@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq1"
+title      = "Space Quest: The Sarien Encounter"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1986
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "agi", "sci-fi", "parser", "humor"]
+description = "Janitor Roger Wilco wakes from a nap to find the Sarien Encounter has gutted his starship and stolen the Star Generator. The original 1986 AGI release, played through a typed parser."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_1_2_3"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 1+2+3 pack on GOG."
+
+[install]
+expects_files = ["SQ.COM"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq1.conf"
+entry  = "SQ.COM"
+mount  = "c"

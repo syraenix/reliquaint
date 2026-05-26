@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq4"
+title      = "Space Quest IV: Roger Wilco and the Time Rippers"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1991
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "sci-fi", "point-and-click", "humor"]
+description = "Roger is yanked through time by the Sequel Police to stop Sludge Vohaul once more, hopping between past and future Space Quest games. This CD release adds full digitized speech."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_4_5_6"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 4+5+6 pack on GOG."
+
+[install]
+expects_files = ["SIERRA.EXE"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq4.conf"
+entry  = "SIERRA.EXE"
+mount  = "c"

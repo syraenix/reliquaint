@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq6"
+title      = "Space Quest 6: The Spinal Frontier"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1995
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "sci-fi", "point-and-click", "humor"]
+description = "Demoted back to janitor, Roger Wilco is shrunk and injected into a crewmate's body to save her life. The final Space Quest, a CD release with hand-painted VGA art and digitized speech."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_4_5_6"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 4+5+6 pack on GOG."
+
+[install]
+expects_files = ["SIERRA.EXE"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq6.conf"
+entry  = 'SIERRA.EXE -o .\resource.cfg'
+mount  = "c"
