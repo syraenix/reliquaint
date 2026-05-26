@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "pq3"
+title      = "Police Quest III: The Kindred"
+platform   = "dos"
+collection = "police-quest"
+
+[meta]
+year        = 1991
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "crime", "point-and-click"]
+description = "Now a homicide detective, Sonny Bonds investigates a near-fatal attack on his wife and the cult conspiracy behind it. The VGA point-and-click entry, designed by Jim Walls with a Jan Hammer score."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/police_quest_collection"
+notes = "Bundled in the Police Quest Collection on GOG and Steam."
+
+[install]
+expects_files = ["SCIDHUV.EXE", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "pq3.conf"
+entry  = "SCIDHUV.EXE"
+mount  = "c"

@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "pq1-vga"
+title      = "Police Quest: In Pursuit of the Death Angel (VGA)"
+platform   = "dos"
+collection = "police-quest"
+
+[meta]
+year        = 1992
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "crime", "point-and-click"]
+description = "Sierra's by-the-book police procedural, designed by real California Highway Patrol officer Jim Walls. This 1992 VGA remake of the 1987 original swaps the typed parser for a point-and-click interface."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/police_quest_collection"
+notes = "Bundled in the Police Quest Collection on GOG and Steam."
+
+[install]
+expects_files = ["SCIDHUV.EXE", "RESOURCE.000"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "pq1-vga.conf"
+entry  = "SCIDHUV.EXE"
+mount  = "c"
