@@ -9,6 +9,10 @@
 
 A preservation hub for classic DOS and Amiga games that happens to launch. One catalog, one install command, one launch button — plus the future scaffolding for the maps, hint sheets, and manuals that gave these games their flavour.
 
+<p align="center">
+  <img src="launcher/src-tauri/icons/icon.png" alt="Reliquaint" />
+</p>
+
 ## What it is
 
 Reliquaint is a Linux launcher built on top of [DOSBox-Staging](https://www.dosbox-staging.org/) (DOS) and [FS-UAE](https://fs-uae.net/) (Amiga). You bring your own legally-acquired game files; Reliquaint handles the configuration, mounting, sidecars (FluidSynth for MIDI), and a small catalog of curated metadata.
