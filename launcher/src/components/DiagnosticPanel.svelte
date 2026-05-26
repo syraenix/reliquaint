@@ -103,8 +103,8 @@
 
 <style>
   .panel {
-    background: #15151f;
-    border: 1px solid #2a2a40;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
     border-radius: 6px;
     max-height: 260px;
     overflow-y: auto;
@@ -117,8 +117,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 6px 12px;
-    background: #1a1a2e;
-    border-bottom: 1px solid #2a2a40;
+    background: var(--bg-base);
+    border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
     z-index: 1;
@@ -126,7 +126,7 @@
 
   .title {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-family: system-ui, sans-serif;
@@ -134,8 +134,8 @@
 
   .clear {
     background: transparent;
-    border: 1px solid #3a3a55;
-    color: #888;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
     padding: 3px 10px;
     border-radius: 4px;
     cursor: pointer;
@@ -144,8 +144,8 @@
   }
 
   .clear:hover:not(:disabled) {
-    background: #252538;
-    color: #ccc;
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .clear:disabled {
@@ -155,7 +155,7 @@
 
   .empty {
     padding: 14px;
-    color: #555;
+    color: var(--text-muted);
     text-align: center;
     font-family: system-ui, sans-serif;
     font-size: 0.85rem;
@@ -175,26 +175,26 @@
   .tag {
     flex-shrink: 0;
     width: 60px;
-    color: #666;
+    color: var(--text-muted);
     font-size: 0.7rem;
     padding-top: 1px;
   }
 
-  .log-error .tag { color: #ff6b6b; }
-  .log-warn  .tag { color: #ffaa44; }
-  .log-info  .tag { color: #6abf6a; }
-  .log-debug .tag { color: #5588ff; }
-  .log-trace .tag { color: #888; }
+  .log-error .tag { color: var(--status-error); }
+  .log-warn  .tag { color: var(--status-warn); }
+  .log-info  .tag { color: var(--status-installed); }
+  .log-debug .tag { color: var(--text-secondary); }
+  .log-trace .tag { color: var(--text-muted); }
 
-  .tag-emu { color: #aaa; }
-  .emu-stderr .tag { color: #ff8080; }
+  .tag-emu { color: var(--text-secondary); }
+  .emu-stderr .tag { color: var(--status-error); }
 
   .text {
-    color: #ccc;
+    color: var(--text-primary);
     word-break: break-word;
     white-space: pre-wrap;
   }
 
-  .log-error .text { color: #ffb0b0; }
-  .log-warn .text { color: #ffd080; }
+  .log-error .text { color: var(--status-error); }
+  .log-warn .text { color: var(--status-warn); }
 </style>

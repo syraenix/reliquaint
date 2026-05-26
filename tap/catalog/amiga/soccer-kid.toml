@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "soccer-kid"
+title    = "Soccer Kid"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1993
+developer = "Krisalis"
+publisher = "Krisalis"
+genre     = ["platform"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Soccer Kid (Krisalis, 1993, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+hard_drives = ["af-application.hdf"]

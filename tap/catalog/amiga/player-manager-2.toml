@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "player-manager-2"
+title    = "Player Manager 2"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "Anco"
+publisher = "Anco"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Player Manager 2 (Anco, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["playermanager21.adf", "playermanager22.adf", "playermanager23.adf"]

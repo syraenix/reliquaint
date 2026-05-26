@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "leading-lap"
+title    = "Leading Lap"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "Black Legend"
+publisher = "Black Legend"
+genre     = ["driving", "simulation"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Leading Lap (Black Legend, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["leadinglap1.adf", "leadinglap2.adf"]

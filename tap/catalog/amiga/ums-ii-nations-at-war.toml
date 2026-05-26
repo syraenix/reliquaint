@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "ums-ii-nations-at-war"
+title    = "UMS II - Nations at War"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1991
+developer = "Intergalactic Development"
+publisher = "Intergalactic Development"
+genre     = ["miscellaneous"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["UMS II - Nations at War (Intergalactic Development, 1991, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["umsii1.adf", "umsiidata1.adf", "umsiidata2.adf"]

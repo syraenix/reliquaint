@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "cricket-captain"
+title    = "Cricket Captain"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1989
+developer = "The Majestic 12"
+publisher = "The Majestic 12"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Cricket Captain (The Majestic 12, 1989, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["cricketcaptain.adf"]

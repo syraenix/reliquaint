@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "deluxe-pacman"
+title    = "Deluxe Pacman"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "Edgar M. Vigdal"
+publisher = "Edgar M. Vigdal"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Deluxe Pacman (Edgar M. Vigdal, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+hard_drives = ["af-application.hdf"]

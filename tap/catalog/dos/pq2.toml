@@ -1,0 +1,31 @@
+schema_version = 1
+
+[game]
+id         = "pq2"
+title      = "Police Quest II: The Vengeance"
+platform   = "dos"
+collection = "police-quest"
+
+[meta]
+year        = 1988
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "crime", "parser"]
+description = "Detective Sonny Bonds hunts escaped killer Jessie Bains across Lytton after a courthouse breakout. Jim Walls' SCI parser follow-up to the original police procedural."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/police_quest_collection"
+notes = "Bundled in the Police Quest Collection on GOG and Steam."
+
+[install]
+expects_files = ["SIERRA.EXE", "RESOURCE.001"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "pq2.conf"
+entry  = "SIERRA.EXE"
+mount  = "c"

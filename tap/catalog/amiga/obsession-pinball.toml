@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "obsession-pinball"
+title    = "Obsession Pinball"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "UDS"
+publisher = "UDS"
+genre     = ["miscellaneous"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Obsession Pinball (UDS, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["obsessionpinball1.adf", "obsessionpinball2.adf"]

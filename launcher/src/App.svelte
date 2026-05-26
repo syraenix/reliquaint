@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import iconSrc from "./assets/icon.png";
   import FilterBar from "./components/FilterBar.svelte";
   import GameGrid from "./components/GameGrid.svelte";
   import GameDetail from "./components/GameDetail.svelte";
@@ -41,7 +42,10 @@
 
 <div class="app">
   <header>
-    <h1>Reliquaint</h1>
+    <div class="app-title">
+      <img src={iconSrc} alt="" aria-hidden="true" class="app-icon" />
+      <h1>Reliquaint</h1>
+    </div>
     <div class="header-actions">
       <FilterBar bind:filter />
       <button class="header-btn" on:click={loadCatalog} title="Refresh catalog">
@@ -82,6 +86,7 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
+    background: var(--bg-base);
   }
 
   header {
@@ -89,15 +94,26 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 20px;
-    background: #1a1a2e;
-    border-bottom: 1px solid #2a2a40;
+    background: var(--bg-deep);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .app-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .app-icon {
+    width: 24px;
+    height: 24px;
   }
 
   h1 {
     font-size: 1.2rem;
     font-weight: 600;
-    color: #a0a8ff;
+    color: var(--gold);
     letter-spacing: 0.03em;
   }
 
@@ -108,9 +124,9 @@
   }
 
   .header-btn {
-    background: #252538;
-    border: 1px solid #3a3a55;
-    color: #a0a8ff;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-light);
+    color: var(--gold);
     padding: 6px 14px;
     border-radius: 6px;
     cursor: pointer;
@@ -118,7 +134,7 @@
   }
 
   .header-btn:hover {
-    background: #2e2e4a;
+    background: var(--bg-hover);
   }
 
   .status {
@@ -127,19 +143,19 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #888;
+    color: var(--ink-secondary);
     font-size: 1rem;
     text-align: center;
     padding: 20px;
   }
 
   .status small {
-    color: #555;
+    color: var(--ink-muted);
     font-size: 0.85rem;
     margin-top: 8px;
   }
 
   .error {
-    color: #ff6b6b;
+    color: var(--status-error-ink);
   }
 </style>

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "zoom"
+title    = "Zoom!"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1988
+developer = "Discovery Software"
+publisher = "Discovery Software"
+genre     = ["mind", "puzzle"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Zoom! (Discovery Software, 1988, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["zoom.adf"]

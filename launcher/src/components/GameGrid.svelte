@@ -5,37 +5,121 @@
   export let games = [];
   const dispatch = createEventDispatcher();
 
-  // Group by collection ("(no collection)" bucket for entries without one).
-  // Stable order: collections alphabetical, games alphabetical within.
-  $: grouped = (() => {
-    const buckets = new Map();
-    for (const g of games) {
-      const key = g.collection ?? "(no collection)";
-      if (!buckets.has(key)) buckets.set(key, []);
-      buckets.get(key).push(g);
+  const STORAGE_KEY = "reliquaint:collection:expanded";
+
+  let expanded = (() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return (typeof parsed === "object" && parsed !== null) ? parsed : {};
+    } catch {
+      return {};
     }
-    const sorted = Array.from(buckets.entries()).sort((a, b) =>
-      a[0].localeCompare(b[0])
+  })();
+
+  function saveExpanded() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(expanded));
+    } catch { /* storage unavailable */ }
+  }
+
+  function autoFormatCollection(id) {
+    return id.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  $: collected = (() => {
+    const map = new Map();
+    for (const g of games) {
+      if (!g.collection) continue;
+      if (!map.has(g.collection)) {
+        const displayName = g.collection_name ?? autoFormatCollection(g.collection);
+        map.set(g.collection, { displayName, games: [] });
+      }
+      map.get(g.collection).games.push(g);
+    }
+    const sorted = Array.from(map.entries()).sort((a, b) =>
+      a[1].displayName.localeCompare(b[1].displayName)
     );
-    for (const [, list] of sorted) list.sort((a, b) => a.id.localeCompare(b.id));
+    for (const [, group] of sorted) {
+      group.games.sort((a, b) => a.id.localeCompare(b.id));
+    }
     return sorted;
   })();
+
+  $: standalone = [...games]
+    .filter((g) => !g.collection)
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  $: allExpanded =
+    collected.length > 0 && collected.every(([id]) => expanded[id]);
+
+  function toggleCollection(id) {
+    const next = { ...expanded };
+    if (next[id]) {
+      delete next[id];
+    } else {
+      next[id] = true;
+    }
+    expanded = next;
+    saveExpanded();
+  }
+
+  function expandAll() {
+    const next = {};
+    for (const [id] of collected) next[id] = true;
+    expanded = next;
+    saveExpanded();
+  }
+
+  function collapseAll() {
+    expanded = {};
+    saveExpanded();
+  }
 </script>
 
 <div class="grid-container">
   {#if games.length === 0}
     <div class="empty">No games match this filter.</div>
   {:else}
-    {#each grouped as [collection, items] (collection)}
-      <section class="group">
-        <h2>{collection}</h2>
+    {#if collected.length > 0}
+      <div class="collection-toolbar">
+        <span class="toolbar-label">Collections</span>
+        <button class="toolbar-btn" on:click={allExpanded ? collapseAll : expandAll}>
+          {allExpanded ? "collapse all" : "expand all"}
+        </button>
+      </div>
+
+      {#each collected as [id, group] (id)}
+        <section class="collection">
+          <button class="collection-header" on:click={() => toggleCollection(id)}>
+            <span class="toggle-icon">{expanded[id] ? "▼" : "▶"}</span>
+            <span class="collection-name">{group.displayName}</span>
+            <span class="game-count"
+              >{group.games.length}
+              {group.games.length === 1 ? "game" : "games"}</span
+            >
+          </button>
+          {#if expanded[id]}
+            <div class="grid">
+              {#each group.games as game (game.id)}
+                <GameCard {game} on:click={() => dispatch("select", game)} />
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/each}
+    {/if}
+
+    {#if standalone.length > 0}
+      <section class="other-section">
+        <div class="other-label">Other</div>
         <div class="grid">
-          {#each items as game (game.id)}
+          {#each standalone as game (game.id)}
             <GameCard {game} on:click={() => dispatch("select", game)} />
           {/each}
         </div>
       </section>
-    {/each}
+    {/if}
   {/if}
 </div>
 
@@ -46,29 +130,101 @@
     padding: 20px;
   }
 
-  .group {
-    margin-bottom: 28px;
+  .collection-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 2px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border-on-light);
   }
 
-  .group:last-child {
-    margin-bottom: 0;
+  .toolbar-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
-  h2 {
+  .toolbar-btn {
+    background: none;
+    border: 1px solid var(--border-on-light);
+    color: var(--ink-secondary);
+    padding: 2px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .toolbar-btn:hover {
+    color: var(--ink-primary);
+    border-color: var(--gold-ink);
+  }
+
+  .collection {
+    margin-bottom: 4px;
+  }
+
+  .collection-header {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 10px 2px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-on-light);
+    cursor: pointer;
+    text-align: left;
+    gap: 8px;
+  }
+
+  .collection-header:hover .collection-name {
+    color: var(--gold-ink-deep);
+  }
+
+  .toggle-icon {
+    font-size: 0.65rem;
+    color: var(--gold-ink);
+    width: 12px;
+    flex-shrink: 0;
+  }
+
+  .collection-name {
+    flex: 1;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #a0a8ff;
+    color: var(--gold-ink);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-bottom: 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #2a2a40;
+    transition: color 0.15s;
+  }
+
+  .game-count {
+    font-size: 0.75rem;
+    color: var(--ink-muted);
   }
 
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px;
+    padding: 12px 0 16px;
+  }
+
+  .other-section {
+    margin-top: 20px;
+  }
+
+  .other-label {
+    font-size: 0.75rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-on-light);
   }
 
   .empty {
@@ -76,7 +232,7 @@
     align-items: center;
     justify-content: center;
     height: 200px;
-    color: #555;
+    color: var(--ink-muted);
     font-size: 0.95rem;
   }
 </style>

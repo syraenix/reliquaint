@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "world-cup-90"
+title    = "World Cup '90"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Dardari Bros."
+publisher = "Dardari Bros."
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["World Cup '90 (Dardari Bros., 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["worldcup90.adf"]

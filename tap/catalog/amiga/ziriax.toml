@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "ziriax"
+title    = "Ziriax"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "The Whiz Kidz"
+publisher = "The Whiz Kidz"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Ziriax (The Whiz Kidz, 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["ziriax.adf"]

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "blasteroids"
+title    = "Blasteroids"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1989
+developer = "Teque"
+publisher = "Teque"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Blasteroids (Teque, 1989, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["blasteroids.adf"]

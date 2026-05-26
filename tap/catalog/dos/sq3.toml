@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq3"
+title      = "Space Quest III: The Pirates of Pestulon"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1989
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "sci-fi", "parser", "humor"]
+description = "Adrift in an escape pod, Roger Wilco is salvaged by a garbage freighter and drawn into rescuing the kidnapped Two Guys from Andromeda from ScumSoft. The first Space Quest built on the SCI engine, still parser-driven."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_1_2_3"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 1+2+3 pack on GOG."
+
+[install]
+expects_files = ["SCIV.EXE"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq3.conf"
+entry  = "SCIV.EXE"
+mount  = "c"

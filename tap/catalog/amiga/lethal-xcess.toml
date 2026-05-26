@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "lethal-xcess"
+title    = "Lethal Xcess"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1991
+developer = "Heinz Rudolf"
+publisher = "Heinz Rudolf"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Lethal Xcess (Heinz Rudolf, 1991, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["lethalxcess1.adf", "lethalxcess2.adf"]

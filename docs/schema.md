@@ -111,7 +111,8 @@ schema_version = 1
 id       = "qfg1-ega"
 title    = "Quest for Glory I: So You Want to Be a Hero (EGA)"
 platform = "dos"
-collection = "quest-for-glory"   # optional; groups related games in the UI
+collection = "quest-for-glory"        # optional; groups related games in the UI
+# collection_name = "Quest for Glory"  # omit when auto-format is correct
 
 [meta]
 year         = 1989
@@ -146,6 +147,7 @@ mount  = "c"
 | `title` | string | yes | Human-readable title as it should appear in the UI. |
 | `platform` | string | yes | One of `dos`, `amiga`. Determines which `runtime.*` subtable is consulted. |
 | `collection` | string | no | A group key for related games (e.g. `quest-for-glory`). Free-form identifier following the id rules. Pure UI grouping; no semantic effect. |
+| `collection_name` | string | no | Human-readable display name for the collection (e.g. `"King's Quest"`). Optional; if absent the UI auto-formats `collection` by replacing hyphens with spaces and title-casing each word. Only needed when the formatted ID would be incorrect (e.g. apostrophes, mixed case). |
 
 ### `[meta]`
 

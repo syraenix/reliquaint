@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "amibee"
+title    = "AmiBee"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1997
+developer = "Twin Eagles Group"
+publisher = "Twin Eagles Group"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["AmiBee (Twin Eagles Group, 1997, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["amibee.adf"]

@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "face-off"
+title    = "Face Off"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1989
+developer = "Anco"
+publisher = "Anco"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Face Off (Anco, 1989, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["faceoff.adf"]

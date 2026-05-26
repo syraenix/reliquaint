@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "metal-kombat"
+title    = "Metal Kombat"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "D6 Team"
+publisher = "D6 Team"
+genre     = ["fighting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Metal Kombat (D6 Team, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["metalkombat1.adf", "metalkombat2.adf", "metalkombat3.adf"]

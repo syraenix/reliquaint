@@ -9,11 +9,15 @@
 
 A preservation hub for classic DOS and Amiga games that happens to launch. One catalog, one install command, one launch button — plus the future scaffolding for the maps, hint sheets, and manuals that gave these games their flavour.
 
+<p align="center">
+  <img src="launcher/src-tauri/icons/icon.png" alt="Reliquaint" />
+</p>
+
 ## What it is
 
 Reliquaint is a Linux launcher built on top of [DOSBox-Staging](https://www.dosbox-staging.org/) (DOS) and [FS-UAE](https://fs-uae.net/) (Amiga). You bring your own legally-acquired game files; Reliquaint handles the configuration, mounting, sidecars (FluidSynth for MIDI), and a small catalog of curated metadata.
 
-The bundled `reliquaint-core` tap ships with 11 entries — Quest for Glory I–IV, King's Quest I (SCI remake) through V, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) is designed for community-maintained additions in future versions.
+The bundled `reliquaint-core` tap ships with 18 entries — Quest for Glory I–IV, King's Quest I (SCI remake) through V, Space Quest I–VI (including the SQ1 VGA remake), and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) is designed for community-maintained additions in future versions.
 
 It does **not** acquire game files for you. It does **not** circumvent DRM. The user provides their own copies; the launcher tells them where to put them.
 

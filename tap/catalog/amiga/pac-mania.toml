@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "pac-mania"
+title    = "Pac-Mania"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1988
+developer = "Grandslam"
+publisher = "Grandslam"
+genre     = ["action", "shooting"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Pac-Mania (Grandslam, 1988, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["pacmania.adf"]

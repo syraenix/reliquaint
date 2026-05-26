@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "aerial-racers"
+title    = "Aerial Racers"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1996
+developer = "Insane Software"
+publisher = "Insane Software"
+genre     = ["driving", "simulation"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Aerial Racers (Insane Software, 1996, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["aerialracers1.adf", "aerialracers2.adf", "aerialracers3.adf"]

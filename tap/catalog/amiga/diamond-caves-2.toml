@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "diamond-caves-2"
+title    = "Diamond Caves 2"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1997
+developer = "Diamond Productions"
+publisher = "Diamond Productions"
+genre     = ["mind", "puzzle"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Diamond Caves 2 (Diamond Productions, 1997, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+floppies = ["diamondcaves2.adf"]

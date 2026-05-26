@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq5"
+title      = "Space Quest V: The Next Mutation"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1993
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "sci", "sci-fi", "point-and-click", "humor"]
+description = "Now a Starcon Academy graduate, Captain Roger Wilco commands the garbage scow SCS Eureka and stumbles onto a mutagen conspiracy. A Star Trek-flavored point-and-click entry."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_4_5_6"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 4+5+6 pack on GOG."
+
+[install]
+expects_files = ["SIERRA.EXE"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq5.conf"
+entry  = "SIERRA.EXE"
+mount  = "c"

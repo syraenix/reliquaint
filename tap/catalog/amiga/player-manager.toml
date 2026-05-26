@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "player-manager"
+title    = "Player Manager"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1990
+developer = "Dino Dini"
+publisher = "Dino Dini"
+genre     = ["sports"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Player Manager (Dino Dini, 1990, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a500"
+floppies = ["playermanager.adf", "playermanagersave.adf"]

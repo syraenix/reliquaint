@@ -1,0 +1,26 @@
+schema_version = 1
+
+[game]
+id       = "lethal-formula"
+title    = "Lethal Formula"
+platform = "amiga"
+collection = "amiga-forever"
+
+[meta]
+year      = 1995
+developer = "Edmund W. Clay"
+publisher = "Edmund W. Clay"
+genre     = ["role", "adventure"]
+
+[acquisition]
+amiga_forever = "https://www.amigaforever.com/plus/"
+
+[install]
+expects_files = ["Lethal Formula (Edmund W. Clay, 1995, Amiga).rp9"]
+
+[runtime]
+emulator = "fs-uae"
+
+[runtime.fs_uae]
+model    = "a1200"
+hard_drives = ["af-application.hdf"]
