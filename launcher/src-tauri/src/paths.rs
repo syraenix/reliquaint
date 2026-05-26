@@ -62,6 +62,49 @@ pub fn tap_root(repo_root: &Path) -> PathBuf {
     repo_root.join("tap")
 }
 
+/// Locate a tap that was packaged alongside the executable (Tauri `.deb` /
+/// AppImage bundle), for runs outside a git checkout where
+/// [`find_repo_root`] finds nothing.
+///
+/// Returns the directory that *contains* `tap/` — i.e. a value usable as a
+/// `repo_root` with [`tap_root`] — or `None` if no packaged tap is found.
+///
+/// The GUI has the authoritative resource directory via Tauri's app handle;
+/// this is the resolver the CLI uses (and a GUI fallback), derived from the
+/// executable location. Tauri's Linux `.deb` installs the binary at
+/// `/usr/bin/<name>` and its resources under `/usr/lib/<name>/`; an AppImage
+/// exposes its mount point via `$APPDIR`.
+pub fn packaged_repo_root() -> Option<PathBuf> {
+    packaged_repo_root_from(
+        std::env::var("APPDIR").ok().as_deref(),
+        std::env::current_exe().ok().as_deref(),
+    )
+}
+
+/// Pure core of [`packaged_repo_root`]: builds candidate locations from an
+/// optional `$APPDIR` and the executable path, then returns the first whose
+/// `tap/tap.toml` exists. Split out so it can be tested without mutating env
+/// or relying on the test binary's location.
+fn packaged_repo_root_from(appdir: Option<&str>, exe: Option<&Path>) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(appdir) = appdir {
+        for name in ["reliquaint", "Reliquaint"] {
+            candidates.push(PathBuf::from(appdir).join("usr/lib").join(name));
+        }
+    }
+    if let Some(exe) = exe {
+        if let Some(bindir) = exe.parent() {
+            // /usr/bin/<name> -> /usr/lib/<name>
+            for name in ["reliquaint", "Reliquaint"] {
+                candidates.push(bindir.join("../lib").join(name));
+            }
+        }
+    }
+    candidates
+        .into_iter()
+        .find(|c| c.join("tap/tap.toml").is_file())
+}
+
 /// Where user-subscribed taps live (v0.3+; the constant exists now so the
 /// path doesn't get hardcoded ad-hoc later).
 pub fn user_taps_dir() -> PathBuf {
@@ -287,6 +330,46 @@ mod tests {
             Some(v) => std::env::set_var("RELIQUAINT_GAMES_DIR", v),
             None => std::env::remove_var("RELIQUAINT_GAMES_DIR"),
         }
+    }
+
+    #[test]
+    fn packaged_repo_root_finds_exe_relative_lib() {
+        // Lay out /usr/bin/reliquaint with resources at /usr/lib/reliquaint/tap.
+        let tmp = tempfile::tempdir().unwrap();
+        let usr = tmp.path().join("usr");
+        std::fs::create_dir_all(usr.join("bin")).unwrap();
+        let lib_tap = usr.join("lib/reliquaint/tap");
+        std::fs::create_dir_all(&lib_tap).unwrap();
+        std::fs::write(lib_tap.join("tap.toml"), "schema_version = 1\n").unwrap();
+
+        let exe = usr.join("bin/reliquaint");
+        let found = packaged_repo_root_from(None, Some(&exe)).unwrap();
+        assert!(found.join("tap/tap.toml").is_file());
+        assert_eq!(
+            found.canonicalize().unwrap(),
+            usr.join("lib/reliquaint").canonicalize().unwrap()
+        );
+    }
+
+    #[test]
+    fn packaged_repo_root_finds_appdir() {
+        // AppImage exposes its mount point via $APPDIR.
+        let tmp = tempfile::tempdir().unwrap();
+        let lib_tap = tmp.path().join("usr/lib/Reliquaint/tap");
+        std::fs::create_dir_all(&lib_tap).unwrap();
+        std::fs::write(lib_tap.join("tap.toml"), "schema_version = 1\n").unwrap();
+
+        let appdir = tmp.path().to_string_lossy().into_owned();
+        let found = packaged_repo_root_from(Some(&appdir), None).unwrap();
+        assert!(found.join("tap/tap.toml").is_file());
+    }
+
+    #[test]
+    fn packaged_repo_root_none_when_absent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let exe = tmp.path().join("usr/bin/reliquaint");
+        // No tap laid out anywhere the candidates point.
+        assert!(packaged_repo_root_from(Some("/nonexistent-xyz-appdir"), Some(&exe)).is_none());
     }
 
     #[test]

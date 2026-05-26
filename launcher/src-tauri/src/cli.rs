@@ -151,8 +151,12 @@ fn resolve_repo_root() -> Option<PathBuf> {
     if let Ok(r) = std::env::var("RELIQUAINT_REPO_ROOT") {
         return Some(PathBuf::from(r));
     }
-    let cwd = std::env::current_dir().ok()?;
-    find_repo_root(&cwd)
+    // Dev workflow: walk up from the cwd. Packaged install: fall back to the
+    // tap bundled alongside the executable.
+    std::env::current_dir()
+        .ok()
+        .and_then(|cwd| find_repo_root(&cwd))
+        .or_else(crate::paths::packaged_repo_root)
 }
 
 /// Assemble a `CatalogView` from the bundled tap + install records.
