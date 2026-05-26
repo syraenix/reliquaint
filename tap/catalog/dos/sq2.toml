@@ -1,0 +1,32 @@
+schema_version = 1
+
+[game]
+id         = "sq2"
+title      = "Space Quest II: Vohaul's Revenge"
+platform   = "dos"
+collection = "space-quest"
+
+[meta]
+year        = 1987
+developer   = "Sierra On-Line"
+publisher   = "Sierra On-Line"
+genre       = ["adventure"]
+tags        = ["sierra", "agi", "sci-fi", "parser", "humor"]
+description = "Roger Wilco, now a lowly janitor on Space Station Xenon, is kidnapped by the vengeful Sludge Vohaul and marooned on the jungle world of Labion. The second AGI parser adventure."
+
+[acquisition]
+gog   = "https://www.gog.com/en/game/space_quest_1_2_3"
+steam = "https://store.steampowered.com/app/10110/Space_Quest_Collection/"
+notes = "Bundled in the Space Quest Collection on Steam (app 10110) and the Space Quest 1+2+3 pack on GOG."
+
+[install]
+expects_files = ["SIERRA.COM"]
+
+[runtime]
+emulator = "dosbox-staging"
+sidecars = ["fluidsynth"]
+
+[runtime.dosbox]
+config = "sq2.conf"
+entry  = "SIERRA.COM"
+mount  = "c"
