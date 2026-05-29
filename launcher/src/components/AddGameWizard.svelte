@@ -347,6 +347,14 @@
     font-family: inherit;
   }
 
+  /* Native <select> on Linux/GTK ignores our dark background and renders
+     with the OS light theme. Use the codebase's dark-on-light token so
+     the selected value and dropdown options stay readable. */
+  .field select,
+  .field select option {
+    color: var(--ink-primary);
+  }
+
   .field input:focus,
   .field select:focus,
   .field textarea:focus {
