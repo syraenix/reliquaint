@@ -6,6 +6,7 @@
   import GameGrid from "./components/GameGrid.svelte";
   import GameDetail from "./components/GameDetail.svelte";
   import DoctorPanel from "./components/DoctorPanel.svelte";
+  import AddGameWizard from "./components/AddGameWizard.svelte";
 
   let catalog = [];
   let filter = "all";
@@ -13,9 +14,24 @@
   let loading = true;
   let error = null;
   let doctorOpen = false;
+  let addOpen = false;
 
   function toggleDoctor() {
     doctorOpen = !doctorOpen;
+  }
+
+  function openAdd() {
+    addOpen = true;
+  }
+
+  function closeAdd() {
+    addOpen = false;
+  }
+
+  function onWizardSaved(e) {
+    addOpen = false;
+    selectedId = e.detail?.id ?? null;
+    loadCatalog();
   }
 
   async function loadCatalog() {
@@ -51,11 +67,18 @@
       <button class="header-btn" on:click={loadCatalog} title="Refresh catalog">
         ↻
       </button>
+      <button class="header-btn" on:click={openAdd} title="Add a game you own">
+        + Add game
+      </button>
       <button class="header-btn" on:click={toggleDoctor}>
         {doctorOpen ? "✕ Doctor" : "⚕ Doctor"}
       </button>
     </div>
   </header>
+
+  {#if addOpen}
+    <AddGameWizard on:close={closeAdd} on:saved={onWizardSaved} />
+  {/if}
 
   {#if doctorOpen}
     <DoctorPanel />

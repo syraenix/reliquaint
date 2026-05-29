@@ -63,6 +63,18 @@ The launcher loads catalog entries by walking `catalog/<platform>/*.toml`. The `
 
 The bundled tap (named `reliquaint-core`) ships inside the launcher repository for v0.1. Its location within the repo is an implementation detail.
 
+### User tap (v0.2)
+
+User-created catalog entries — the ones produced by the `reliquaint add <path>` wizard and the GUI "Add game" flow — live in a local pseudo-tap at:
+
+```
+${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/
+```
+
+It uses the same layout as the bundled tap (`tap.toml` at root, `catalog/<platform>/<id>.toml`, sibling `.conf` / `.fs-uae`). The launcher creates this directory and a minimal `tap.toml` lazily on the first manifest write, so users who never add a custom game never get the directory.
+
+The user tap claims the reserved id **`local`**. The launcher refuses to load any externally supplied tap (subscribed third-party tap, copied-over bundled tap, etc.) that claims this id — the id is exclusively for the user's own writable tap. Catalog entries in the user tap follow the same schema as bundled ones.
+
 ---
 
 ## `tap.toml`

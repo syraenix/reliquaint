@@ -8,9 +8,14 @@
 <button class="card" on:click={() => dispatch("click")}>
   <div class="header platform-{game.platform}">
     <span class="platform-label">{game.platform.toUpperCase()}</span>
-    {#if game.installed}
-      <span class="installed-badge">INSTALLED</span>
-    {/if}
+    <span class="badges">
+      {#if game.tap_id === "local"}
+        <span class="custom-badge" title="Added via the manifest wizard">CUSTOM</span>
+      {/if}
+      {#if game.installed}
+        <span class="installed-badge">INSTALLED</span>
+      {/if}
+    </span>
   </div>
   <div class="info">
     <span class="title">{game.title}</span>
@@ -57,6 +62,12 @@
     opacity: 0.7;
   }
 
+  .badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .installed-badge {
     font-size: 0.65rem;
     font-weight: 700;
@@ -66,6 +77,18 @@
     background: var(--status-installed-bg);
     color: var(--status-installed);
     border: 1px solid var(--status-installed-border);
+  }
+
+  .custom-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: transparent;
+    color: currentColor;
+    border: 1px dashed currentColor;
+    opacity: 0.55;
   }
 
   .platform-dos {

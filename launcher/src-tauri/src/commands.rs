@@ -86,18 +86,29 @@ fn load_catalog_view_with(
     repo_root: &Path,
     installs_dir: &Path,
 ) -> Result<crate::catalog_view::CatalogView, String> {
+    let mut taps: Vec<crate::tap::LoadedTap> = Vec::new();
+
     let tap_root = crate::paths::tap_root(repo_root);
-    let taps = match crate::tap::load_tap(&tap_root) {
-        Ok(t) => vec![t],
+    match crate::tap::load_tap(&tap_root) {
+        Ok(t) => taps.push(t),
         Err(crate::tap::TapError::MissingRoot { .. }) => {
             tracing::warn!(
                 root = %tap_root.display(),
                 "bundled tap not found; treating catalog as empty"
             );
-            Vec::new()
         }
         Err(e) => return Err(format!("failed to load bundled tap: {e}")),
-    };
+    }
+
+    let user_tap_root = crate::paths::user_tap_dir();
+    match crate::tap::load_user_tap(&user_tap_root) {
+        Ok(t) => taps.push(t),
+        Err(crate::tap::TapError::MissingRoot { .. }) => {}
+        Err(e) => {
+            tracing::warn!(error = %e, "user tap failed to load");
+        }
+    }
+
     let installs = crate::install_record::load_all(installs_dir);
     Ok(crate::catalog_view::CatalogView::assemble(taps, installs))
 }
@@ -474,6 +485,257 @@ pub async fn install_dependency(kind: String, app: AppHandle) -> Result<i32, Str
     );
 
     Ok(exit_code)
+}
+
+// --- M5: Manifest creation wizard ---
+
+#[derive(Serialize, Clone)]
+pub struct HeuristicReportDto {
+    pub platform: Option<String>,
+    pub confidence: String,
+    pub platform_evidence: Vec<String>,
+    pub dos_candidates: Vec<DosCandidateDto>,
+    pub amiga: AmigaReportDto,
+    pub metadata: DraftMetadataDto,
+    pub source_path: String,
+}
+
+#[derive(Serialize, Clone)]
+pub struct DosCandidateDto {
+    pub file_name: String,
+    pub kind: String,
+    pub reason: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AmigaReportDto {
+    Floppies { files: Vec<String> },
+    ManualEntry { reason: String },
+}
+
+#[derive(Serialize, Clone)]
+pub struct DraftMetadataDto {
+    pub id: String,
+    pub title: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct SaveUserManifestRequest {
+    pub id: String,
+    pub title: String,
+    pub platform: String,
+    pub install_path: String,
+    pub entry: Option<String>,
+    pub floppies: Option<Vec<String>>,
+    pub year: Option<u32>,
+    pub developer: Option<String>,
+    pub publisher: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct SaveUserManifestResponse {
+    pub id: String,
+    pub manifest_path: String,
+    pub config_path: Option<String>,
+    pub install_record_path: String,
+}
+
+/// Run the heuristic engine against `path` and return a serializable
+/// report the frontend wizard uses to seed its form. The actual draft
+/// composition runs in [`save_user_manifest`] after the user reviews.
+#[tauri::command]
+pub fn detect_game(path: String) -> Result<HeuristicReportDto, String> {
+    let p = std::path::PathBuf::from(&path);
+    if !p.is_dir() {
+        return Err(format!("not a directory: {path}"));
+    }
+    let report = crate::heuristic::analyze(&p);
+
+    let platform = report.platform.platform.map(|p| match p {
+        crate::catalog::Platform::Dos => "dos".to_string(),
+        crate::catalog::Platform::Amiga => "amiga".to_string(),
+    });
+    let confidence = format!("{:?}", report.platform.confidence).to_ascii_lowercase();
+    let dos_candidates = report
+        .dos
+        .iter()
+        .map(|c| DosCandidateDto {
+            file_name: c.file_name.clone(),
+            kind: match c.kind {
+                crate::heuristic::EntryPointKind::Bat => "bat".to_string(),
+                crate::heuristic::EntryPointKind::Exe => "exe".to_string(),
+                crate::heuristic::EntryPointKind::Com => "com".to_string(),
+            },
+            reason: c.reason.clone(),
+        })
+        .collect();
+    let amiga = match &report.amiga {
+        crate::heuristic::AmigaEntryPoints::Floppies(v) => {
+            AmigaReportDto::Floppies { files: v.clone() }
+        }
+        crate::heuristic::AmigaEntryPoints::ManualEntry { reason } => AmigaReportDto::ManualEntry {
+            reason: reason.clone(),
+        },
+    };
+    Ok(HeuristicReportDto {
+        platform,
+        confidence,
+        platform_evidence: report.platform.evidence,
+        dos_candidates,
+        amiga,
+        metadata: DraftMetadataDto {
+            id: report.metadata.id,
+            title: report.metadata.title,
+        },
+        source_path: p.to_string_lossy().into_owned(),
+    })
+}
+
+/// Take the (possibly user-edited) wizard form payload, compose a
+/// `CatalogEntry`, validate it, and commit to the user tap.
+#[tauri::command]
+pub fn save_user_manifest(
+    req: SaveUserManifestRequest,
+    state: State<'_, AppState>,
+) -> Result<SaveUserManifestResponse, String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let bundled_ids: Vec<String> = view
+        .all()
+        .iter()
+        .filter(|e| e.tap_id != crate::tap::RESERVED_USER_TAP_ID)
+        .map(|e| e.catalog.game.id.clone())
+        .collect();
+    let user_ids: Vec<String> = view
+        .all()
+        .iter()
+        .filter(|e| e.tap_id == crate::tap::RESERVED_USER_TAP_ID)
+        .map(|e| e.catalog.game.id.clone())
+        .collect();
+
+    let platform = match req.platform.as_str() {
+        "dos" => crate::catalog::Platform::Dos,
+        "amiga" => crate::catalog::Platform::Amiga,
+        other => return Err(format!("unknown platform: {other}")),
+    };
+
+    let meta = crate::catalog::Meta {
+        year: req.year,
+        developer: req.developer.clone(),
+        publisher: req.publisher.clone(),
+        description: req.description.clone(),
+        ..Default::default()
+    };
+
+    let runtime = match platform {
+        crate::catalog::Platform::Dos => {
+            let entry = req
+                .entry
+                .clone()
+                .ok_or_else(|| "DOS entry: missing `entry` field".to_string())?;
+            crate::catalog::Runtime {
+                emulator: crate::catalog::Emulator::DosboxStaging,
+                sidecars: vec![],
+                dosbox: Some(crate::catalog::DosboxRuntime {
+                    config: format!("{}.conf", req.id),
+                    entry,
+                    mount: "c".to_string(),
+                }),
+                fs_uae: None,
+            }
+        }
+        crate::catalog::Platform::Amiga => {
+            let floppies = req.floppies.clone().unwrap_or_default();
+            crate::catalog::Runtime {
+                emulator: crate::catalog::Emulator::FsUae,
+                sidecars: vec![],
+                dosbox: None,
+                fs_uae: Some(crate::catalog::FsUaeRuntime {
+                    model: crate::catalog::AmigaModel::A500,
+                    config: None,
+                    floppies,
+                    hard_drives: vec![],
+                }),
+            }
+        }
+    };
+
+    let draft = crate::catalog::CatalogEntry {
+        schema_version: 1,
+        game: crate::catalog::Game {
+            id: req.id.clone(),
+            title: req.title.clone(),
+            platform,
+            collection: None,
+            collection_name: None,
+        },
+        meta,
+        acquisition: crate::catalog::Acquisition::default(),
+        install: crate::catalog::Install::default(),
+        runtime,
+    };
+
+    crate::wizard::validate(&draft).map_err(|e| e.to_string())?;
+    let result = crate::wizard::commit(
+        &crate::wizard::AddOptions {
+            source: std::path::PathBuf::from(&req.install_path),
+            user_tap_root: crate::paths::user_tap_dir(),
+            installs_dir: crate::paths::installs_dir(),
+            platform_override: None,
+            bundled_ids: &bundled_ids,
+            user_ids: &user_ids,
+        },
+        &draft,
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(SaveUserManifestResponse {
+        id: result.id,
+        manifest_path: result.manifest_path.to_string_lossy().into_owned(),
+        config_path: result.config_path.map(|p| p.to_string_lossy().into_owned()),
+        install_record_path: result.install_record_path.to_string_lossy().into_owned(),
+    })
+}
+
+// --- M6: Upstream submission ---
+
+#[derive(Serialize, Clone)]
+pub struct SubmitManifestResponse {
+    pub content: String,
+    pub warnings: Vec<String>,
+    pub github_url: String,
+    pub target_path: String,
+}
+
+/// Produce a submission-ready manifest for the user-tap entry `id`.
+/// Refuses bundled entries (they are immutable per ADR-0001 / 0003).
+#[tauri::command]
+pub fn submit_manifest(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<SubmitManifestResponse, String> {
+    let view = load_catalog_view(&state.repo_root)?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for {id:?}"))?;
+    if entry.tap_id != crate::tap::RESERVED_USER_TAP_ID {
+        return Err(format!(
+            "{id:?} belongs to the bundled tap; only user-created entries are submission candidates"
+        ));
+    }
+    let exported = crate::export::export_manifest(&entry.catalog).map_err(|e| e.to_string())?;
+    let platform = match entry.catalog.game.platform {
+        crate::catalog::Platform::Dos => "dos",
+        crate::catalog::Platform::Amiga => "amiga",
+    };
+    let github_url = crate::export::github_new_file_url(platform, "develop");
+    Ok(SubmitManifestResponse {
+        content: exported.content,
+        warnings: exported.warnings,
+        github_url,
+        target_path: format!("tap/catalog/{platform}/{id}.toml"),
+    })
 }
 
 #[cfg(test)]
