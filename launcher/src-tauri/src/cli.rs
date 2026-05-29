@@ -227,10 +227,15 @@ fn resolve_repo_root() -> Option<PathBuf> {
 /// take down browsing of bundled content.
 fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
     let mut taps: Vec<crate::tap::LoadedTap> = Vec::new();
+    let mut priorities: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
 
+    // 1. Bundled tap — lowest precedence among catalogued sources.
     let tap_root = crate::paths::tap_root(repo_root);
     match crate::tap::load_tap(&tap_root) {
-        Ok(t) => taps.push(t),
+        Ok(t) => {
+            priorities.insert(t.metadata.id.clone(), i32::MAX - 1);
+            taps.push(t);
+        }
         Err(crate::tap::TapError::MissingRoot { .. }) => {
             tracing::warn!(
                 root = %tap_root.display(),
@@ -243,9 +248,39 @@ fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
         }
     }
 
+    // 2. Subscribed taps — ordered by their stored priority value.
+    let subs =
+        crate::subscriptions::SubscriptionManifest::load_or_empty(&crate::paths::subscriptions_path())
+            .unwrap_or_else(|e| {
+                tracing::warn!("could not load subscriptions.toml: {e}");
+                crate::subscriptions::SubscriptionManifest::empty()
+            });
+    for sub in &subs.taps {
+        let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
+        match crate::tap::load_tap(&cache_dir) {
+            Ok(t) => {
+                priorities.insert(t.metadata.id.clone(), sub.priority as i32);
+                taps.push(t);
+            }
+            Err(crate::tap::TapError::MissingRoot { .. }) => {
+                tracing::warn!(
+                    tap = %sub.id,
+                    "subscribed tap cache missing; run 'reliquaint tap sync' or re-add the tap"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(tap = %sub.id, "subscribed tap failed to load: {e}");
+            }
+        }
+    }
+
+    // 3. Local user tap — always wins (priority -1).
     let user_tap_root = crate::paths::user_tap_dir();
     match crate::tap::load_user_tap(&user_tap_root) {
-        Ok(t) => taps.push(t),
+        Ok(t) => {
+            priorities.insert(t.metadata.id.clone(), -1);
+            taps.push(t);
+        }
         Err(crate::tap::TapError::MissingRoot { .. }) => {}
         Err(e) => {
             eprintln!("warning: user tap failed to load: {e}");
@@ -253,7 +288,7 @@ fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
     }
 
     let installs = crate::install_record::load_all(&crate::paths::installs_dir());
-    Ok(CatalogView::assemble(taps, installs))
+    Ok(CatalogView::assemble_with_priorities(taps, installs, priorities))
 }
 
 fn cmd_list(view: &CatalogView, opts: &ListOpts) -> ExitCode {

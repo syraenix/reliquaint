@@ -122,6 +122,15 @@ pub fn check_install(view: &CatalogView, user_config: &UserConfig) -> Vec<ProbeR
     }
 
     for orphan in view.orphans() {
+        let tap_id = &orphan.record.install.tap;
+        let suggestion = if crate::known_taps::KNOWN_TAPS
+            .iter()
+            .any(|(name, _)| name == tap_id)
+        {
+            format!(" — run: reliquaint tap add {tap_id}")
+        } else {
+            String::new()
+        };
         results.push(ProbeResult {
             name: format!(
                 "orphan install record: {}",
@@ -129,8 +138,8 @@ pub fn check_install(view: &CatalogView, user_config: &UserConfig) -> Vec<ProbeR
             ),
             status: ProbeStatus::Missing,
             detail: Some(format!(
-                "tap={:?} catalog_id={:?} — no matching entry in any loaded tap",
-                orphan.record.install.tap, orphan.record.install.catalog_id
+                "tap={tap_id:?} catalog_id={:?} — no matching entry in any loaded tap{suggestion}",
+                orphan.record.install.catalog_id
             )),
             kind: ProbeKind::GameInstallDir(orphan.record.install.catalog_id.clone()),
         });

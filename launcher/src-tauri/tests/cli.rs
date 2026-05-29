@@ -1093,3 +1093,92 @@ fn submit_refuses_bundled_entries() {
         .failure()
         .stderr(contains("belongs to the bundled tap"));
 }
+
+// ── Tap subscription integration tests ────────────────────────────────────────
+
+fn write_minimal_subscribed_tap(taps_cache: &Path, tap_id: &str, game_id: &str, game_title: &str) {
+    let tap_dir = taps_cache.join(tap_id);
+    let catalog_dir = tap_dir.join("catalog/dos");
+    std::fs::create_dir_all(&catalog_dir).unwrap();
+    std::fs::write(
+        tap_dir.join("tap.toml"),
+        format!(
+            "schema_version = 1\nid = \"{tap_id}\"\ntitle = \"Test Tap\"\ndescription = \"test\"\nversion = \"0.1.0\"\nmaintainer = \"test\"\nurl = \"https://example.com\"\nlicense = \"MIT\"\n"
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        catalog_dir.join(format!("{game_id}.toml")),
+        format!(
+            "schema_version = 1\n[game]\nid = \"{game_id}\"\ntitle = \"{game_title}\"\nplatform = \"dos\"\n[runtime]\nemulator = \"dosbox-staging\"\n[runtime.dosbox]\nconfig = \"{game_id}.conf\"\nentry = \"TEST.EXE\"\n"
+        ),
+    )
+    .unwrap();
+}
+
+fn write_subscriptions_toml(path: &Path, tap_id: &str, priority: u32) {
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        path,
+        format!(
+            "schema_version = 1\n\n[[tap]]\nid = \"{tap_id}\"\nsource = \"file:///fake\"\nadded_at = 2026-01-01T00:00:00Z\npriority = {priority}\n"
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn list_shows_games_from_subscribed_tap() {
+    let dir = tempfile::tempdir().unwrap();
+    let taps_cache = dir.path().join("taps");
+    let sub_path = dir.path().join("subscriptions.toml");
+
+    write_minimal_subscribed_tap(&taps_cache, "my-test-tap", "unique-subscribed-game", "Unique Subscribed Game Title");
+    write_subscriptions_toml(&sub_path, "my-test-tap", 0);
+
+    launcher(dir.path())
+        .env("RELIQUAINT_SUBSCRIPTIONS_PATH", &sub_path)
+        .env("RELIQUAINT_TAPS_CACHE_DIR", &taps_cache)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(contains("unique-subscribed-game"));
+}
+
+#[test]
+fn list_with_no_subscriptions_file_still_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+    // No subscriptions.toml written — should load gracefully
+    launcher(dir.path())
+        .env(
+            "RELIQUAINT_SUBSCRIPTIONS_PATH",
+            dir.path().join("nonexistent-subscriptions.toml"),
+        )
+        .env("RELIQUAINT_TAPS_CACHE_DIR", dir.path().join("empty-taps"))
+        .arg("list")
+        .assert()
+        .success();
+}
+
+#[test]
+fn list_subscribed_tap_games_appear_alongside_bundled() {
+    let dir = tempfile::tempdir().unwrap();
+    let taps_cache = dir.path().join("taps");
+    let sub_path = dir.path().join("subscriptions.toml");
+
+    write_minimal_subscribed_tap(&taps_cache, "extra-tap", "extra-unique-game-9z", "Extra Game From Subscribed Tap");
+    write_subscriptions_toml(&sub_path, "extra-tap", 0);
+
+    let output = launcher(dir.path())
+        .env("RELIQUAINT_SUBSCRIPTIONS_PATH", &sub_path)
+        .env("RELIQUAINT_TAPS_CACHE_DIR", &taps_cache)
+        .args(["list", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    // Fixture games from bundled tap
+    assert!(stdout.contains("qfg1-ega"), "bundled tap game missing: {stdout}");
+    // Game from subscribed tap
+    assert!(stdout.contains("extra-unique-game-9z"), "subscribed tap game missing: {stdout}");
+}
