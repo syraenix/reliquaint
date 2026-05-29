@@ -908,7 +908,7 @@ pub fn sync_tap(id: Option<String>) -> Result<Vec<String>, String> {
     let taps_to_sync: Vec<_> = manifest
         .taps
         .iter()
-        .filter(|t| id.as_deref().map_or(true, |needle| t.id == needle))
+        .filter(|t| id.as_deref().is_none_or(|needle| t.id == needle))
         .collect();
 
     let mut messages = Vec::new();

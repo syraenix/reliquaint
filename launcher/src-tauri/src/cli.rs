@@ -1021,14 +1021,8 @@ fn cmd_tap_list(format: Format) -> ExitCode {
 
     match format {
         Format::Tabular => {
-            println!(
-                "{:<20}  {:<8}  {:<7}  {:<14}  {}",
-                "ID", "PRIORITY", "ENTRIES", "STATUS", "SOURCE"
-            );
-            println!(
-                "{:<20}  {:<8}  {:<7}  {:<14}  {}",
-                "local", "-", 0, "local", "(your custom games)"
-            );
+            println!("{:<20}  {:<8}  {:<7}  {:<14}  SOURCE", "ID", "PRIORITY", "ENTRIES", "STATUS");
+            println!("{:<20}  {:<8}  {:<7}  {:<14}  (your custom games)", "local", "-", 0, "local");
             for sub in &manifest.taps {
                 let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
                 let cache_ok = cache_dir.join("tap.toml").exists();

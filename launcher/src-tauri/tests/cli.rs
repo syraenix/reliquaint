@@ -1347,10 +1347,11 @@ fn tap_remove_warns_about_orphaned_installs_and_cancels_on_n() {
         .assert()
         .success();
     // Write a fake install record referencing this tap
-    let install_body = format!(
-        "schema_version = 1\n[install]\ncatalog_id = \"orphan-game\"\ntap = \"orphan-tap\"\ninstall_path = \"/fake/path\"\ninstalled_at = 2026-01-01T00:00:00Z\n"
-    );
-    std::fs::write(dir.path().join("orphan-game.toml"), install_body).unwrap();
+    std::fs::write(
+        dir.path().join("orphan-game.toml"),
+        "schema_version = 1\n[install]\ncatalog_id = \"orphan-game\"\ntap = \"orphan-tap\"\ninstall_path = \"/fake/path\"\ninstalled_at = 2026-01-01T00:00:00Z\n",
+    )
+    .unwrap();
     // Remove without --force, answer "n"
     launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
         .args(["tap", "remove", "orphan-tap"])
