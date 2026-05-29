@@ -64,10 +64,7 @@ pub fn edit_string(initial: &str) -> Result<String, EditorError> {
     let path: PathBuf = tmp.path().to_path_buf();
 
     let mut parts = shell_split(&editor);
-    let program = parts
-        .first()
-        .cloned()
-        .ok_or(EditorError::NoneAvailable)?;
+    let program = parts.first().cloned().ok_or(EditorError::NoneAvailable)?;
     let args: Vec<String> = parts.drain(1..).collect();
     let status = Command::new(&program).args(args).arg(&path).status()?;
     if !status.success() {

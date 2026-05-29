@@ -92,10 +92,7 @@ pub fn detect(dir: &Path) -> Vec<EntryPointCandidate> {
     }
 
     // Tier 2: a BAT that references an EXE present in the same dir.
-    let exe_names_upper: Vec<String> = exes
-        .iter()
-        .map(|(n, _)| n.to_ascii_uppercase())
-        .collect();
+    let exe_names_upper: Vec<String> = exes.iter().map(|(n, _)| n.to_ascii_uppercase()).collect();
     for bat in &bats {
         if seen_names.contains(bat) {
             continue;
@@ -239,9 +236,7 @@ mod tests {
 
         let candidates = detect(&qfg1);
         assert_eq!(candidates[0].file_name, "QFG1-EGA.BAT");
-        assert!(candidates[0]
-            .reason
-            .contains("matching the directory name"));
+        assert!(candidates[0].reason.contains("matching the directory name"));
     }
 
     #[test]

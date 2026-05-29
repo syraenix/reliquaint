@@ -128,7 +128,10 @@ fn list_includes_user_tap_entries_alongside_bundled() {
     let stdout = String::from_utf8(output.stdout).unwrap();
 
     // Bundled fixture entries still present:
-    assert!(stdout.contains("qfg1-ega"), "missing bundled entry: {stdout}");
+    assert!(
+        stdout.contains("qfg1-ega"),
+        "missing bundled entry: {stdout}"
+    );
     assert!(stdout.contains("fatman"), "missing bundled entry: {stdout}");
     // User tap entry surfaced with tap-of-origin "local":
     assert!(
@@ -172,7 +175,10 @@ license = "MIT"
         "expected user-tap warning, got stderr: {stderr}"
     );
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("qfg1-ega"), "bundled entries should still load: {stdout}");
+    assert!(
+        stdout.contains("qfg1-ega"),
+        "bundled entries should still load: {stdout}"
+    );
 }
 
 #[test]
@@ -1015,8 +1021,12 @@ fn remove_cascades_user_entry_files() {
         .assert()
         .success();
 
-    let manifest = installs.path().join("user-tap/catalog/dos/my-custom-game.toml");
-    let conf = installs.path().join("user-tap/catalog/dos/my-custom-game.conf");
+    let manifest = installs
+        .path()
+        .join("user-tap/catalog/dos/my-custom-game.toml");
+    let conf = installs
+        .path()
+        .join("user-tap/catalog/dos/my-custom-game.conf");
     let record = installs.path().join("my-custom-game.toml");
     assert!(manifest.is_file());
 

@@ -54,7 +54,9 @@ pub fn detect(dir: &Path) -> AmigaEntryPoints {
     }
     if hdf {
         return AmigaEntryPoints::ManualEntry {
-            reason: ".hdf hard-drive image present; v0.2 wizard supports floppy-loadable games only".to_string(),
+            reason:
+                ".hdf hard-drive image present; v0.2 wizard supports floppy-loadable games only"
+                    .to_string(),
         };
     }
     AmigaEntryPoints::ManualEntry {

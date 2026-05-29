@@ -576,7 +576,10 @@ license     = "x"
             .modified()
             .unwrap();
         assert_eq!(first, second);
-        assert_eq!(mtime_before, mtime_after, "tap.toml should not be rewritten");
+        assert_eq!(
+            mtime_before, mtime_after,
+            "tap.toml should not be rewritten"
+        );
     }
 
     #[test]

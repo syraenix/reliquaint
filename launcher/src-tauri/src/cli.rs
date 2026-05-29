@@ -832,14 +832,14 @@ fn cmd_submit(view: &CatalogView, id: &str, clipboard: bool) -> ExitCode {
     };
     println!("{}", exported.content);
     eprintln!("--- next steps ---");
-    eprintln!(
-        "target path:    tap/catalog/{platform}/{id}.toml"
-    );
+    eprintln!("target path:    tap/catalog/{platform}/{id}.toml");
     eprintln!(
         "create file:    {}",
         crate::export::github_new_file_url(platform, "develop")
     );
-    eprintln!("CONTRIBUTING:   https://github.com/syraenix/reliquaint/blob/develop/CONTRIBUTING.md");
+    eprintln!(
+        "CONTRIBUTING:   https://github.com/syraenix/reliquaint/blob/develop/CONTRIBUTING.md"
+    );
     if !exported.warnings.is_empty() {
         eprintln!();
         eprintln!("--- warnings (non-fatal) ---");

@@ -85,11 +85,9 @@ mod tests {
         let eps = AmigaEntryPoints::Floppies(vec!["Fatman.adf".to_string()]);
         let entry = compose(&metadata(), &eps).unwrap();
         let text = toml::to_string_pretty(&entry).unwrap();
-        let parsed = crate::catalog::parse_str(
-            &text,
-            std::path::Path::new("tap/catalog/amiga/fatman.toml"),
-        )
-        .unwrap();
+        let parsed =
+            crate::catalog::parse_str(&text, std::path::Path::new("tap/catalog/amiga/fatman.toml"))
+                .unwrap();
         assert_eq!(parsed, entry);
     }
 

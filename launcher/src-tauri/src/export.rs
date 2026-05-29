@@ -52,7 +52,10 @@ fn gather_warnings(entry: &CatalogEntry) -> Vec<String> {
         w.push("[meta].publisher is missing".to_string());
     }
     if m.description.is_none() {
-        w.push("[meta].description is missing — reviewers usually want a short description".to_string());
+        w.push(
+            "[meta].description is missing — reviewers usually want a short description"
+                .to_string(),
+        );
     }
     if m.genre.is_empty() {
         w.push("[meta].genre is empty".to_string());
@@ -73,9 +76,7 @@ fn gather_warnings(entry: &CatalogEntry) -> Vec<String> {
 /// the bundled tap. `branch` is the target branch on the upstream
 /// repo (typically `develop` for v0.2).
 pub fn github_new_file_url(platform: &str, branch: &str) -> String {
-    format!(
-        "https://github.com/syraenix/reliquaint/new/{branch}/tap/catalog/{platform}/"
-    )
+    format!("https://github.com/syraenix/reliquaint/new/{branch}/tap/catalog/{platform}/")
 }
 
 #[cfg(test)]

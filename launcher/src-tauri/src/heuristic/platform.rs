@@ -123,10 +123,7 @@ pub fn detect(dir: &Path) -> PlatformDetection {
     }
     if slave > 0 {
         amiga_score += slave * 3;
-        evidence.push(format!(
-            "{slave} .slave file{} (WHDLoad)",
-            plural(slave)
-        ));
+        evidence.push(format!("{slave} .slave file{} (WHDLoad)", plural(slave)));
     }
     if hdf > 0 {
         amiga_score += hdf * 3;
@@ -164,7 +161,11 @@ fn classify(dos: u32, amiga: u32) -> (Option<Platform>, Confidence) {
 }
 
 fn plural(n: u32) -> &'static str {
-    if n == 1 { "" } else { "s" }
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
 }
 
 #[cfg(test)]
@@ -200,10 +201,7 @@ mod tests {
         let det = detect(tmp.path());
         assert_eq!(det.platform, Some(Platform::Dos));
         assert_eq!(det.confidence, Confidence::High);
-        assert!(det
-            .evidence
-            .iter()
-            .any(|s| s.contains("RESOURCE.000")));
+        assert!(det.evidence.iter().any(|s| s.contains("RESOURCE.000")));
     }
 
     #[test]

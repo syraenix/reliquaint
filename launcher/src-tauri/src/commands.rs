@@ -572,14 +572,12 @@ pub fn detect_game(path: String) -> Result<HeuristicReportDto, String> {
         })
         .collect();
     let amiga = match &report.amiga {
-        crate::heuristic::AmigaEntryPoints::Floppies(v) => AmigaReportDto::Floppies {
-            files: v.clone(),
-        },
-        crate::heuristic::AmigaEntryPoints::ManualEntry { reason } => {
-            AmigaReportDto::ManualEntry {
-                reason: reason.clone(),
-            }
+        crate::heuristic::AmigaEntryPoints::Floppies(v) => {
+            AmigaReportDto::Floppies { files: v.clone() }
         }
+        crate::heuristic::AmigaEntryPoints::ManualEntry { reason } => AmigaReportDto::ManualEntry {
+            reason: reason.clone(),
+        },
     };
     Ok(HeuristicReportDto {
         platform,

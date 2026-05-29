@@ -8,7 +8,7 @@
 //! path for install records. Everything else is pure inspection.
 
 use crate::catalog::{CatalogEntry, Platform};
-use crate::heuristic::{HeuristicReport, analyze};
+use crate::heuristic::{analyze, HeuristicReport};
 use std::path::{Path, PathBuf};
 
 pub mod editor;
@@ -104,23 +104,16 @@ pub fn prepare(
 /// Validate the (possibly user-edited) draft against the v0.1 catalog
 /// parser. Returns `Validation` on any structural issue.
 pub fn validate(draft: &CatalogEntry) -> Result<(), WizardError> {
-    let text = toml::to_string_pretty(draft)
+    let text = toml::to_string_pretty(draft).map_err(|e| WizardError::Validation(e.to_string()))?;
+    crate::catalog::parse_str(&text, Path::new("<wizard>/catalog.toml"))
         .map_err(|e| WizardError::Validation(e.to_string()))?;
-    crate::catalog::parse_str(
-        &text,
-        Path::new("<wizard>/catalog.toml"),
-    )
-    .map_err(|e| WizardError::Validation(e.to_string()))?;
     Ok(())
 }
 
 /// Commit the (validated) draft to disk: write the manifest, the
 /// sibling `.conf` for DOS, and the install record. Caller is
 /// responsible for collision and validation checks.
-pub fn commit(
-    opts: &AddOptions,
-    draft: &CatalogEntry,
-) -> Result<AddResult, WizardError> {
+pub fn commit(opts: &AddOptions, draft: &CatalogEntry) -> Result<AddResult, WizardError> {
     if opts.user_ids.iter().any(|i| i == &draft.game.id) {
         return Err(WizardError::UserEntryExists(draft.game.id.clone()));
     }
@@ -177,10 +170,7 @@ pub struct EntryLocations {
 /// `id`. Missing files map to `None` so the caller can report partial
 /// state honestly.
 pub fn locate(id: &str, user_tap_root: &Path, installs_dir: &Path) -> EntryLocations {
-    let candidates = [
-        ("dos", "toml"),
-        ("amiga", "toml"),
-    ];
+    let candidates = [("dos", "toml"), ("amiga", "toml")];
     let mut manifest_path = None;
     let mut config_path = None;
     for (platform, ext) in candidates {
@@ -268,7 +258,10 @@ mod tests {
         assert_eq!(result.id, "my-custom-game");
         assert_eq!(result.platform, Platform::Dos);
         assert!(result.manifest_path.is_file());
-        let conf = result.config_path.as_ref().expect("DOS draft writes a .conf");
+        let conf = result
+            .config_path
+            .as_ref()
+            .expect("DOS draft writes a .conf");
         assert!(conf.is_file());
         let conf_text = std::fs::read_to_string(conf).unwrap();
         assert!(!conf_text.to_ascii_lowercase().contains("[autoexec]"));

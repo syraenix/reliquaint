@@ -23,10 +23,10 @@ pub mod dos;
 pub mod metadata;
 pub mod platform;
 
-pub use amiga::{AmigaEntryPoints, detect as detect_amiga_entry_points};
-pub use dos::{EntryPointCandidate, EntryPointKind, detect as detect_dos_entry_points};
-pub use metadata::{DraftMetadata, extract as extract_metadata};
-pub use platform::{Confidence, PlatformDetection, detect as detect_platform};
+pub use amiga::{detect as detect_amiga_entry_points, AmigaEntryPoints};
+pub use dos::{detect as detect_dos_entry_points, EntryPointCandidate, EntryPointKind};
+pub use metadata::{extract as extract_metadata, DraftMetadata};
+pub use platform::{detect as detect_platform, Confidence, PlatformDetection};
 
 /// Combined report the wizard uses as a starting point for the draft
 /// manifest. Each field is independently computed; callers are free to
