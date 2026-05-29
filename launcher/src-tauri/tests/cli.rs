@@ -1094,6 +1094,327 @@ fn submit_refuses_bundled_entries() {
         .stderr(contains("belongs to the bundled tap"));
 }
 
+// ── Tap CLI subcommand integration tests ──────────────────────────────────────
+
+/// Build a real local git repo with a valid tap structure.
+/// Returns (bare_dir, work_dir, file_url) — keep bare_dir alive (TempDir).
+fn make_local_tap_repo_with_entry(
+    tap_id: &str,
+    game_id: &str,
+) -> (tempfile::TempDir, tempfile::TempDir, String) {
+    use std::process::Command as Cmd;
+    let bare = tempfile::tempdir().unwrap();
+    Cmd::new("git")
+        .args(["init", "--bare"])
+        .arg(bare.path())
+        .output()
+        .unwrap();
+    let work = tempfile::tempdir().unwrap();
+    Cmd::new("git")
+        .args(["clone"])
+        .arg(bare.path())
+        .arg(work.path())
+        .output()
+        .unwrap();
+    for cfg in [
+        ("user.email", "test@test.com"),
+        ("user.name", "Test"),
+    ] {
+        Cmd::new("git")
+            .args(["-C"])
+            .arg(work.path())
+            .args(["config", cfg.0, cfg.1])
+            .output()
+            .unwrap();
+    }
+    let tap_toml = format!(
+        "schema_version = 1\nid = \"{tap_id}\"\ntitle = \"Test Tap\"\ndescription = \"test\"\nversion = \"0.1.0\"\nmaintainer = \"test\"\nurl = \"https://example.com\"\nlicense = \"MIT\"\n"
+    );
+    std::fs::write(work.path().join("tap.toml"), tap_toml).unwrap();
+    let catalog_dir = work.path().join("catalog/dos");
+    std::fs::create_dir_all(&catalog_dir).unwrap();
+    let entry_toml = format!(
+        "schema_version = 1\n[game]\nid = \"{game_id}\"\ntitle = \"Test Game\"\nplatform = \"dos\"\n[runtime]\nemulator = \"dosbox-staging\"\n[runtime.dosbox]\nconfig = \"{game_id}.conf\"\nentry = \"TEST.EXE\"\n"
+    );
+    std::fs::write(catalog_dir.join(format!("{game_id}.toml")), entry_toml).unwrap();
+    Cmd::new("git")
+        .args(["-C"])
+        .arg(work.path())
+        .args(["add", "."])
+        .output()
+        .unwrap();
+    Cmd::new("git")
+        .args(["-C"])
+        .arg(work.path())
+        .args(["commit", "-m", "init"])
+        .output()
+        .unwrap();
+    Cmd::new("git")
+        .args(["-C"])
+        .arg(work.path())
+        .args(["push"])
+        .output()
+        .unwrap();
+    let url = format!("file://{}", bare.path().display());
+    (bare, work, url)
+}
+
+/// Build a `launcher` command with extra tap env vars isolated to `dir`.
+fn launcher_with_tap_env(installs_dir: &Path, subs_path: &Path, taps_cache: &Path) -> Command {
+    let mut cmd = launcher(installs_dir);
+    cmd.env("RELIQUAINT_SUBSCRIPTIONS_PATH", subs_path)
+        .env("RELIQUAINT_TAPS_CACHE_DIR", taps_cache);
+    cmd
+}
+
+#[test]
+fn tap_list_shows_local_row_when_no_subscriptions() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "list"])
+        .assert()
+        .success()
+        .stdout(contains("local"));
+}
+
+#[test]
+fn tap_list_shows_subscribed_tap_with_ok_status() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    write_minimal_subscribed_tap(&taps_cache, "my-test-tap", "unique-game-9z", "Unique Game");
+    write_subscriptions_toml(&sub_path, "my-test-tap", 0);
+    let output = launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "list"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("my-test-tap"), "subscribed tap id missing: {stdout}");
+    assert!(stdout.contains("ok"), "expected ok status: {stdout}");
+}
+
+#[test]
+fn tap_list_json_format_emits_valid_array() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    write_minimal_subscribed_tap(&taps_cache, "json-tap", "json-game", "JSON Game");
+    write_subscriptions_toml(&sub_path, "json-tap", 0);
+    let output = launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "list", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("output isn't valid JSON ({e}): {stdout}"));
+    assert!(value.is_array(), "expected array: {stdout}");
+    let arr = value.as_array().unwrap();
+    // includes "local" plus one subscribed tap
+    assert!(arr.len() >= 2, "expected at least 2 rows: {stdout}");
+}
+
+#[test]
+fn tap_add_subscribes_and_clones_local_repo() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    let (_bare, _work, url) = make_local_tap_repo_with_entry("my-new-tap", "tap-game-1");
+    let output = launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", &url])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        output.status.success(),
+        "tap add failed; stderr={stderr}\nstdout={stdout}"
+    );
+    assert!(stdout.contains("subscribed"), "expected subscribed message: {stdout}");
+    // Cache should be present
+    assert!(taps_cache.join("my-new-tap/tap.toml").exists(), "tap.toml not cloned");
+    // Subscription record written
+    assert!(sub_path.exists(), "subscriptions.toml not written");
+}
+
+#[test]
+fn tap_add_fails_gracefully_on_invalid_git_url() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    let output = launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", "file:///definitely/not/a/real/repo/xyz"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "expected failure for bad URL");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("clone") || stderr.contains("error") || stderr.contains("failed"),
+        "expected error message: {stderr}"
+    );
+}
+
+#[test]
+fn tap_add_refuses_duplicate_subscription() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    let (_bare, _work, url) = make_local_tap_repo_with_entry("dup-tap", "dup-game");
+    // First add succeeds
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", &url])
+        .assert()
+        .success();
+    // Second add for same tap id must fail
+    let (_bare2, _work2, url2) = make_local_tap_repo_with_entry("dup-tap", "dup-game");
+    let output2 = launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", &url2])
+        .output()
+        .unwrap();
+    assert!(!output2.status.success(), "second add should fail");
+    let stderr2 = String::from_utf8(output2.stderr).unwrap();
+    assert!(
+        stderr2.contains("already subscribed") || stderr2.contains("duplicate") || stderr2.contains("dup-tap"),
+        "expected duplicate error: {stderr2}"
+    );
+}
+
+#[test]
+fn tap_remove_removes_subscription_and_cache() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    let (_bare, _work, url) = make_local_tap_repo_with_entry("rm-tap", "rm-game");
+    // Add first
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", &url])
+        .assert()
+        .success();
+    assert!(taps_cache.join("rm-tap/tap.toml").exists());
+    // Remove
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "remove", "rm-tap", "--force"])
+        .assert()
+        .success()
+        .stdout(contains("unsubscribed"));
+    // Cache should be gone
+    assert!(!taps_cache.join("rm-tap").exists(), "cache not removed");
+}
+
+#[test]
+fn tap_remove_refuses_local_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "remove", "local", "--force"])
+        .assert()
+        .failure()
+        .stderr(contains("local"));
+}
+
+#[test]
+fn tap_remove_warns_about_orphaned_installs_and_cancels_on_n() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    let (_bare, _work, url) = make_local_tap_repo_with_entry("orphan-tap", "orphan-game");
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", &url])
+        .assert()
+        .success();
+    // Write a fake install record referencing this tap
+    let install_body = format!(
+        "schema_version = 1\n[install]\ncatalog_id = \"orphan-game\"\ntap = \"orphan-tap\"\ninstall_path = \"/fake/path\"\ninstalled_at = 2026-01-01T00:00:00Z\n"
+    );
+    std::fs::write(dir.path().join("orphan-game.toml"), install_body).unwrap();
+    // Remove without --force, answer "n"
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "remove", "orphan-tap"])
+        .write_stdin("n\n")
+        .assert()
+        .success(); // cancelled → success (not failure)
+    // Subscription still present (cancelled)
+    assert!(sub_path.exists(), "subscription should still exist after cancel");
+    let content = std::fs::read_to_string(&sub_path).unwrap();
+    assert!(content.contains("orphan-tap"), "subscription should still contain orphan-tap");
+}
+
+#[test]
+fn tap_sync_reports_up_to_date() {
+    let dir = tempfile::tempdir().unwrap();
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    let (_bare, _work, url) = make_local_tap_repo_with_entry("sync-tap", "sync-game");
+    // Add first
+    launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "add", &url])
+        .assert()
+        .success();
+    // Sync — should succeed and say "up to date"
+    let output = launcher_with_tap_env(dir.path(), &sub_path, &taps_cache)
+        .args(["tap", "sync"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "tap sync failed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("up to date") || stdout.contains("updated") || stdout.contains("sync-tap"),
+        "expected sync output: {stdout}"
+    );
+}
+
+#[test]
+fn tap_validate_succeeds_on_fixture_tap() {
+    let installs = tempfile::tempdir().unwrap();
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tap");
+    let output = launcher(installs.path())
+        .args(["tap", "validate", fixture.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "tap validate failed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("ok"), "expected ok: {stdout}");
+}
+
+#[test]
+fn tap_validate_fails_on_dir_without_tap_toml() {
+    let installs = tempfile::tempdir().unwrap();
+    let empty = tempfile::tempdir().unwrap();
+    let output = launcher(installs.path())
+        .args(["tap", "validate", empty.path().to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!output.status.success(), "validate should fail on empty dir");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("error") || stderr.contains("tap.toml") || stderr.contains("failed"),
+        "expected error message: {stderr}"
+    );
+}
+
+#[test]
+fn doctor_shows_git_status() {
+    let installs = tempfile::tempdir().unwrap();
+    let output = launcher(installs.path()).arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        stdout.contains("git"),
+        "doctor should show git status: {stdout}"
+    );
+}
+
 // ── Tap subscription integration tests ────────────────────────────────────────
 
 fn write_minimal_subscribed_tap(taps_cache: &Path, tap_id: &str, game_id: &str, game_title: &str) {

@@ -160,7 +160,7 @@ pub fn missing_expects_files(install_dir: &Path, expected: &[String]) -> Vec<Str
 
 /// Current UTC time formatted as ISO 8601 (YYYY-MM-DDTHH:MM:SSZ), built
 /// from libc::gmtime_r to avoid pulling in chrono / time crates.
-fn now_iso8601() -> String {
+pub(crate) fn now_iso8601() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as libc::time_t)
