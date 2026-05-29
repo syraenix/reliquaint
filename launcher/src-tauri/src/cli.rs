@@ -67,6 +67,47 @@ enum Commands {
     },
     /// Run host-dependency and install-record diagnostics.
     Doctor,
+    /// Add a game from a directory the user already has on disk. Runs
+    /// platform/entry-point detection, composes a draft manifest, and
+    /// writes it to the user tap on confirmation.
+    Add {
+        /// Directory containing the game.
+        path: PathBuf,
+        /// Skip the confirm-or-edit prompt and accept the draft as-is.
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Override the detected platform. Useful when the heuristic
+        /// is ambiguous, or when running non-interactively.
+        #[arg(long, value_enum)]
+        platform: Option<PlatformArg>,
+    },
+    /// Print on-disk paths for a user-created entry's manifest,
+    /// sibling config, and install record. Useful for hand-editing.
+    Where {
+        /// Catalog id.
+        id: String,
+    },
+    /// Remove a user-created entry. Cascades the manifest, sibling
+    /// config, and install record. Refuses to operate on bundled
+    /// entries.
+    Remove {
+        /// Catalog id.
+        id: String,
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        force: bool,
+    },
+    /// Print a submission-ready version of a user-created entry that
+    /// can be opened as a PR against the bundled tap. Validates the
+    /// manifest and warns on completeness gaps.
+    Submit {
+        /// Catalog id.
+        id: String,
+        /// Copy the manifest body to the clipboard (requires
+        /// `wl-copy` or `xclip` on PATH).
+        #[arg(long)]
+        clipboard: bool,
+    },
 }
 
 #[derive(Args)]
@@ -144,6 +185,23 @@ pub fn run() -> ExitCode {
             Ok(view) => cmd_doctor(&view),
             Err(()) => ExitCode::FAILURE,
         },
+        Commands::Add {
+            path,
+            yes,
+            platform,
+        } => cmd_add(&repo_root, &path, yes, platform.map(Platform::from)),
+        Commands::Where { id } => match load_view(&repo_root) {
+            Ok(view) => cmd_where(&view, &id),
+            Err(()) => ExitCode::FAILURE,
+        },
+        Commands::Remove { id, force } => match load_view(&repo_root) {
+            Ok(view) => cmd_remove(&view, &id, force),
+            Err(()) => ExitCode::FAILURE,
+        },
+        Commands::Submit { id, clipboard } => match load_view(&repo_root) {
+            Ok(view) => cmd_submit(&view, &id, clipboard),
+            Err(()) => ExitCode::FAILURE,
+        },
     }
 }
 
@@ -159,25 +217,41 @@ fn resolve_repo_root() -> Option<PathBuf> {
         .or_else(crate::paths::packaged_repo_root)
 }
 
-/// Assemble a `CatalogView` from the bundled tap + install records.
+/// Assemble a `CatalogView` from the bundled tap, the user tap (if
+/// present), and install records.
+///
 /// A missing bundled tap is non-fatal (warn and continue with no
-/// entries); a structural tap-loading error is fatal.
+/// bundled entries); a structural bundled-tap error is fatal. The user
+/// tap is fully optional — its absence means "no user-created games
+/// yet," and a broken user tap is degraded to a warning so it can't
+/// take down browsing of bundled content.
 fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
+    let mut taps: Vec<crate::tap::LoadedTap> = Vec::new();
+
     let tap_root = crate::paths::tap_root(repo_root);
-    let taps = match crate::tap::load_tap(&tap_root) {
-        Ok(t) => vec![t],
+    match crate::tap::load_tap(&tap_root) {
+        Ok(t) => taps.push(t),
         Err(crate::tap::TapError::MissingRoot { .. }) => {
             tracing::warn!(
                 root = %tap_root.display(),
                 "bundled tap not found; treating catalog as empty"
             );
-            Vec::new()
         }
         Err(e) => {
             eprintln!("error: {e}");
             return Err(());
         }
-    };
+    }
+
+    let user_tap_root = crate::paths::user_tap_dir();
+    match crate::tap::load_user_tap(&user_tap_root) {
+        Ok(t) => taps.push(t),
+        Err(crate::tap::TapError::MissingRoot { .. }) => {}
+        Err(e) => {
+            eprintln!("warning: user tap failed to load: {e}");
+        }
+    }
+
     let installs = crate::install_record::load_all(&crate::paths::installs_dir());
     Ok(CatalogView::assemble(taps, installs))
 }
@@ -519,6 +593,306 @@ fn prompt_yes_no(question: &str) -> bool {
         return false;
     }
     line.trim().eq_ignore_ascii_case("y")
+}
+
+fn cmd_add(
+    repo_root: &Path,
+    source: &Path,
+    yes: bool,
+    platform_override: Option<Platform>,
+) -> ExitCode {
+    use crate::wizard::{self, AddOptions, WizardError};
+
+    let view = match load_view(repo_root) {
+        Ok(v) => v,
+        Err(()) => return ExitCode::FAILURE,
+    };
+    let user_tap_root = crate::paths::user_tap_dir();
+    let installs_dir = crate::paths::installs_dir();
+
+    let bundled_ids: Vec<String> = view
+        .all()
+        .iter()
+        .filter(|e| e.tap_id != crate::tap::RESERVED_USER_TAP_ID)
+        .map(|e| e.catalog.game.id.clone())
+        .collect();
+    let user_ids: Vec<String> = view
+        .all()
+        .iter()
+        .filter(|e| e.tap_id == crate::tap::RESERVED_USER_TAP_ID)
+        .map(|e| e.catalog.game.id.clone())
+        .collect();
+
+    let prepared = wizard::prepare(source, platform_override);
+    let (report, draft) = match prepared {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if report.platform.platform.is_none() && platform_override.is_none() {
+        eprintln!(
+            "error: could not determine platform. evidence:\n{}",
+            report
+                .platform
+                .evidence
+                .iter()
+                .map(|s| format!("  - {s}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        eprintln!("hint: re-run with --platform dos|amiga");
+        return ExitCode::FAILURE;
+    }
+
+    let rendered = match toml::to_string_pretty(&draft) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: failed to render draft: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if !yes {
+        eprintln!("\n--- draft manifest for {} ---", draft.game.id);
+        eprintln!("{rendered}");
+        eprintln!("--- end of draft ---");
+        if !prompt_yes_no("write this manifest? [y/N]") {
+            eprintln!("cancelled.");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    if let Err(e) = wizard::validate(&draft) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    let result = wizard::commit(
+        &AddOptions {
+            source: source.to_path_buf(),
+            user_tap_root,
+            installs_dir,
+            platform_override,
+            bundled_ids: &bundled_ids,
+            user_ids: &user_ids,
+        },
+        &draft,
+    );
+    match result {
+        Ok(r) => {
+            println!("added {} ({:?}):", r.id, r.platform);
+            println!("  manifest:        {}", r.manifest_path.display());
+            if let Some(c) = &r.config_path {
+                println!("  config:          {}", c.display());
+            }
+            println!("  install record:  {}", r.install_record_path.display());
+            ExitCode::SUCCESS
+        }
+        Err(WizardError::UserEntryExists(id)) => {
+            eprintln!(
+                "error: user-tap entry {id:?} already exists. Use `reliquaint remove {id}` first."
+            );
+            ExitCode::FAILURE
+        }
+        Err(WizardError::BundledEntryExists(id)) => {
+            eprintln!(
+                "error: id {id:?} is already used by the bundled catalog; pick a different id."
+            );
+            ExitCode::FAILURE
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn cmd_where(view: &CatalogView, id: &str) -> ExitCode {
+    let entry = match view.by_id(id) {
+        Some(e) => e,
+        None => {
+            eprintln!("error: no catalog entry with id {id:?}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let installs_dir = crate::paths::installs_dir();
+
+    if entry.tap_id == crate::tap::RESERVED_USER_TAP_ID {
+        let user_tap_root = crate::paths::user_tap_dir();
+        let locs = crate::wizard::locate(id, &user_tap_root, &installs_dir);
+        println!("user-tap entry {id} (tap=local):");
+        match &locs.manifest_path {
+            Some(p) => println!("  manifest:        {}", p.display()),
+            None => println!("  manifest:        (missing)"),
+        }
+        match &locs.config_path {
+            Some(p) => println!("  config:          {}", p.display()),
+            None => println!("  config:          (none)"),
+        }
+        match &locs.install_record_path {
+            Some(p) => println!("  install record:  {}", p.display()),
+            None => println!("  install record:  (none)"),
+        }
+        ExitCode::SUCCESS
+    } else {
+        println!("bundled entry {id} (tap={}):", entry.tap_id);
+        println!("  manifest:        {}", entry.source_path.display());
+        if let Some(ip) = &entry.install {
+            println!(
+                "  install record:  {}",
+                installs_dir.join(format!("{id}.toml")).display()
+            );
+            println!("  install path:    {}", ip.install.install_path.display());
+        } else {
+            println!("  install record:  (not installed)");
+        }
+        println!(
+            "  note: bundled entries are not user-owned. To customize, copy the manifest into the user tap and edit there."
+        );
+        ExitCode::SUCCESS
+    }
+}
+
+fn cmd_remove(view: &CatalogView, id: &str, force: bool) -> ExitCode {
+    let entry = match view.by_id(id) {
+        Some(e) => e,
+        None => {
+            eprintln!("error: no catalog entry with id {id:?}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if entry.tap_id != crate::tap::RESERVED_USER_TAP_ID {
+        eprintln!(
+            "error: {id:?} belongs to the bundled tap ({:?}); only user-tap entries can be removed via this command.",
+            entry.tap_id
+        );
+        return ExitCode::FAILURE;
+    }
+
+    let user_tap_root = crate::paths::user_tap_dir();
+    let installs_dir = crate::paths::installs_dir();
+    let locs = crate::wizard::locate(id, &user_tap_root, &installs_dir);
+
+    if !force {
+        eprintln!("will remove:");
+        if let Some(p) = &locs.manifest_path {
+            eprintln!("  - {}", p.display());
+        }
+        if let Some(p) = &locs.config_path {
+            eprintln!("  - {}", p.display());
+        }
+        if let Some(p) = &locs.install_record_path {
+            eprintln!("  - {}", p.display());
+        }
+        if !prompt_yes_no("proceed? [y/N]") {
+            eprintln!("cancelled.");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    match crate::wizard::remove_files(&locs) {
+        Ok(()) => {
+            println!("removed {id}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn cmd_submit(view: &CatalogView, id: &str, clipboard: bool) -> ExitCode {
+    let entry = match view.by_id(id) {
+        Some(e) => e,
+        None => {
+            eprintln!("error: no catalog entry with id {id:?}");
+            return ExitCode::FAILURE;
+        }
+    };
+    if entry.tap_id != crate::tap::RESERVED_USER_TAP_ID {
+        eprintln!(
+            "error: {id:?} belongs to the bundled tap ({:?}); only user-created entries are submission candidates.",
+            entry.tap_id
+        );
+        return ExitCode::FAILURE;
+    }
+    let exported = match crate::export::export_manifest(&entry.catalog) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let platform = match entry.catalog.game.platform {
+        Platform::Dos => "dos",
+        Platform::Amiga => "amiga",
+    };
+    println!("{}", exported.content);
+    eprintln!("--- next steps ---");
+    eprintln!(
+        "target path:    tap/catalog/{platform}/{id}.toml"
+    );
+    eprintln!(
+        "create file:    {}",
+        crate::export::github_new_file_url(platform, "develop")
+    );
+    eprintln!("CONTRIBUTING:   https://github.com/syraenix/reliquaint/blob/develop/CONTRIBUTING.md");
+    if !exported.warnings.is_empty() {
+        eprintln!();
+        eprintln!("--- warnings (non-fatal) ---");
+        for w in &exported.warnings {
+            eprintln!("  - {w}");
+        }
+    }
+    if clipboard {
+        if let Err(e) = copy_to_clipboard(&exported.content) {
+            eprintln!("clipboard copy failed: {e}");
+        } else {
+            eprintln!("(copied to clipboard)");
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// Pipe `content` to `wl-copy` or `xclip -selection clipboard` —
+/// whichever is on PATH. Linux-only per CLAUDE.md.
+fn copy_to_clipboard(content: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let (program, args): (&str, &[&str]) = if has_on_path("wl-copy") {
+        ("wl-copy", &[])
+    } else if has_on_path("xclip") {
+        ("xclip", &["-selection", "clipboard"])
+    } else {
+        return Err(std::io::Error::other(
+            "neither wl-copy nor xclip is on PATH",
+        ));
+    };
+    let mut child = Command::new(program)
+        .args(args)
+        .stdin(Stdio::piped())
+        .spawn()?;
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin.write_all(content.as_bytes())?;
+    }
+    let status = child.wait()?;
+    if !status.success() {
+        return Err(std::io::Error::other(format!(
+            "{program} exited with status {status}"
+        )));
+    }
+    Ok(())
+}
+
+fn has_on_path(name: &str) -> bool {
+    let Ok(path) = std::env::var("PATH") else {
+        return false;
+    };
+    std::env::split_paths(&path).any(|p| p.join(name).is_file())
 }
 
 fn cmd_doctor(view: &CatalogView) -> ExitCode {

@@ -9,8 +9,10 @@ fn fixture_root() -> PathBuf {
 /// Build a `reliquaint` invocation pointed at the fixture tap with an
 /// isolated installs directory and a deliberately-missing user config
 /// (so the launcher uses defaults rather than picking up the developer's
-/// real ~/.config/reliquaint/config.toml). The caller may pre-populate
-/// the installs dir to set up "installed" entries.
+/// real ~/.config/reliquaint/config.toml). The user tap is pointed at
+/// the same isolated directory by default; tests that want to exercise
+/// the user tap pre-populate `<installs_dir>/user-tap/`. The caller may
+/// pre-populate the installs dir to set up "installed" entries.
 fn launcher(installs_dir: &Path) -> Command {
     let mut cmd = Command::cargo_bin("reliquaint").unwrap();
     cmd.env("RELIQUAINT_REPO_ROOT", fixture_root())
@@ -18,8 +20,43 @@ fn launcher(installs_dir: &Path) -> Command {
         .env(
             "RELIQUAINT_USER_CONFIG_PATH",
             installs_dir.join("nonexistent-config.toml"),
-        );
+        )
+        .env("RELIQUAINT_USER_TAP_DIR", installs_dir.join("user-tap"));
     cmd
+}
+
+/// Seed the user tap directory with metadata + a single DOS catalog
+/// entry, mirroring what the wizard will write in M4.
+fn seed_user_tap_with_dos_entry(user_tap_root: &Path, id: &str, title: &str) {
+    let catalog_dir = user_tap_root.join("catalog/dos");
+    std::fs::create_dir_all(&catalog_dir).unwrap();
+    std::fs::write(
+        user_tap_root.join("tap.toml"),
+        r#"schema_version = 1
+id = "local"
+title = "Local games"
+description = "User-created entries."
+version = "0.1.0"
+maintainer = "local"
+url = "https://github.com/syraenix/reliquaint"
+license = "CC0-1.0"
+"#,
+    )
+    .unwrap();
+    let body = format!(
+        r#"schema_version = 1
+[game]
+id = "{id}"
+title = "{title}"
+platform = "dos"
+[runtime]
+emulator = "dosbox-staging"
+[runtime.dosbox]
+config = "{id}.conf"
+entry = "TEST.EXE"
+"#
+    );
+    std::fs::write(catalog_dir.join(format!("{id}.toml")), body).unwrap();
 }
 
 fn write_install_record(dir: &Path, catalog_id: &str, install_path: &str) {
@@ -71,6 +108,71 @@ fn list_shows_fixture_entries_grouped_by_collection() {
         stdout.contains("not installed"),
         "missing not-installed status: {stdout}"
     );
+}
+
+#[test]
+fn list_includes_user_tap_entries_alongside_bundled() {
+    let installs = tempfile::tempdir().unwrap();
+    let user_tap = installs.path().join("user-tap");
+    seed_user_tap_with_dos_entry(&user_tap, "my-custom-game", "My Custom Game");
+
+    let output = launcher(installs.path())
+        .args(["list", "--format", "json"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "list should succeed; stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    // Bundled fixture entries still present:
+    assert!(stdout.contains("qfg1-ega"), "missing bundled entry: {stdout}");
+    assert!(stdout.contains("fatman"), "missing bundled entry: {stdout}");
+    // User tap entry surfaced with tap-of-origin "local":
+    assert!(
+        stdout.contains("my-custom-game"),
+        "missing user-tap entry: {stdout}"
+    );
+    assert!(
+        stdout.contains("\"tap_id\":\"local\"") || stdout.contains("\"tap_id\": \"local\""),
+        "user-tap entry missing tap_id=local: {stdout}"
+    );
+}
+
+#[test]
+fn list_warns_when_external_tap_claims_reserved_local_id() {
+    let installs = tempfile::tempdir().unwrap();
+    // Pretend the user tap dir contains a *valid* tap.toml with a wrong id.
+    // load_user_tap rejects this, but the bundled catalog still loads.
+    let user_tap = installs.path().join("user-tap");
+    std::fs::create_dir_all(&user_tap).unwrap();
+    std::fs::write(
+        user_tap.join("tap.toml"),
+        r#"schema_version = 1
+id = "third-party"
+title = "x"
+description = "x"
+version = "0.1.0"
+maintainer = "x"
+url = "https://x.test"
+license = "MIT"
+"#,
+    )
+    .unwrap();
+
+    let output = launcher(installs.path()).arg("list").output().unwrap();
+    assert!(output.status.success());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("user tap failed to load")
+            || stderr.contains("must be \"local\"")
+            || stderr.contains("third-party"),
+        "expected user-tap warning, got stderr: {stderr}"
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("qfg1-ega"), "bundled entries should still load: {stdout}");
 }
 
 #[test]
@@ -773,4 +875,211 @@ fn forced_install_missing_subdir_fails_and_can_be_retried() {
         .success();
     assert!(games.path().join("subgame/INNER/GAME.EXE").is_file());
     assert!(installs.path().join("subgame.toml").is_file());
+}
+
+// --- M4: manifest creation wizard ---
+
+fn fixture_dos_source(dir: &Path, name: &str) -> PathBuf {
+    let source = dir.join(name);
+    std::fs::create_dir_all(&source).unwrap();
+    std::fs::write(source.join("SIERRA.BAT"), "@echo off\nSIERRA.EXE\n").unwrap();
+    std::fs::write(source.join("SIERRA.EXE"), [0u8; 4096]).unwrap();
+    std::fs::write(source.join("RESOURCE.000"), [0u8; 4096]).unwrap();
+    source
+}
+
+#[test]
+fn add_writes_manifest_conf_and_install_record_for_dos_source() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = fixture_dos_source(games.path(), "my-custom-game");
+    let user_tap = installs.path().join("user-tap");
+
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .success();
+
+    let manifest = user_tap.join("catalog/dos/my-custom-game.toml");
+    let conf = user_tap.join("catalog/dos/my-custom-game.conf");
+    let record = installs.path().join("my-custom-game.toml");
+    assert!(manifest.is_file(), "manifest not written");
+    assert!(conf.is_file(), "DOSBox conf not written");
+    assert!(record.is_file(), "install record not written");
+
+    // Generated conf has no [autoexec] block.
+    let conf_text = std::fs::read_to_string(&conf).unwrap();
+    assert!(!conf_text.to_ascii_lowercase().contains("[autoexec]"));
+
+    // The new entry shows up in `list`, tagged with tap_id=local.
+    let output = launcher(installs.path())
+        .args(["list", "--format", "json"])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("my-custom-game"));
+    assert!(
+        stdout.contains("\"tap_id\":\"local\"") || stdout.contains("\"tap_id\": \"local\""),
+        "user-tap entry missing tap_id=local: {stdout}"
+    );
+}
+
+#[test]
+fn run_dry_run_succeeds_after_add_for_dos_source() {
+    // Round-trip: add → list shows it → run --dry-run composes the
+    // launch command using the user-tap manifest + install record.
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = fixture_dos_source(games.path(), "my-custom-game");
+
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .success();
+
+    launcher(installs.path())
+        .args(["run", "my-custom-game", "--dry-run"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn add_rejects_collision_with_bundled_id() {
+    // qfg1-ega is a bundled fixture id. The wizard must refuse to
+    // shadow it.
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = fixture_dos_source(games.path(), "qfg1-ega");
+
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .failure()
+        .stderr(contains("already used by the bundled catalog"));
+}
+
+#[test]
+fn add_fails_when_platform_is_indeterminate() {
+    // Empty source dir → unknown platform; the wizard should refuse
+    // and point at --platform.
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = games.path().join("mystery-game");
+    std::fs::create_dir_all(&source).unwrap();
+
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .failure()
+        .stderr(contains("platform could not be determined"));
+}
+
+#[test]
+fn where_prints_paths_for_user_tap_entry() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = fixture_dos_source(games.path(), "my-custom-game");
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .success();
+
+    launcher(installs.path())
+        .args(["where", "my-custom-game"])
+        .assert()
+        .success()
+        .stdout(contains("user-tap entry my-custom-game"))
+        .stdout(contains("catalog/dos/my-custom-game.toml"))
+        .stdout(contains("catalog/dos/my-custom-game.conf"))
+        .stdout(contains("my-custom-game.toml"));
+}
+
+#[test]
+fn where_refuses_to_treat_bundled_entry_as_user_owned() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["where", "qfg1-ega"])
+        .assert()
+        .success()
+        .stdout(contains("bundled entry qfg1-ega"))
+        .stdout(contains("not user-owned"));
+}
+
+#[test]
+fn remove_cascades_user_entry_files() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = fixture_dos_source(games.path(), "my-custom-game");
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .success();
+
+    let manifest = installs.path().join("user-tap/catalog/dos/my-custom-game.toml");
+    let conf = installs.path().join("user-tap/catalog/dos/my-custom-game.conf");
+    let record = installs.path().join("my-custom-game.toml");
+    assert!(manifest.is_file());
+
+    launcher(installs.path())
+        .args(["remove", "my-custom-game", "--force"])
+        .assert()
+        .success()
+        .stdout(contains("removed my-custom-game"));
+
+    assert!(!manifest.exists(), "manifest should be gone");
+    assert!(!conf.exists(), "conf should be gone");
+    assert!(!record.exists(), "install record should be gone");
+}
+
+#[test]
+fn remove_refuses_bundled_entries() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["remove", "qfg1-ega", "--force"])
+        .assert()
+        .failure()
+        .stderr(contains("belongs to the bundled tap"));
+}
+
+// --- M6: upstream submission ---
+
+#[test]
+fn submit_emits_clean_manifest_and_next_steps_for_user_entry() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let source = fixture_dos_source(games.path(), "my-custom-game");
+    launcher(installs.path())
+        .args(["add", source.to_str().unwrap(), "--yes"])
+        .assert()
+        .success();
+
+    let output = launcher(installs.path())
+        .args(["submit", "my-custom-game"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "submit failed");
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    // Canonical manifest on stdout.
+    assert!(stdout.contains("schema_version"));
+    assert!(stdout.contains("my-custom-game"));
+    assert!(stdout.contains("dosbox-staging"));
+
+    // Submission instructions on stderr.
+    assert!(stderr.contains("tap/catalog/dos/my-custom-game.toml"));
+    assert!(stderr.contains("github.com/syraenix/reliquaint/new/develop"));
+    // Bare-bones meta triggers completeness warnings.
+    assert!(stderr.contains("[meta].year"));
+    assert!(stderr.contains("[acquisition]"));
+}
+
+#[test]
+fn submit_refuses_bundled_entries() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["submit", "qfg1-ega"])
+        .assert()
+        .failure()
+        .stderr(contains("belongs to the bundled tap"));
 }
