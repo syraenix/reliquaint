@@ -1,13 +1,18 @@
 # Contributing to Reliquaint
 
-Thanks for your interest. Reliquaint is small but the catalog has room to grow — most contributions will be new entries in the bundled `reliquaint-core` tap.
+Thanks for your interest. There are two distinct contribution tracks depending on what you want to add.
 
-## What we accept
+## Catalog entries vs. launcher code
 
-- **Catalog entries** for DOS or Amiga games (TOML files under `tap/catalog/<platform>/`).
-- **Per-game configs** — shipped DOSBox-Staging `.conf` or FS-UAE `.fs-uae` files that ship alongside the catalog entry.
+**Catalog entries** (new game manifests, shipped `.conf` / `.fs-uae` configs) go to the **[`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository**, not this one. As of v0.3, the bundled tap is an independent repository. Follow the contributing guide there.
+
+**Launcher code** (new features, bug fixes, CLI commands, Svelte components, Tauri commands) lives here in this repository.
+
+## What we accept here
+
 - **Launcher code changes** — bug fixes, ergonomics, new features that align with the [PRD](docs/prd.md).
 - **Documentation** — fixes to guide text, the README, ADRs.
+- **Schema changes** — additions to `docs/schema.md` that are backwards-compatible or come with a version bump plan.
 
 ## What we don't accept
 
@@ -19,18 +24,18 @@ If you have a great Windows/macOS port plan, open an issue first to discuss.
 
 ## Adding a catalog entry
 
-The fastest path is the **manifest wizard**: install Reliquaint, run the wizard on your already-working game directory, play the game to tune the config, then submit. Step-by-step:
+Catalog entries go to [`reliquaint-core`](https://github.com/syraenix/reliquaint-core). This is the fastest path:
 
 1. **Wizard.** `reliquaint add ~/games/<your-game>` (or **+ Add game** in the GUI) inspects the directory, fills in a draft manifest, and writes it to your local tap at `${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/`.
 2. **Play and tune.** Launch via `reliquaint run <id>`; iterate on the generated `.conf` until it runs well. `reliquaint where <id>` prints the manifest and config paths so you can hand-edit.
-3. **Export.** `reliquaint submit <id>` re-validates, warns on completeness gaps (missing `[meta]` fields are the common one), and prints a clean canonical manifest to stdout along with the target path. Add `--clipboard` to copy it for paste. The GUI's **Submit upstream** button copies + opens the right GitHub URL automatically.
-4. **PR.** Paste into `tap/catalog/<platform>/<id>.toml` on the GitHub "new file" page; if your game ships a DOSBox-Staging config, paste that as `tap/catalog/<platform>/<id>.conf` alongside (no `[autoexec]` block — the launcher composes that at runtime).
+3. **Export.** `reliquaint submit <id>` re-validates, warns on completeness gaps (missing `[meta]` fields are the common one), and prints a clean canonical manifest to stdout along with the target path. Add `--clipboard` to copy it for paste.
+4. **PR.** Open a PR against [`reliquaint-core`](https://github.com/syraenix/reliquaint-core): paste into `catalog/<platform>/<id>.toml`; if your game ships a DOSBox-Staging config, paste that as `catalog/<platform>/<id>.conf` alongside (no `[autoexec]` block — the launcher composes that at runtime).
 
-If you'd rather write the manifest by hand from scratch, the schema is below.
+If you'd rather write the manifest by hand from scratch, the schema is in [`docs/schema.md`](docs/schema.md).
 
 ### 1. Pick an id
 
-Match the filename in `tap/catalog/<platform>/<id>.toml`. The id format is `^[a-z][a-z0-9-]*[a-z0-9]$` — lowercase ASCII, hyphens allowed, no consecutive hyphens, max 64 chars. Examples: `qfg1-ega`, `kings-quest-6`, `fatman`.
+Match the filename in `catalog/<platform>/<id>.toml`. The id format is `^[a-z][a-z0-9-]*[a-z0-9]$` — lowercase ASCII, hyphens allowed, no consecutive hyphens, max 64 chars. Examples: `qfg1-ega`, `kings-quest-6`, `fatman`.
 
 ### 2. Write the TOML
 
@@ -74,9 +79,9 @@ For Amiga, use `runtime.fs_uae` with `model` (`a500`/`a600`/`a1200`/`a4000`), op
 
 ### 3. Ship a `.conf` (DOS)
 
-Drop the DOSBox-Staging config next to your `.toml` at `tap/catalog/dos/<id>.conf`. Do **not** include an `[autoexec]` section — the launcher composes that at runtime from `runtime.dosbox.entry` and the user's install path. See [ADR-0002](docs/adr-0002-split-dosbox-config-model.md) for the rationale.
+Drop the DOSBox-Staging config next to your `.toml` at `catalog/dos/<id>.conf` in the `reliquaint-core` repository. Do **not** include an `[autoexec]` section — the launcher composes that at runtime from `runtime.dosbox.entry` and the user's install path. See [ADR-0002](docs/adr-0002-split-dosbox-config-model.md) for the rationale.
 
-A reasonable starting point is `config/default-dosbox-staging.conf` at the repo root.
+A reasonable starting point is `config/default-dosbox-staging.conf` at the launcher repo root.
 
 ### 4. Test locally
 

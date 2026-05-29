@@ -17,13 +17,13 @@ A preservation hub for classic DOS and Amiga games that happens to launch. One c
 
 Reliquaint is a Linux launcher built on top of [DOSBox-Staging](https://www.dosbox-staging.org/) (DOS) and [FS-UAE](https://fs-uae.net/) (Amiga). You bring your own legally-acquired game files; Reliquaint handles the configuration, mounting, sidecars (FluidSynth for MIDI), and a small catalog of curated metadata.
 
-The bundled `reliquaint-core` tap ships with 18 entries — Quest for Glory I–IV, King's Quest I (SCI remake) through V, Space Quest I–VI (including the SQ1 VGA remake), and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) is designed for community-maintained additions in future versions.
+Subscribe to the official [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) tap to get a curated starter set of classic DOS and Amiga titles — Quest for Glory I–IV, King's Quest I–V, Space Quest I–VI, Police Quest 1–4, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) supports multiple community-maintained taps with priority-based conflict resolution.
 
 It does **not** acquire game files for you. It does **not** circumvent DRM. The user provides their own copies; the launcher tells them where to put them.
 
 ## Status
 
-**v0.1.** The CLI is feature-complete against the v0.1 design (`list`, `run`, `install`, `migrate-installs`, `doctor`). The GUI is end-to-end usable for browsing, installing, and launching. The bundled tap is populated. Companion content (walkthroughs, maps, hint files) and tap subscription are explicit non-goals for v0.1 — they land in v0.4 and v0.3 respectively per the [PRD](docs/prd.md).
+**v0.3.** Tap subscriptions are fully implemented. Subscribe to community-maintained taps via `reliquaint tap add <name>` or the Taps panel in the GUI. The CLI has `list`, `run`, `install`, `migrate-installs`, `doctor`, `add`, `tap add/remove/list/sync/reorder/validate`, and `upgrade`. The GUI supports browsing, installing, launching, tap management, and a first-run prompt for new installs. Companion content (walkthroughs, maps, hint files) remains a v0.4 goal per the [PRD](docs/prd.md).
 
 The project is Linux-only by design (Flatpak DOSBox-Staging, apt-installed FluidSynth/FS-UAE). Cross-platform support is a non-goal for v0.1.
 
@@ -113,9 +113,23 @@ RUST_LOG=trace reliquaint list
 
 In the GUI, the ⚕ Doctor button in the header surfaces the same checks plus per-row "Fix this" buttons for missing apt/flatpak dependencies.
 
+## Subscribing to taps
+
+The first time you run Reliquaint, a prompt offers to subscribe to the official `reliquaint-core` tap. You can also manage subscriptions manually:
+
+```bash
+reliquaint tap add reliquaint-core      # subscribe to the official tap
+reliquaint tap add https://github.com/…/my-tap   # or any URL
+reliquaint tap list                     # show subscribed taps
+reliquaint tap sync                     # pull latest commits for all taps
+reliquaint tap remove my-tap            # unsubscribe
+```
+
+The Taps panel (⊞ Taps button in the GUI) provides the same controls visually.
+
 ## Contributing a catalog entry
 
-Drop a TOML file into `tap/catalog/<platform>/<id>.toml` matching the schema in [`docs/schema.md`](docs/schema.md), copy any per-game shipped `.conf` next to it (no `[autoexec]` block — the launcher composes that at launch), and open a PR. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full walkthrough.
+Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository. Clone it, drop a TOML file into `catalog/<platform>/<id>.toml` matching the schema in [`docs/schema.md`](docs/schema.md), add any per-game shipped `.conf` next to it, and open a PR there. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full walkthrough.
 
 ## Further reading
 
