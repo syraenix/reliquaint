@@ -211,6 +211,29 @@ fn load_tap_inner(root: &Path) -> Result<LoadedTap, TapError> {
     })
 }
 
+/// Validate a fetched tap directory before registering it.
+///
+/// Checks that `tap.toml` is present and valid (fatal) and walks catalog
+/// entries, logging WARN for any that fail to parse (non-fatal).
+///
+/// `expected_id`: when `Some`, logs a warning if the tap's actual id differs
+/// (non-fatal — used during `tap sync` to detect upstream renames without
+/// breaking the user's existing subscription).
+pub fn validate_tap_dir(root: &Path, expected_id: Option<&str>) -> Result<TapMetadata, TapError> {
+    let meta = load_tap_inner(root)?.metadata;
+    if let Some(expected) = expected_id {
+        if meta.id != expected {
+            tracing::warn!(
+                "tap id mismatch: expected {:?}, got {:?}. \
+                 Keeping local id. Use 'tap remove' then 'tap add' to reset.",
+                expected,
+                meta.id
+            );
+        }
+    }
+    Ok(meta)
+}
+
 /// Lazily initialize the user tap on disk and return its metadata.
 ///
 /// If `<root>/tap.toml` already exists, parses and returns it (and
@@ -590,6 +613,52 @@ license     = "x"
 
         let err = ensure_user_tap(root).unwrap_err();
         assert!(matches!(err, TapError::UnexpectedUserTapId { .. }));
+    }
+
+    #[test]
+    fn validate_tap_dir_succeeds_on_valid_tap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, "test-tap");
+        write_catalog_entry(root, "dos", "game1");
+        let meta = validate_tap_dir(root, None).unwrap();
+        assert_eq!(meta.id, "test-tap");
+    }
+
+    #[test]
+    fn validate_tap_dir_fails_on_missing_tap_toml() {
+        let tmp = tempfile::tempdir().unwrap();
+        let err = validate_tap_dir(tmp.path(), None).unwrap_err();
+        // MissingRoot because load_tap_inner checks root is a dir (it is), then
+        // tries to read tap.toml — this produces a Read error, but since the
+        // dir exists it goes to TapError::Read.
+        assert!(
+            matches!(err, TapError::Read { .. } | TapError::MissingRoot { .. }),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn validate_tap_dir_is_non_fatal_on_id_mismatch() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, "test-tap");
+        // expected_id differs — should still succeed with a warning
+        let meta = validate_tap_dir(root, Some("other-id")).unwrap();
+        assert_eq!(meta.id, "test-tap");
+    }
+
+    #[test]
+    fn validate_tap_dir_skips_bad_catalog_entries_non_fatally() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, "test-tap");
+        write_catalog_entry(root, "dos", "good-game");
+        std::fs::create_dir_all(root.join("catalog/dos")).unwrap();
+        std::fs::write(root.join("catalog/dos/broken.toml"), "not valid [[[[").unwrap();
+        // Should succeed — bad entry is a warning, not fatal
+        let meta = validate_tap_dir(root, None).unwrap();
+        assert_eq!(meta.id, "test-tap");
     }
 
     #[test]
