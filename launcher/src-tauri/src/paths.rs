@@ -107,8 +107,35 @@ fn packaged_repo_root_from(appdir: Option<&str>, exe: Option<&Path>) -> Option<P
 
 /// Where user-subscribed taps live (v0.3+; the constant exists now so the
 /// path doesn't get hardcoded ad-hoc later).
+///
+/// `RELIQUAINT_TAPS_CACHE_DIR`, if set and non-empty, overrides the default.
+/// Used by integration tests to isolate state.
 pub fn user_taps_dir() -> PathBuf {
+    if let Ok(v) = std::env::var("RELIQUAINT_TAPS_CACHE_DIR") {
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
     data_home_from_env(std::env::var("XDG_DATA_HOME").ok().as_deref()).join("reliquaint/taps")
+}
+
+/// Cache directory for a single fetched tap: `<user_taps_dir>/<tap_id>/`.
+pub fn tap_cache_dir_for(tap_id: &str) -> PathBuf {
+    user_taps_dir().join(tap_id)
+}
+
+/// The subscriptions manifest — which taps the user is subscribed to.
+///
+/// `RELIQUAINT_SUBSCRIPTIONS_PATH`, if set and non-empty, overrides the
+/// default XDG-derived path. Used by integration tests to isolate state.
+pub fn subscriptions_path() -> PathBuf {
+    if let Ok(v) = std::env::var("RELIQUAINT_SUBSCRIPTIONS_PATH") {
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
+    config_home_from_env(std::env::var("XDG_CONFIG_HOME").ok().as_deref())
+        .join("reliquaint/subscriptions.toml")
 }
 
 /// The user's local pseudo-tap, writable by the CLI and GUI wizards.
@@ -389,12 +416,57 @@ mod tests {
 
     #[test]
     fn user_taps_dir_ends_with_reliquaint_taps() {
+        let saved = std::env::var("RELIQUAINT_TAPS_CACHE_DIR").ok();
+        std::env::remove_var("RELIQUAINT_TAPS_CACHE_DIR");
         let p = user_taps_dir();
         assert!(
             p.ends_with("reliquaint/taps"),
             "user_taps_dir should end with reliquaint/taps, got {}",
             p.display()
         );
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_TAPS_CACHE_DIR"),
+        }
+    }
+
+    #[test]
+    fn tap_cache_dir_for_appends_tap_id() {
+        let saved = std::env::var("RELIQUAINT_TAPS_CACHE_DIR").ok();
+        std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", "/tmp/taps");
+        let p = tap_cache_dir_for("reliquaint-core");
+        assert_eq!(p, PathBuf::from("/tmp/taps/reliquaint-core"));
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_TAPS_CACHE_DIR"),
+        }
+    }
+
+    #[test]
+    fn subscriptions_path_ends_with_subscriptions_toml() {
+        let saved = std::env::var("RELIQUAINT_SUBSCRIPTIONS_PATH").ok();
+        std::env::remove_var("RELIQUAINT_SUBSCRIPTIONS_PATH");
+        let p = subscriptions_path();
+        assert!(
+            p.ends_with("reliquaint/subscriptions.toml"),
+            "subscriptions_path should end with reliquaint/subscriptions.toml, got {}",
+            p.display()
+        );
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_SUBSCRIPTIONS_PATH", v),
+            None => std::env::remove_var("RELIQUAINT_SUBSCRIPTIONS_PATH"),
+        }
+    }
+
+    #[test]
+    fn subscriptions_path_env_overrides() {
+        let saved = std::env::var("RELIQUAINT_SUBSCRIPTIONS_PATH").ok();
+        std::env::set_var("RELIQUAINT_SUBSCRIPTIONS_PATH", "/tmp/custom-subs.toml");
+        assert_eq!(subscriptions_path(), PathBuf::from("/tmp/custom-subs.toml"));
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_SUBSCRIPTIONS_PATH", v),
+            None => std::env::remove_var("RELIQUAINT_SUBSCRIPTIONS_PATH"),
+        }
     }
 
     #[test]
