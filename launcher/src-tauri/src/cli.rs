@@ -113,6 +113,9 @@ enum Commands {
         #[command(subcommand)]
         subcommand: TapSubcommand,
     },
+    /// Detect installed games that reference a tap you are not subscribed to
+    /// and suggest the subscribe command. Run after upgrading from v0.2.
+    Upgrade,
 }
 
 #[derive(Subcommand)]
@@ -253,6 +256,7 @@ pub fn run() -> ExitCode {
             TapSubcommand::Reorder { id, priority } => cmd_tap_reorder(&id, priority),
             TapSubcommand::Validate { path } => cmd_tap_validate(&path),
         },
+        Commands::Upgrade => cmd_upgrade(),
     }
 }
 
@@ -1374,4 +1378,49 @@ fn cmd_tap_validate(path: &std::path::Path) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn cmd_upgrade() -> ExitCode {
+    let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+    let manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|_| crate::subscriptions::SubscriptionManifest::empty());
+
+    // Collect tap ids referenced by install records that are known taps but
+    // not currently subscribed.
+    let missing: std::collections::BTreeSet<String> = installs
+        .iter()
+        .map(|r| r.record.install.tap.as_str())
+        .filter(|tap_id| {
+            crate::known_taps::KNOWN_TAPS
+                .iter()
+                .any(|(name, _)| name == tap_id)
+                && !manifest.taps.iter().any(|t| t.id.as_str() == *tap_id)
+        })
+        .map(|s| s.to_string())
+        .collect();
+
+    if missing.is_empty() {
+        println!("Nothing to upgrade — all install records reference subscribed taps.");
+        return ExitCode::SUCCESS;
+    }
+
+    println!(
+        "Found {} installed game(s) referencing taps you are not subscribed to.",
+        installs
+            .iter()
+            .filter(|r| missing.contains(&r.record.install.tap))
+            .count()
+    );
+    println!();
+    for tap_id in &missing {
+        let count = installs
+            .iter()
+            .filter(|r| &r.record.install.tap == tap_id)
+            .count();
+        println!("  {tap_id}: {count} game(s)");
+        println!("  → run: reliquaint tap add {tap_id}");
+    }
+    ExitCode::SUCCESS
 }

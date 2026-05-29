@@ -60,12 +60,16 @@ entry = "TEST.EXE"
 }
 
 fn write_install_record(dir: &Path, catalog_id: &str, install_path: &str) {
+    write_install_record_for_tap(dir, catalog_id, "reliquaint-core", install_path);
+}
+
+fn write_install_record_for_tap(dir: &Path, catalog_id: &str, tap_id: &str, install_path: &str) {
     let body = format!(
         r#"schema_version = 1
 
 [install]
 catalog_id   = "{catalog_id}"
-tap          = "reliquaint-core"
+tap          = "{tap_id}"
 install_path = "{install_path}"
 installed_at = 2026-05-23T14:32:00Z
 "#
@@ -1502,4 +1506,75 @@ fn list_subscribed_tap_games_appear_alongside_bundled() {
     assert!(stdout.contains("qfg1-ega"), "bundled tap game missing: {stdout}");
     // Game from subscribed tap
     assert!(stdout.contains("extra-unique-game-9z"), "subscribed tap game missing: {stdout}");
+}
+
+#[test]
+fn upgrade_suggests_tap_add_for_orphaned_installs_from_known_tap() {
+    let dir = tempfile::tempdir().unwrap();
+    let installs_dir = dir.path().join("installs");
+    std::fs::create_dir_all(&installs_dir).unwrap();
+    write_install_record_for_tap(
+        &installs_dir,
+        "qfg1-ega",
+        "reliquaint-core",
+        dir.path().join("games/qfg1-ega").to_str().unwrap(),
+    );
+    let sub_path = dir.path().join("subscriptions.toml");
+    // No subscription to reliquaint-core
+    std::fs::write(&sub_path, "schema_version = 1\n").unwrap();
+    let taps_cache = dir.path().join("taps");
+
+    launcher_with_tap_env(&installs_dir, &sub_path, &taps_cache)
+        .arg("upgrade")
+        .assert()
+        .success()
+        .stdout(contains("reliquaint-core"))
+        .stdout(contains("tap add reliquaint-core"));
+}
+
+#[test]
+fn upgrade_reports_nothing_when_all_taps_subscribed() {
+    let dir = tempfile::tempdir().unwrap();
+    let installs_dir = dir.path().join("installs");
+    std::fs::create_dir_all(&installs_dir).unwrap();
+    write_install_record_for_tap(
+        &installs_dir,
+        "qfg1-ega",
+        "reliquaint-core",
+        dir.path().join("games/qfg1-ega").to_str().unwrap(),
+    );
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    // Already subscribed to reliquaint-core
+    write_subscriptions_toml(&sub_path, "reliquaint-core", 0);
+
+    launcher_with_tap_env(&installs_dir, &sub_path, &taps_cache)
+        .arg("upgrade")
+        .assert()
+        .success()
+        .stdout(contains("Nothing to upgrade"));
+}
+
+#[test]
+fn upgrade_ignores_installs_from_unknown_taps() {
+    let dir = tempfile::tempdir().unwrap();
+    let installs_dir = dir.path().join("installs");
+    std::fs::create_dir_all(&installs_dir).unwrap();
+    // "some-random-tap" is not in the KNOWN_TAPS table
+    write_install_record_for_tap(
+        &installs_dir,
+        "some-game",
+        "some-random-tap",
+        dir.path().join("games/some-game").to_str().unwrap(),
+    );
+    let sub_path = dir.path().join("subscriptions.toml");
+    let taps_cache = dir.path().join("taps");
+    std::fs::write(&sub_path, "schema_version = 1\n").unwrap();
+
+    // Should report "nothing to upgrade" — unknown taps are not suggested
+    launcher_with_tap_env(&installs_dir, &sub_path, &taps_cache)
+        .arg("upgrade")
+        .assert()
+        .success()
+        .stdout(contains("Nothing to upgrade"));
 }
