@@ -141,7 +141,10 @@ priority = 0
         let m = SubscriptionManifest::parse_str(sample_toml()).unwrap();
         assert_eq!(m.taps.len(), 1);
         assert_eq!(m.taps[0].id, "reliquaint-core");
-        assert_eq!(m.taps[0].source, "https://github.com/syraenix/reliquaint-core");
+        assert_eq!(
+            m.taps[0].source,
+            "https://github.com/syraenix/reliquaint-core"
+        );
         assert_eq!(m.taps[0].priority, 0);
     }
 

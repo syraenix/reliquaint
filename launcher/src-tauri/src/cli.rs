@@ -138,9 +138,7 @@ enum TapSubcommand {
         force: bool,
     },
     /// Pull latest commits for one or all subscribed taps.
-    Sync {
-        id: Option<String>,
-    },
+    Sync { id: Option<String> },
     /// Change a tap's priority (lower number = higher precedence).
     Reorder {
         id: String,
@@ -148,9 +146,7 @@ enum TapSubcommand {
         priority: u32,
     },
     /// Validate a tap directory structure (for CI use).
-    Validate {
-        path: std::path::PathBuf,
-    },
+    Validate { path: std::path::PathBuf },
 }
 
 #[derive(Args)]
@@ -304,12 +300,13 @@ fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
     }
 
     // 2. Subscribed taps — ordered by their stored priority value.
-    let subs =
-        crate::subscriptions::SubscriptionManifest::load_or_empty(&crate::paths::subscriptions_path())
-            .unwrap_or_else(|e| {
-                tracing::warn!("could not load subscriptions.toml: {e}");
-                crate::subscriptions::SubscriptionManifest::empty()
-            });
+    let subs = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|e| {
+        tracing::warn!("could not load subscriptions.toml: {e}");
+        crate::subscriptions::SubscriptionManifest::empty()
+    });
     for sub in &subs.taps {
         let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
         match crate::tap::load_tap(&cache_dir) {
@@ -343,7 +340,9 @@ fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
     }
 
     let installs = crate::install_record::load_all(&crate::paths::installs_dir());
-    Ok(CatalogView::assemble_with_priorities(taps, installs, priorities))
+    Ok(CatalogView::assemble_with_priorities(
+        taps, installs, priorities,
+    ))
 }
 
 fn cmd_list(view: &CatalogView, opts: &ListOpts) -> ExitCode {
@@ -1014,13 +1013,11 @@ fn cmd_doctor(view: &CatalogView) -> ExitCode {
 
 fn cmd_tap_list(format: Format) -> ExitCode {
     let subs_path = crate::paths::subscriptions_path();
-    let manifest =
-        crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path).unwrap_or_else(
-            |e| {
-                tracing::warn!("could not load subscriptions.toml: {e}");
-                crate::subscriptions::SubscriptionManifest::empty()
-            },
-        );
+    let manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path)
+        .unwrap_or_else(|e| {
+            tracing::warn!("could not load subscriptions.toml: {e}");
+            crate::subscriptions::SubscriptionManifest::empty()
+        });
 
     match format {
         Format::Tabular => {
@@ -1106,14 +1103,13 @@ fn cmd_tap_add(name_or_url: &str, priority: Option<u32>) -> ExitCode {
     let source = crate::known_taps::resolve_tap_source(name_or_url);
 
     let subs_path = crate::paths::subscriptions_path();
-    let mut manifest =
-        match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("error: {e}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let mut manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     let tmp = match tempfile::tempdir() {
         Ok(t) => t,
@@ -1182,10 +1178,7 @@ fn cmd_tap_add(name_or_url: &str, priority: Option<u32>) -> ExitCode {
     let entries = crate::tap::load_tap(&cache_dest)
         .map(|t| t.entries.len())
         .unwrap_or(0);
-    println!(
-        "subscribed to {:?}: {entries} catalog entries",
-        meta.id
-    );
+    println!("subscribed to {:?}: {entries} catalog entries", meta.id);
     ExitCode::SUCCESS
 }
 
@@ -1211,14 +1204,13 @@ fn cmd_tap_remove(id: &str, force: bool) -> ExitCode {
     }
 
     let subs_path = crate::paths::subscriptions_path();
-    let mut manifest =
-        match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("error: {e}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let mut manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if !manifest.taps.iter().any(|t| t.id == id) {
         eprintln!("error: tap {id:?} is not subscribed");
@@ -1252,7 +1244,10 @@ fn cmd_tap_remove(id: &str, force: bool) -> ExitCode {
     let cache_dir = crate::paths::tap_cache_dir_for(id);
     if cache_dir.exists() {
         if let Err(e) = std::fs::remove_dir_all(&cache_dir) {
-            eprintln!("warning: failed to remove cache at {}: {e}", cache_dir.display());
+            eprintln!(
+                "warning: failed to remove cache at {}: {e}",
+                cache_dir.display()
+            );
         }
     }
 
@@ -1319,14 +1314,13 @@ fn cmd_tap_sync(id: Option<&str>) -> ExitCode {
 
 fn cmd_tap_reorder(id: &str, priority: u32) -> ExitCode {
     let subs_path = crate::paths::subscriptions_path();
-    let mut manifest =
-        match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("error: {e}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let mut manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if !manifest.taps.iter().any(|t| t.id == id) {
         eprintln!("error: tap {id:?} is not subscribed");

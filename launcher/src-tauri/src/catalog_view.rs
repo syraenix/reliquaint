@@ -231,7 +231,10 @@ mod tests {
         let all = view.all_with_game_id("qfg1-ega");
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].tap_id, "tap-a", "priority 0 entry should come first");
-        assert_eq!(all[1].tap_id, "tap-b", "priority 1 entry should come second");
+        assert_eq!(
+            all[1].tap_id, "tap-b",
+            "priority 1 entry should come second"
+        );
     }
 
     #[test]
@@ -359,11 +362,13 @@ mod tests {
         priorities.insert("tap-a".to_string(), 0_i32);
         priorities.insert("tap-b".to_string(), 1_i32);
 
-        let view =
-            CatalogView::assemble_with_priorities(vec![tap_a, tap_b], installs, priorities);
+        let view = CatalogView::assemble_with_priorities(vec![tap_a, tap_b], installs, priorities);
 
         let winner = view.by_game_id("qfg1-ega").unwrap();
-        assert!(winner.install.is_some(), "install should be joined to tap-a entry");
+        assert!(
+            winner.install.is_some(),
+            "install should be joined to tap-a entry"
+        );
 
         // tap-b entry has no install
         let loser = view.by_tap_and_id("tap-b", "qfg1-ega").unwrap();

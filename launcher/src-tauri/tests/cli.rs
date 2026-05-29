@@ -1120,10 +1120,7 @@ fn make_local_tap_repo_with_entry(
         .arg(work.path())
         .output()
         .unwrap();
-    for cfg in [
-        ("user.email", "test@test.com"),
-        ("user.name", "Test"),
-    ] {
+    for cfg in [("user.email", "test@test.com"), ("user.name", "Test")] {
         Cmd::new("git")
             .args(["-C"])
             .arg(work.path())
@@ -1194,9 +1191,16 @@ fn tap_list_shows_subscribed_tap_with_ok_status() {
         .args(["tap", "list"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("my-test-tap"), "subscribed tap id missing: {stdout}");
+    assert!(
+        stdout.contains("my-test-tap"),
+        "subscribed tap id missing: {stdout}"
+    );
     assert!(stdout.contains("ok"), "expected ok status: {stdout}");
 }
 
@@ -1211,7 +1215,11 @@ fn tap_list_json_format_emits_valid_array() {
         .args(["tap", "list", "--format", "json"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8(output.stdout).unwrap();
     let value: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("output isn't valid JSON ({e}): {stdout}"));
@@ -1237,9 +1245,15 @@ fn tap_add_subscribes_and_clones_local_repo() {
         output.status.success(),
         "tap add failed; stderr={stderr}\nstdout={stdout}"
     );
-    assert!(stdout.contains("subscribed"), "expected subscribed message: {stdout}");
+    assert!(
+        stdout.contains("subscribed"),
+        "expected subscribed message: {stdout}"
+    );
     // Cache should be present
-    assert!(taps_cache.join("my-new-tap/tap.toml").exists(), "tap.toml not cloned");
+    assert!(
+        taps_cache.join("my-new-tap/tap.toml").exists(),
+        "tap.toml not cloned"
+    );
     // Subscription record written
     assert!(sub_path.exists(), "subscriptions.toml not written");
 }
@@ -1281,7 +1295,9 @@ fn tap_add_refuses_duplicate_subscription() {
     assert!(!output2.status.success(), "second add should fail");
     let stderr2 = String::from_utf8(output2.stderr).unwrap();
     assert!(
-        stderr2.contains("already subscribed") || stderr2.contains("duplicate") || stderr2.contains("dup-tap"),
+        stderr2.contains("already subscribed")
+            || stderr2.contains("duplicate")
+            || stderr2.contains("dup-tap"),
         "expected duplicate error: {stderr2}"
     );
 }
@@ -1341,10 +1357,16 @@ fn tap_remove_warns_about_orphaned_installs_and_cancels_on_n() {
         .write_stdin("n\n")
         .assert()
         .success(); // cancelled → success (not failure)
-    // Subscription still present (cancelled)
-    assert!(sub_path.exists(), "subscription should still exist after cancel");
+                    // Subscription still present (cancelled)
+    assert!(
+        sub_path.exists(),
+        "subscription should still exist after cancel"
+    );
     let content = std::fs::read_to_string(&sub_path).unwrap();
-    assert!(content.contains("orphan-tap"), "subscription should still contain orphan-tap");
+    assert!(
+        content.contains("orphan-tap"),
+        "subscription should still contain orphan-tap"
+    );
 }
 
 #[test]
@@ -1400,7 +1422,10 @@ fn tap_validate_fails_on_dir_without_tap_toml() {
         .args(["tap", "validate", empty.path().to_str().unwrap()])
         .output()
         .unwrap();
-    assert!(!output.status.success(), "validate should fail on empty dir");
+    assert!(
+        !output.status.success(),
+        "validate should fail on empty dir"
+    );
     let stderr = String::from_utf8(output.stderr).unwrap();
     assert!(
         stderr.contains("error") || stderr.contains("tap.toml") || stderr.contains("failed"),
@@ -1458,7 +1483,12 @@ fn list_shows_games_from_subscribed_tap() {
     let taps_cache = dir.path().join("taps");
     let sub_path = dir.path().join("subscriptions.toml");
 
-    write_minimal_subscribed_tap(&taps_cache, "my-test-tap", "unique-subscribed-game", "Unique Subscribed Game Title");
+    write_minimal_subscribed_tap(
+        &taps_cache,
+        "my-test-tap",
+        "unique-subscribed-game",
+        "Unique Subscribed Game Title",
+    );
     write_subscriptions_toml(&sub_path, "my-test-tap", 0);
 
     launcher(dir.path())
@@ -1491,7 +1521,12 @@ fn list_subscribed_tap_games_appear_alongside_bundled() {
     let taps_cache = dir.path().join("taps");
     let sub_path = dir.path().join("subscriptions.toml");
 
-    write_minimal_subscribed_tap(&taps_cache, "extra-tap", "extra-unique-game-9z", "Extra Game From Subscribed Tap");
+    write_minimal_subscribed_tap(
+        &taps_cache,
+        "extra-tap",
+        "extra-unique-game-9z",
+        "Extra Game From Subscribed Tap",
+    );
     write_subscriptions_toml(&sub_path, "extra-tap", 0);
 
     let output = launcher(dir.path())
@@ -1500,12 +1535,22 @@ fn list_subscribed_tap_games_appear_alongside_bundled() {
         .args(["list", "--format", "json"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "stderr={}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8(output.stdout).unwrap();
     // Fixture games from bundled tap
-    assert!(stdout.contains("qfg1-ega"), "bundled tap game missing: {stdout}");
+    assert!(
+        stdout.contains("qfg1-ega"),
+        "bundled tap game missing: {stdout}"
+    );
     // Game from subscribed tap
-    assert!(stdout.contains("extra-unique-game-9z"), "subscribed tap game missing: {stdout}");
+    assert!(
+        stdout.contains("extra-unique-game-9z"),
+        "subscribed tap game missing: {stdout}"
+    );
 }
 
 #[test]

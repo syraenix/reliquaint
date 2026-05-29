@@ -139,7 +139,9 @@ fn load_catalog_view_with(
     }
 
     let installs = crate::install_record::load_all(installs_dir);
-    Ok(crate::catalog_view::CatalogView::assemble_with_priorities(taps, installs, priorities))
+    Ok(crate::catalog_view::CatalogView::assemble_with_priorities(
+        taps, installs, priorities,
+    ))
 }
 
 pub fn entry_to_dto(e: &crate::catalog_view::CatalogViewEntry) -> CatalogEntryDto {
@@ -822,8 +824,8 @@ pub fn list_taps() -> Vec<TapInfo> {
 #[tauri::command]
 pub fn add_tap(name_or_url: String, priority: Option<u32>) -> Result<TapInfo, String> {
     use crate::known_taps::resolve_tap_source;
-    use crate::tap_fetch::clone_tap;
     use crate::tap::validate_tap_dir;
+    use crate::tap_fetch::clone_tap;
 
     crate::tap_fetch::check_git().map_err(|e| e.to_string())?;
 
@@ -849,10 +851,8 @@ pub fn add_tap(name_or_url: String, priority: Option<u32>) -> Result<TapInfo, St
         .map_err(|e| format!("failed to move tap cache: {e}"))?;
 
     let p = priority.unwrap_or_else(|| manifest.next_priority());
-    let added_at = toml::value::Datetime::from_str(
-        &crate::install_record::now_iso8601(),
-    )
-    .expect("now_iso8601 always produces valid datetime");
+    let added_at = toml::value::Datetime::from_str(&crate::install_record::now_iso8601())
+        .expect("now_iso8601 always produces valid datetime");
 
     manifest.taps.push(crate::subscriptions::TapSubscription {
         id: meta.id.clone(),

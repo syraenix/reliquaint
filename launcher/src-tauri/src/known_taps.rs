@@ -1,9 +1,7 @@
-pub static KNOWN_TAPS: &[(&str, &str)] = &[
-    (
-        "reliquaint-core",
-        "https://github.com/syraenix/reliquaint-core",
-    ),
-];
+pub static KNOWN_TAPS: &[(&str, &str)] = &[(
+    "reliquaint-core",
+    "https://github.com/syraenix/reliquaint-core",
+)];
 
 /// Resolve a short name to its canonical URL.
 ///
