@@ -1,5 +1,7 @@
 <script>
   export let filter = "all";
+  export let tapFilter = "all";
+  export let availableTaps = [];
   const options = [
     { value: "all", label: "All" },
     { value: "dos", label: "DOS" },
@@ -16,12 +18,36 @@
       {opt.label}
     </button>
   {/each}
+  {#if availableTaps.length > 1}
+    <span class="separator">|</span>
+    <button
+      class:active={tapFilter === "all"}
+      on:click={() => (tapFilter = "all")}
+    >
+      All taps
+    </button>
+    {#each availableTaps as tap}
+      <button
+        class:active={tapFilter === tap}
+        on:click={() => (tapFilter = tap)}
+      >
+        {tap}
+      </button>
+    {/each}
+  {/if}
 </nav>
 
 <style>
   .filter-bar {
     display: flex;
     gap: 4px;
+    align-items: center;
+  }
+
+  .separator {
+    color: var(--border-light);
+    padding: 0 4px;
+    font-size: 0.9rem;
   }
 
   button {

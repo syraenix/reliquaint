@@ -7,17 +7,28 @@
   import GameDetail from "./components/GameDetail.svelte";
   import DoctorPanel from "./components/DoctorPanel.svelte";
   import AddGameWizard from "./components/AddGameWizard.svelte";
+  import FirstRunPrompt from "./components/FirstRunPrompt.svelte";
+  import TapManager from "./components/TapManager.svelte";
 
   let catalog = [];
   let filter = "all";
+  let tapFilter = "all";
   let selectedId = null;
   let loading = true;
   let error = null;
   let doctorOpen = false;
+  let tapsOpen = false;
   let addOpen = false;
+  let showFirstRun = false;
 
   function toggleDoctor() {
     doctorOpen = !doctorOpen;
+    if (doctorOpen) tapsOpen = false;
+  }
+
+  function toggleTaps() {
+    tapsOpen = !tapsOpen;
+    if (tapsOpen) doctorOpen = false;
   }
 
   function openAdd() {
@@ -39,6 +50,10 @@
     error = null;
     try {
       catalog = await invoke("list_catalog");
+      // Show first-run prompt if no subscriptions and catalog is empty
+      const taps = await invoke("list_taps");
+      const hasSubs = taps.some((t) => !t.is_local);
+      showFirstRun = !hasSubs && catalog.length === 0;
     } catch (e) {
       error = String(e);
     } finally {
@@ -46,11 +61,29 @@
     }
   }
 
+  function onFirstRunSubscribed() {
+    showFirstRun = false;
+    loadCatalog();
+  }
+
+  function onFirstRunDismissed() {
+    showFirstRun = false;
+  }
+
+  function onTapChanged() {
+    loadCatalog();
+  }
+
   onMount(() => {
     loadCatalog();
   });
 
-  $: filtered = catalog.filter((g) => filter === "all" || g.platform === filter);
+  $: availableTaps = [...new Set(catalog.map((g) => g.tap_id))];
+  $: filtered = catalog.filter(
+    (g) =>
+      (filter === "all" || g.platform === filter) &&
+      (tapFilter === "all" || g.tap_id === tapFilter),
+  );
   $: selectedGame = selectedId
     ? catalog.find((g) => g.id === selectedId) ?? null
     : null;
@@ -63,12 +96,15 @@
       <h1>Reliquaint</h1>
     </div>
     <div class="header-actions">
-      <FilterBar bind:filter />
+      <FilterBar bind:filter bind:tapFilter {availableTaps} />
       <button class="header-btn" on:click={loadCatalog} title="Refresh catalog">
         ↻
       </button>
       <button class="header-btn" on:click={openAdd} title="Add a game you own">
         + Add game
+      </button>
+      <button class="header-btn" on:click={toggleTaps}>
+        {tapsOpen ? "✕ Taps" : "⊞ Taps"}
       </button>
       <button class="header-btn" on:click={toggleDoctor}>
         {doctorOpen ? "✕ Doctor" : "⚕ Doctor"}
@@ -80,8 +116,15 @@
     <AddGameWizard on:close={closeAdd} on:saved={onWizardSaved} />
   {/if}
 
-  {#if doctorOpen}
+  {#if tapsOpen}
+    <TapManager on:changed={onTapChanged} />
+  {:else if doctorOpen}
     <DoctorPanel />
+  {:else if showFirstRun}
+    <FirstRunPrompt
+      on:subscribed={onFirstRunSubscribed}
+      on:dismiss={onFirstRunDismissed}
+    />
   {:else if selectedGame}
     <GameDetail
       game={selectedGame}
@@ -96,7 +139,9 @@
     <div class="status">
       Catalog is empty.
       <br />
-      <small>The bundled tap may not be present at this repo root.</small>
+      <small
+        >Subscribe to a tap to get started — click <strong>⊞ Taps</strong> above.</small
+      >
     </div>
   {:else}
     <GameGrid games={filtered} on:select={(e) => (selectedId = e.detail.id)} />

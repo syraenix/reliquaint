@@ -87,10 +87,15 @@ fn load_catalog_view_with(
     installs_dir: &Path,
 ) -> Result<crate::catalog_view::CatalogView, String> {
     let mut taps: Vec<crate::tap::LoadedTap> = Vec::new();
+    let mut priorities: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
 
+    // 1. Bundled tap
     let tap_root = crate::paths::tap_root(repo_root);
     match crate::tap::load_tap(&tap_root) {
-        Ok(t) => taps.push(t),
+        Ok(t) => {
+            priorities.insert(t.metadata.id.clone(), i32::MAX - 1);
+            taps.push(t);
+        }
         Err(crate::tap::TapError::MissingRoot { .. }) => {
             tracing::warn!(
                 root = %tap_root.display(),
@@ -100,17 +105,41 @@ fn load_catalog_view_with(
         Err(e) => return Err(format!("failed to load bundled tap: {e}")),
     }
 
-    let user_tap_root = crate::paths::user_tap_dir();
-    match crate::tap::load_user_tap(&user_tap_root) {
-        Ok(t) => taps.push(t),
-        Err(crate::tap::TapError::MissingRoot { .. }) => {}
-        Err(e) => {
-            tracing::warn!(error = %e, "user tap failed to load");
+    // 2. Subscribed taps
+    let subs = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|e| {
+        tracing::warn!("could not load subscriptions.toml: {e}");
+        crate::subscriptions::SubscriptionManifest::empty()
+    });
+    for sub in &subs.taps {
+        let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
+        match crate::tap::load_tap(&cache_dir) {
+            Ok(t) => {
+                priorities.insert(t.metadata.id.clone(), sub.priority as i32);
+                taps.push(t);
+            }
+            Err(crate::tap::TapError::MissingRoot { .. }) => {
+                tracing::warn!(tap = %sub.id, "subscribed tap cache missing");
+            }
+            Err(e) => tracing::warn!(tap = %sub.id, "subscribed tap failed: {e}"),
         }
     }
 
+    // 3. Local user tap (always wins)
+    let user_tap_root = crate::paths::user_tap_dir();
+    match crate::tap::load_user_tap(&user_tap_root) {
+        Ok(t) => {
+            priorities.insert(t.metadata.id.clone(), -1);
+            taps.push(t);
+        }
+        Err(crate::tap::TapError::MissingRoot { .. }) => {}
+        Err(e) => tracing::warn!(error = %e, "user tap failed to load"),
+    }
+
     let installs = crate::install_record::load_all(installs_dir);
-    Ok(crate::catalog_view::CatalogView::assemble(taps, installs))
+    Ok(crate::catalog_view::CatalogView::assemble_with_priorities(taps, installs, priorities))
 }
 
 pub fn entry_to_dto(e: &crate::catalog_view::CatalogViewEntry) -> CatalogEntryDto {
@@ -736,6 +765,199 @@ pub fn submit_manifest(
         github_url,
         target_path: format!("tap/catalog/{platform}/{id}.toml"),
     })
+}
+
+// --- M5: Tap management Tauri commands ---
+
+#[derive(Serialize, Clone)]
+pub struct TapInfo {
+    pub id: String,
+    pub source: String,
+    pub priority: Option<u32>,
+    pub cache_ok: bool,
+    pub entry_count: usize,
+    pub is_local: bool,
+}
+
+/// List all subscribed taps plus the implicit local tap.
+#[tauri::command]
+pub fn list_taps() -> Vec<TapInfo> {
+    let mut result = vec![TapInfo {
+        id: "local".into(),
+        source: "(your custom games)".into(),
+        priority: None,
+        cache_ok: true,
+        entry_count: crate::tap::load_user_tap(&crate::paths::user_tap_dir())
+            .map(|t| t.entries.len())
+            .unwrap_or(0),
+        is_local: true,
+    }];
+    let manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|_| crate::subscriptions::SubscriptionManifest::empty());
+    for sub in &manifest.taps {
+        let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
+        let cache_ok = cache_dir.join("tap.toml").exists();
+        let entry_count = if cache_ok {
+            crate::tap::load_tap(&cache_dir)
+                .map(|t| t.entries.len())
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        result.push(TapInfo {
+            id: sub.id.clone(),
+            source: sub.source.clone(),
+            priority: Some(sub.priority),
+            cache_ok,
+            entry_count,
+            is_local: false,
+        });
+    }
+    result
+}
+
+/// Subscribe to a tap by short name or URL. Runs synchronously (may be slow on first add).
+#[tauri::command]
+pub fn add_tap(name_or_url: String, priority: Option<u32>) -> Result<TapInfo, String> {
+    use crate::known_taps::resolve_tap_source;
+    use crate::tap_fetch::clone_tap;
+    use crate::tap::validate_tap_dir;
+
+    crate::tap_fetch::check_git().map_err(|e| e.to_string())?;
+
+    let source = resolve_tap_source(&name_or_url).to_string();
+    let sub_path = crate::paths::subscriptions_path();
+    let mut manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(&sub_path)
+        .map_err(|e| e.to_string())?;
+
+    let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+    clone_tap(&source, tmp.path()).map_err(|e| e.to_string())?;
+    let meta = validate_tap_dir(tmp.path(), None).map_err(|e| e.to_string())?;
+
+    if manifest.taps.iter().any(|t| t.id == meta.id) {
+        return Err(format!("already subscribed to {:?}", meta.id));
+    }
+
+    let cache_dest = crate::paths::tap_cache_dir_for(&meta.id);
+    if let Some(p) = cache_dest.parent() {
+        std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+    }
+    std::fs::rename(tmp.path(), &cache_dest)
+        .or_else(|_| copy_dir_recursive(tmp.path(), &cache_dest))
+        .map_err(|e| format!("failed to move tap cache: {e}"))?;
+
+    let p = priority.unwrap_or_else(|| manifest.next_priority());
+    let added_at = toml::value::Datetime::from_str(
+        &crate::install_record::now_iso8601(),
+    )
+    .expect("now_iso8601 always produces valid datetime");
+
+    manifest.taps.push(crate::subscriptions::TapSubscription {
+        id: meta.id.clone(),
+        source: source.clone(),
+        added_at,
+        priority: p,
+    });
+    manifest.write(&sub_path).map_err(|e| e.to_string())?;
+
+    let entry_count = crate::tap::load_tap(&cache_dest)
+        .map(|t| t.entries.len())
+        .unwrap_or(0);
+    Ok(TapInfo {
+        id: meta.id,
+        source,
+        priority: Some(p),
+        cache_ok: true,
+        entry_count,
+        is_local: false,
+    })
+}
+
+/// Unsubscribe from a tap and remove its cache.
+#[tauri::command]
+pub fn remove_tap(id: String) -> Result<(), String> {
+    if id == "local" {
+        return Err("'local' is the user tap and cannot be removed via this command".into());
+    }
+    let sub_path = crate::paths::subscriptions_path();
+    let mut manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(&sub_path)
+        .map_err(|e| e.to_string())?;
+    if !manifest.taps.iter().any(|t| t.id == id) {
+        return Err(format!("not subscribed to {id:?}"));
+    }
+    manifest.taps.retain(|t| t.id != id);
+    manifest.write(&sub_path).map_err(|e| e.to_string())?;
+    let cache = crate::paths::tap_cache_dir_for(&id);
+    if cache.exists() {
+        std::fs::remove_dir_all(&cache)
+            .unwrap_or_else(|e| tracing::warn!("could not remove tap cache: {e}"));
+    }
+    Ok(())
+}
+
+/// Pull latest commits for one tap (by id) or all subscribed taps (id = None).
+#[tauri::command]
+pub fn sync_tap(id: Option<String>) -> Result<Vec<String>, String> {
+    let manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|_| crate::subscriptions::SubscriptionManifest::empty());
+
+    let taps_to_sync: Vec<_> = manifest
+        .taps
+        .iter()
+        .filter(|t| id.as_deref().map_or(true, |needle| t.id == needle))
+        .collect();
+
+    let mut messages = Vec::new();
+    let mut had_error = false;
+    for sub in taps_to_sync {
+        let cache = crate::paths::tap_cache_dir_for(&sub.id);
+        if !cache.exists() {
+            messages.push(format!(
+                "{}: cache missing — use 'tap remove' then 'tap add' to reset",
+                sub.id
+            ));
+            had_error = true;
+            continue;
+        }
+        match crate::tap_fetch::pull_tap(&cache) {
+            Ok(r) if r.already_up_to_date => messages.push(format!("{}: up to date", sub.id)),
+            Ok(r) => messages.push(format!(
+                "{}: updated {} -> {}",
+                sub.id,
+                &r.before_hash[..7.min(r.before_hash.len())],
+                &r.after_hash[..7.min(r.after_hash.len())]
+            )),
+            Err(e) => {
+                messages.push(format!("{}: error — {e}", sub.id));
+                had_error = true;
+            }
+        }
+    }
+    if had_error {
+        Err(messages.join("\n"))
+    } else {
+        Ok(messages)
+    }
+}
+
+use std::str::FromStr;
+
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let dest_path = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), dest_path)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
