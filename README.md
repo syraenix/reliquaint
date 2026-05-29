@@ -63,6 +63,34 @@ reliquaint migrate-installs
 
 This scans for any catalog entry whose id matches a subdirectory of `~/games/` and registers each one in a single pass.
 
+### Adding a game *not* in the bundled catalog
+
+For DOS or Amiga games we don't have a manifest for, point the wizard at the directory and it will inspect, propose a draft, and write it to your local tap at `${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/`:
+
+```bash
+reliquaint add ~/games/my-custom-game            # interactive prompt
+reliquaint add ~/games/my-custom-game --yes      # accept the draft as-is
+reliquaint add ~/games/my-custom-game --platform amiga   # override detection
+```
+
+Or in the GUI: click the **+ Add game** button in the header, pick the directory, review the form, save.
+
+The new entry shows up alongside bundled games with a small **CUSTOM** badge. Tweak it later via:
+
+```bash
+reliquaint where my-custom-game     # print on-disk paths for hand-editing
+reliquaint remove my-custom-game    # delete the manifest, sibling .conf, and install record
+```
+
+When the manifest works well for you, send it upstream so others can use it:
+
+```bash
+reliquaint submit my-custom-game --clipboard
+# Then paste into tap/catalog/<platform>/<id>.toml in a PR against this repo.
+```
+
+Or in the GUI: open the entry's detail view and click **Submit upstream** — it copies the canonical manifest to your clipboard and opens GitHub on the right "new file" path.
+
 ## Browsing the catalog
 
 ```bash

@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+/// Tap id reserved for the user-writable local pseudo-tap. Any externally
+/// supplied tap claiming this id is rejected on load (see `load_tap`).
+pub const RESERVED_USER_TAP_ID: &str = "local";
+
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TapMetadata {
     pub schema_version: u32,
@@ -79,6 +83,25 @@ pub enum TapError {
         first: PathBuf,
         second: PathBuf,
     },
+
+    #[error(
+        "tap id {id:?} in {path} is reserved for the user tap; external taps must choose a different id"
+    )]
+    ReservedTapId { path: PathBuf, id: String },
+
+    #[error("user tap at {path} has id {id:?}; must be {expected:?}")]
+    UnexpectedUserTapId {
+        path: PathBuf,
+        id: String,
+        expected: &'static str,
+    },
+
+    #[error("failed to write {path}: {source}")]
+    Write {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 /// Read and parse a tap.toml from disk.
@@ -90,7 +113,7 @@ pub fn load(path: &Path) -> Result<TapMetadata, TapError> {
     parse_str(&text, path)
 }
 
-/// Load a tap from disk: parses `<root>/tap.toml` and walks
+/// Load an external tap from disk: parses `<root>/tap.toml` and walks
 /// `<root>/catalog/<platform>/*.toml` for entries.
 ///
 /// - Per-entry parse failures are logged at WARN and skipped — they are
@@ -99,7 +122,35 @@ pub fn load(path: &Path) -> Result<TapMetadata, TapError> {
 ///   lose data.
 /// - Files whose name starts with `_` or `.` are skipped so contributors
 ///   can stash drafts in the tree without breaking startup.
+/// - Taps claiming the reserved id `local` are rejected; that id belongs
+///   to the user-writable tap loaded via [`load_user_tap`].
 pub fn load_tap(root: &Path) -> Result<LoadedTap, TapError> {
+    let loaded = load_tap_inner(root)?;
+    if loaded.metadata.id == RESERVED_USER_TAP_ID {
+        return Err(TapError::ReservedTapId {
+            path: root.join("tap.toml"),
+            id: loaded.metadata.id,
+        });
+    }
+    Ok(loaded)
+}
+
+/// Load the user-writable local tap. Behaves like [`load_tap`] but
+/// requires the tap to claim the reserved id `local`; any other id is
+/// rejected.
+pub fn load_user_tap(root: &Path) -> Result<LoadedTap, TapError> {
+    let loaded = load_tap_inner(root)?;
+    if loaded.metadata.id != RESERVED_USER_TAP_ID {
+        return Err(TapError::UnexpectedUserTapId {
+            path: root.join("tap.toml"),
+            id: loaded.metadata.id,
+            expected: RESERVED_USER_TAP_ID,
+        });
+    }
+    Ok(loaded)
+}
+
+fn load_tap_inner(root: &Path) -> Result<LoadedTap, TapError> {
     if !root.is_dir() {
         return Err(TapError::MissingRoot {
             root: root.to_path_buf(),
@@ -158,6 +209,55 @@ pub fn load_tap(root: &Path) -> Result<LoadedTap, TapError> {
         root: root.to_path_buf(),
         entries,
     })
+}
+
+/// Lazily initialize the user tap on disk and return its metadata.
+///
+/// If `<root>/tap.toml` already exists, parses and returns it (and
+/// rejects unexpected ids). Otherwise creates `<root>` and writes a
+/// default `tap.toml` claiming the reserved id `local`.
+///
+/// The catalog subdirectories (`<root>/catalog/<platform>/`) are NOT
+/// created here — the wizard creates the platform dir it needs when it
+/// writes the first manifest.
+pub fn ensure_user_tap(root: &Path) -> Result<TapMetadata, TapError> {
+    let metadata_path = root.join("tap.toml");
+    if metadata_path.is_file() {
+        let meta = load(&metadata_path)?;
+        if meta.id != RESERVED_USER_TAP_ID {
+            return Err(TapError::UnexpectedUserTapId {
+                path: metadata_path,
+                id: meta.id,
+                expected: RESERVED_USER_TAP_ID,
+            });
+        }
+        return Ok(meta);
+    }
+    std::fs::create_dir_all(root).map_err(|source| TapError::Write {
+        path: root.to_path_buf(),
+        source,
+    })?;
+    let meta = default_user_tap_metadata();
+    let text = toml::to_string_pretty(&meta).expect("TapMetadata serializes");
+    std::fs::write(&metadata_path, text).map_err(|source| TapError::Write {
+        path: metadata_path,
+        source,
+    })?;
+    tracing::info!(root = %root.display(), "initialized user tap");
+    Ok(meta)
+}
+
+fn default_user_tap_metadata() -> TapMetadata {
+    TapMetadata {
+        schema_version: 1,
+        id: RESERVED_USER_TAP_ID.to_string(),
+        title: "Local games".to_string(),
+        description: "User-created catalog entries managed by the Reliquaint wizard.".to_string(),
+        version: "0.1.0".to_string(),
+        maintainer: "local".to_string(),
+        url: "https://github.com/syraenix/reliquaint".to_string(),
+        license: "CC0-1.0".to_string(),
+    }
 }
 
 fn collect_entry_paths(dir: &Path) -> Result<Vec<PathBuf>, TapError> {
@@ -398,6 +498,98 @@ license     = "x"
             err,
             TapError::UnsupportedSchema { version: 2, .. }
         ));
+    }
+
+    #[test]
+    fn load_tap_rejects_reserved_user_tap_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, RESERVED_USER_TAP_ID);
+
+        let err = load_tap(root).unwrap_err();
+        match err {
+            TapError::ReservedTapId { id, path } => {
+                assert_eq!(id, RESERVED_USER_TAP_ID);
+                assert!(path.ends_with("tap.toml"));
+            }
+            other => panic!("expected ReservedTapId, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn load_user_tap_requires_reserved_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, "not-local");
+
+        let err = load_user_tap(root).unwrap_err();
+        match err {
+            TapError::UnexpectedUserTapId { id, expected, .. } => {
+                assert_eq!(id, "not-local");
+                assert_eq!(expected, RESERVED_USER_TAP_ID);
+            }
+            other => panic!("expected UnexpectedUserTapId, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn load_user_tap_accepts_reserved_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, RESERVED_USER_TAP_ID);
+        write_catalog_entry(root, "dos", "my-custom-game");
+
+        let loaded = load_user_tap(root).unwrap();
+        assert_eq!(loaded.metadata.id, RESERVED_USER_TAP_ID);
+        assert!(loaded.entries.contains_key("my-custom-game"));
+    }
+
+    #[test]
+    fn ensure_user_tap_creates_directory_and_metadata() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("tap");
+        assert!(!root.exists());
+
+        let meta = ensure_user_tap(&root).unwrap();
+        assert_eq!(meta.id, RESERVED_USER_TAP_ID);
+        assert_eq!(meta.schema_version, 1);
+        assert!(root.is_dir());
+        assert!(root.join("tap.toml").is_file());
+
+        // load_user_tap reads what ensure_user_tap wrote.
+        let loaded = load_user_tap(&root).unwrap();
+        assert_eq!(loaded.metadata.id, RESERVED_USER_TAP_ID);
+    }
+
+    #[test]
+    fn ensure_user_tap_is_idempotent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("tap");
+        let first = ensure_user_tap(&root).unwrap();
+        let mtime_before = std::fs::metadata(root.join("tap.toml"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        let second = ensure_user_tap(&root).unwrap();
+        let mtime_after = std::fs::metadata(root.join("tap.toml"))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(first, second);
+        assert_eq!(
+            mtime_before, mtime_after,
+            "tap.toml should not be rewritten"
+        );
+    }
+
+    #[test]
+    fn ensure_user_tap_rejects_existing_with_wrong_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write_tap_metadata(root, "not-local");
+
+        let err = ensure_user_tap(root).unwrap_err();
+        assert!(matches!(err, TapError::UnexpectedUserTapId { .. }));
     }
 
     #[test]

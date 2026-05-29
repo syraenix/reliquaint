@@ -111,6 +111,21 @@ pub fn user_taps_dir() -> PathBuf {
     data_home_from_env(std::env::var("XDG_DATA_HOME").ok().as_deref()).join("reliquaint/taps")
 }
 
+/// The user's local pseudo-tap, writable by the CLI and GUI wizards.
+/// Created lazily on first manifest write. The tap claims the reserved
+/// id `local` (see `tap::RESERVED_USER_TAP_ID`).
+///
+/// `RELIQUAINT_USER_TAP_DIR`, if set and non-empty, overrides the
+/// default XDG-derived path. Used by integration tests to isolate state.
+pub fn user_tap_dir() -> PathBuf {
+    if let Ok(v) = std::env::var("RELIQUAINT_USER_TAP_DIR") {
+        if !v.is_empty() {
+            return PathBuf::from(v);
+        }
+    }
+    config_home_from_env(std::env::var("XDG_CONFIG_HOME").ok().as_deref()).join("reliquaint/tap")
+}
+
 /// Where per-game installation records live.
 ///
 /// `RELIQUAINT_INSTALLS_DIR`, if set and non-empty, overrides the
@@ -380,5 +395,32 @@ mod tests {
             "user_taps_dir should end with reliquaint/taps, got {}",
             p.display()
         );
+    }
+
+    #[test]
+    fn user_tap_dir_ends_with_reliquaint_tap() {
+        let saved = std::env::var("RELIQUAINT_USER_TAP_DIR").ok();
+        std::env::remove_var("RELIQUAINT_USER_TAP_DIR");
+        let p = user_tap_dir();
+        assert!(
+            p.ends_with("reliquaint/tap"),
+            "user_tap_dir should end with reliquaint/tap, got {}",
+            p.display()
+        );
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_USER_TAP_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_USER_TAP_DIR"),
+        }
+    }
+
+    #[test]
+    fn user_tap_dir_env_overrides() {
+        let saved = std::env::var("RELIQUAINT_USER_TAP_DIR").ok();
+        std::env::set_var("RELIQUAINT_USER_TAP_DIR", "/tmp/custom-user-tap");
+        assert_eq!(user_tap_dir(), PathBuf::from("/tmp/custom-user-tap"));
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_USER_TAP_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_USER_TAP_DIR"),
+        }
     }
 }

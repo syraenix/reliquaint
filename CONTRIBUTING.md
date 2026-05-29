@@ -19,6 +19,15 @@ If you have a great Windows/macOS port plan, open an issue first to discuss.
 
 ## Adding a catalog entry
 
+The fastest path is the **manifest wizard**: install Reliquaint, run the wizard on your already-working game directory, play the game to tune the config, then submit. Step-by-step:
+
+1. **Wizard.** `reliquaint add ~/games/<your-game>` (or **+ Add game** in the GUI) inspects the directory, fills in a draft manifest, and writes it to your local tap at `${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/`.
+2. **Play and tune.** Launch via `reliquaint run <id>`; iterate on the generated `.conf` until it runs well. `reliquaint where <id>` prints the manifest and config paths so you can hand-edit.
+3. **Export.** `reliquaint submit <id>` re-validates, warns on completeness gaps (missing `[meta]` fields are the common one), and prints a clean canonical manifest to stdout along with the target path. Add `--clipboard` to copy it for paste. The GUI's **Submit upstream** button copies + opens the right GitHub URL automatically.
+4. **PR.** Paste into `tap/catalog/<platform>/<id>.toml` on the GitHub "new file" page; if your game ships a DOSBox-Staging config, paste that as `tap/catalog/<platform>/<id>.conf` alongside (no `[autoexec]` block — the launcher composes that at runtime).
+
+If you'd rather write the manifest by hand from scratch, the schema is below.
+
 ### 1. Pick an id
 
 Match the filename in `tap/catalog/<platform>/<id>.toml`. The id format is `^[a-z][a-z0-9-]*[a-z0-9]$` — lowercase ASCII, hyphens allowed, no consecutive hyphens, max 64 chars. Examples: `qfg1-ega`, `kings-quest-6`, `fatman`.

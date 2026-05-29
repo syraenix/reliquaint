@@ -12,6 +12,11 @@
   let launchError = null;
   let launchExitedMessage = null;
   let showDiagnostics = false;
+
+  // Submit-upstream state.
+  let submitting = false;
+  let submitMessage = null;
+  let submitError = null;
   let unlistenExit = null;
   let unlistenInstallOutput = null;
 
@@ -184,6 +189,34 @@
     pendingInstall = null;
   }
 
+  async function handleSubmit() {
+    submitting = true;
+    submitError = null;
+    submitMessage = null;
+    try {
+      const resp = await invoke("submit_manifest", { id: game.id });
+      try {
+        await navigator.clipboard.writeText(resp.content);
+        submitMessage = `Manifest copied to clipboard. Paste into ${resp.target_path} in the upstream PR.`;
+      } catch (e) {
+        // Clipboard may be unavailable in some webviews — fall back to a hint.
+        submitMessage = `Open ${resp.target_path} on GitHub and paste the manifest. (clipboard unavailable: ${e})`;
+      }
+      try {
+        await invoke("open_url", { url: resp.github_url });
+      } catch (e) {
+        submitError = `Couldn't open the browser: ${e}. URL: ${resp.github_url}`;
+      }
+      if (resp.warnings && resp.warnings.length > 0) {
+        submitMessage += `\nReviewer warnings: ${resp.warnings.join("; ")}`;
+      }
+    } catch (e) {
+      submitError = String(e);
+    } finally {
+      submitting = false;
+    }
+  }
+
   async function handleLaunch() {
     launching = true;
     launchError = null;
@@ -293,7 +326,18 @@
         {:else}
           <button class="primary" on:click={openInstallModal}>Install</button>
         {/if}
+        {#if game.tap_id === "local"}
+          <button class="secondary" on:click={handleSubmit} disabled={submitting}>
+            {submitting ? "Preparing…" : "Submit upstream"}
+          </button>
+        {/if}
       </div>
+      {#if submitMessage}
+        <p class="msg success">{submitMessage}</p>
+      {/if}
+      {#if submitError}
+        <p class="msg error">{submitError}</p>
+      {/if}
 
       {#if installSuccessMessage}
         <p class="msg success">{installSuccessMessage}</p>
