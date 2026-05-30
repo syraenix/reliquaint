@@ -22,6 +22,19 @@
   let tapsOpen = false;
   let addOpen = false;
   let showFirstRun = false;
+  // True when at least one non-local tap is subscribed.
+  let hasSubs = false;
+  let addingCore = false;
+  let addCoreError = null;
+
+  const FIRST_RUN_DISMISSED_KEY = "reliquaint:first-run-dismissed";
+  let firstRunDismissed = (() => {
+    try {
+      return localStorage.getItem(FIRST_RUN_DISMISSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  })();
 
   function toggleDoctor() {
     doctorOpen = !doctorOpen;
@@ -52,14 +65,32 @@
     error = null;
     try {
       catalog = await invoke("list_catalog");
-      // Show first-run prompt if no subscriptions and catalog is empty
+      // With no subscribed (non-local) tap there is no catalog source beyond
+      // the user's own games, so guide the user to subscribe — regardless of
+      // whether local entries exist. The welcome screen takes over until the
+      // user dismisses it; after that a banner keeps the suggestion visible.
       const taps = await invoke("list_taps");
-      const hasSubs = taps.some((t) => !t.is_local);
-      showFirstRun = !hasSubs && catalog.length === 0;
+      hasSubs = taps.some((t) => !t.is_local);
+      showFirstRun = !hasSubs && !firstRunDismissed;
     } catch (e) {
       error = String(e);
     } finally {
       loading = false;
+    }
+  }
+
+  // Subscribe to the official core tap (shared by the welcome screen's button
+  // and the no-subscriptions banner).
+  async function addCore() {
+    addingCore = true;
+    addCoreError = null;
+    try {
+      await invoke("add_tap", { nameOrUrl: "reliquaint-core", priority: null });
+      await loadCatalog();
+    } catch (e) {
+      addCoreError = String(e);
+    } finally {
+      addingCore = false;
     }
   }
 
@@ -70,6 +101,12 @@
 
   function onFirstRunDismissed() {
     showFirstRun = false;
+    firstRunDismissed = true;
+    try {
+      localStorage.setItem(FIRST_RUN_DISMISSED_KEY, "1");
+    } catch {
+      /* storage unavailable — banner still shows this session */
+    }
   }
 
   function onTapChanged() {
@@ -175,16 +212,35 @@
     <div class="status">Loading catalog…</div>
   {:else if error}
     <div class="status error">Error loading catalog: {error}</div>
-  {:else if catalog.length === 0}
-    <div class="status">
-      Catalog is empty.
-      <br />
-      <small
-        >Subscribe to a tap to get started — click <strong>⊞ Taps</strong> above.</small
-      >
-    </div>
   {:else}
-    <GameGrid games={filtered} on:select={(e) => selectGame(e.detail)} />
+    {#if !hasSubs}
+      <div class="subscribe-banner">
+        <span class="banner-text">
+          No taps subscribed — add the official <strong>Reliquaint Core</strong>
+          tap to get the starter catalog.
+        </span>
+        <span class="banner-actions">
+          <button class="banner-btn primary" on:click={addCore} disabled={addingCore}>
+            {addingCore ? "Adding…" : "Add Reliquaint Core"}
+          </button>
+          <button class="banner-btn" on:click={toggleTaps}>Manage taps</button>
+        </span>
+      </div>
+      {#if addCoreError}
+        <div class="banner-error">{addCoreError}</div>
+      {/if}
+    {/if}
+    {#if catalog.length === 0}
+      <div class="status">
+        Catalog is empty.
+        <br />
+        <small
+          >Subscribe to a tap to get started — click <strong>⊞ Taps</strong> above.</small
+        >
+      </div>
+    {:else}
+      <GameGrid games={filtered} on:select={(e) => selectGame(e.detail)} />
+    {/if}
   {/if}
 </div>
 
@@ -195,6 +251,73 @@
     height: 100vh;
     overflow: hidden;
     background: var(--bg-base);
+  }
+
+  .subscribe-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 10px 20px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+  }
+
+  .banner-text {
+    color: var(--ink-secondary);
+    font-size: 0.88rem;
+  }
+
+  .banner-text strong {
+    color: var(--gold);
+  }
+
+  .banner-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .banner-btn {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-light);
+    color: var(--ink-secondary);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+
+  .banner-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--ink-primary);
+  }
+
+  .banner-btn.primary {
+    background: var(--gold);
+    color: var(--bg-deep);
+    font-weight: 600;
+    border-color: var(--gold);
+  }
+
+  .banner-btn.primary:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .banner-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .banner-error {
+    padding: 8px 20px;
+    color: var(--status-error-ink);
+    font-size: 0.82rem;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
   }
 
   header {
