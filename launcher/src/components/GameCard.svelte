@@ -3,6 +3,13 @@
 
   export let game;
   const dispatch = createEventDispatcher();
+
+  // Short, glanceable tap-of-origin label. reliquaint-core → "core";
+  // anything else is shown as its id, truncated if long.
+  function tapLabel(tapId) {
+    if (tapId === "reliquaint-core") return "core";
+    return tapId.length > 10 ? `${tapId.slice(0, 9)}…` : tapId;
+  }
 </script>
 
 <button class="card" on:click={() => dispatch("click")}>
@@ -11,6 +18,8 @@
     <span class="badges">
       {#if game.tap_id === "local"}
         <span class="custom-badge" title="Added via the manifest wizard">CUSTOM</span>
+      {:else}
+        <span class="tap-badge" title="From the {game.tap_id} tap">{tapLabel(game.tap_id)}</span>
       {/if}
       {#if game.installed}
         <span class="installed-badge">INSTALLED</span>
@@ -89,6 +98,18 @@
     color: currentColor;
     border: 1px dashed currentColor;
     opacity: 0.55;
+  }
+
+  .tap-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: transparent;
+    color: currentColor;
+    border: 1px solid currentColor;
+    opacity: 0.45;
   }
 
   .platform-dos {

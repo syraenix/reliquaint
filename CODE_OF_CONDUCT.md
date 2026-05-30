@@ -39,4 +39,4 @@ This code applies in all official Reliquaint spaces: the GitHub repository (issu
 
 ## Attribution
 
-This code is the project's own work and is informed by the [Contributor Covenant](https://www.contributor-covenant.org/) and similar community guidelines without being derived from any single one. It is offered under [CC-BY-SA-4.0](LICENSE-CONTENT), the same license as the project's catalog content.
+This code is the project's own work and is informed by the [Contributor Covenant](https://www.contributor-covenant.org/) and similar community guidelines without being derived from any single one. It is offered under [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/), the same license as the project's catalog content.

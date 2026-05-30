@@ -5,7 +5,6 @@ use crate::game_install;
 use crate::install_record;
 use crate::installer;
 use crate::launch;
-use crate::paths::find_repo_root;
 use crate::sidecar;
 use crate::user_config;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -108,6 +107,56 @@ enum Commands {
         #[arg(long)]
         clipboard: bool,
     },
+    /// Manage tap subscriptions.
+    Tap {
+        #[command(subcommand)]
+        subcommand: TapSubcommand,
+    },
+    /// Detect installed games that reference a tap you are not subscribed to
+    /// and suggest the subscribe command. Run after upgrading from v0.2.
+    Upgrade,
+}
+
+#[derive(Subcommand)]
+enum TapSubcommand {
+    /// List subscribed taps and their status.
+    List {
+        #[arg(long, default_value = "tabular", value_enum)]
+        format: Format,
+        /// Contact each tap's remote to flag whether newer commits exist
+        /// upstream ("out of date"). Requires network; failures show as
+        /// "unknown".
+        #[arg(long)]
+        check_remote: bool,
+    },
+    /// Subscribe to a tap by short name, URL, or local path.
+    Add {
+        name_or_url: String,
+        #[arg(long)]
+        priority: Option<u32>,
+    },
+    /// Unsubscribe from a tap and remove its cache.
+    Remove {
+        id: String,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Pull latest commits for one or all subscribed taps.
+    Sync { id: Option<String> },
+    /// Change a tap's priority (lower number = higher precedence).
+    ///
+    /// Either pass `<id> --priority N`, or `--interactive` to edit the full
+    /// ordering in `$EDITOR`.
+    Reorder {
+        id: Option<String>,
+        #[arg(long)]
+        priority: Option<u32>,
+        /// Edit the whole priority ordering in `$EDITOR`.
+        #[arg(long, short, conflicts_with_all = ["id", "priority"])]
+        interactive: bool,
+    },
+    /// Validate a tap directory structure (for CI use).
+    Validate { path: std::path::PathBuf },
 }
 
 #[derive(Args)]
@@ -121,6 +170,10 @@ struct ListOpts {
     /// Show only entries without an install record.
     #[arg(long, conflicts_with = "installed")]
     not_installed: bool,
+    /// After the listing, report game ids provided by more than one tap,
+    /// naming each tap and its priority (the lowest-priority tap wins).
+    #[arg(long)]
+    show_conflicts: bool,
     /// Output format.
     #[arg(long, value_enum, default_value_t = Format::Tabular)]
     format: Format,
@@ -152,19 +205,12 @@ pub fn run() -> ExitCode {
     crate::logging::init_cli(cli.verbose);
     crate::error::install_panic_hook();
 
-    let repo_root = match resolve_repo_root() {
-        Some(r) => r,
-        None => {
-            eprintln!("error: cannot find repo root");
-            return ExitCode::FAILURE;
-        }
-    };
     match cli.command {
-        Commands::List(opts) => match load_view(&repo_root) {
+        Commands::List(opts) => match load_view() {
             Ok(view) => cmd_list(&view, &opts),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Run { id, dry_run } => match load_view(&repo_root) {
+        Commands::Run { id, dry_run } => match load_view() {
             Ok(view) => cmd_run(&view, &id, dry_run),
             Err(()) => ExitCode::FAILURE,
         },
@@ -173,15 +219,15 @@ pub fn run() -> ExitCode {
             source,
             dest,
             force,
-        } => match load_view(&repo_root) {
+        } => match load_view() {
             Ok(view) => cmd_install(&view, &id, &source, dest.as_deref(), force),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::MigrateInstalls { base } => match load_view(&repo_root) {
+        Commands::MigrateInstalls { base } => match load_view() {
             Ok(view) => cmd_migrate_installs(&view, &base),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Doctor => match load_view(&repo_root) {
+        Commands::Doctor => match load_view() {
             Ok(view) => cmd_doctor(&view),
             Err(()) => ExitCode::FAILURE,
         },
@@ -189,63 +235,87 @@ pub fn run() -> ExitCode {
             path,
             yes,
             platform,
-        } => cmd_add(&repo_root, &path, yes, platform.map(Platform::from)),
-        Commands::Where { id } => match load_view(&repo_root) {
+        } => cmd_add(&path, yes, platform.map(Platform::from)),
+        Commands::Where { id } => match load_view() {
             Ok(view) => cmd_where(&view, &id),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Remove { id, force } => match load_view(&repo_root) {
+        Commands::Remove { id, force } => match load_view() {
             Ok(view) => cmd_remove(&view, &id, force),
             Err(()) => ExitCode::FAILURE,
         },
-        Commands::Submit { id, clipboard } => match load_view(&repo_root) {
+        Commands::Submit { id, clipboard } => match load_view() {
             Ok(view) => cmd_submit(&view, &id, clipboard),
             Err(()) => ExitCode::FAILURE,
         },
+        Commands::Tap { subcommand } => match subcommand {
+            TapSubcommand::List {
+                format,
+                check_remote,
+            } => cmd_tap_list(format, check_remote),
+            TapSubcommand::Add {
+                name_or_url,
+                priority,
+            } => cmd_tap_add(&name_or_url, priority),
+            TapSubcommand::Remove { id, force } => cmd_tap_remove(&id, force),
+            TapSubcommand::Sync { id } => cmd_tap_sync(id.as_deref()),
+            TapSubcommand::Reorder {
+                id,
+                priority,
+                interactive,
+            } => cmd_tap_reorder(id.as_deref(), priority, interactive),
+            TapSubcommand::Validate { path } => cmd_tap_validate(&path),
+        },
+        Commands::Upgrade => cmd_upgrade(),
     }
 }
 
-fn resolve_repo_root() -> Option<PathBuf> {
-    if let Ok(r) = std::env::var("RELIQUAINT_REPO_ROOT") {
-        return Some(PathBuf::from(r));
-    }
-    // Dev workflow: walk up from the cwd. Packaged install: fall back to the
-    // tap bundled alongside the executable.
-    std::env::current_dir()
-        .ok()
-        .and_then(|cwd| find_repo_root(&cwd))
-        .or_else(crate::paths::packaged_repo_root)
-}
-
-/// Assemble a `CatalogView` from the bundled tap, the user tap (if
-/// present), and install records.
+/// Assemble a `CatalogView` from the subscribed taps and the user tap, plus
+/// install records.
 ///
-/// A missing bundled tap is non-fatal (warn and continue with no
-/// bundled entries); a structural bundled-tap error is fatal. The user
-/// tap is fully optional — its absence means "no user-created games
-/// yet," and a broken user tap is degraded to a warning so it can't
-/// take down browsing of bundled content.
-fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
+/// The catalog is sourced entirely from subscriptions — there is no bundled
+/// content (the former `reliquaint-core` tap now lives in its own repository;
+/// subscribe with `reliquaint tap add reliquaint-core`). The user tap is
+/// fully optional — its absence means "no user-created games yet," and a
+/// broken tap is degraded to a warning so it can't take down browsing.
+fn load_view() -> Result<CatalogView, ()> {
     let mut taps: Vec<crate::tap::LoadedTap> = Vec::new();
+    let mut priorities: std::collections::HashMap<String, i32> = std::collections::HashMap::new();
 
-    let tap_root = crate::paths::tap_root(repo_root);
-    match crate::tap::load_tap(&tap_root) {
-        Ok(t) => taps.push(t),
-        Err(crate::tap::TapError::MissingRoot { .. }) => {
-            tracing::warn!(
-                root = %tap_root.display(),
-                "bundled tap not found; treating catalog as empty"
-            );
-        }
-        Err(e) => {
-            eprintln!("error: {e}");
-            return Err(());
+    // 1. Subscribed taps — ordered by their stored priority value.
+    let subs = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|e| {
+        tracing::warn!("could not load subscriptions.toml: {e}");
+        crate::subscriptions::SubscriptionManifest::empty()
+    });
+    for sub in &subs.taps {
+        let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
+        match crate::tap::load_tap(&cache_dir) {
+            Ok(t) => {
+                priorities.insert(t.metadata.id.clone(), sub.priority as i32);
+                taps.push(t);
+            }
+            Err(crate::tap::TapError::MissingRoot { .. }) => {
+                tracing::warn!(
+                    tap = %sub.id,
+                    "subscribed tap cache missing; run 'reliquaint tap sync' or re-add the tap"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(tap = %sub.id, "subscribed tap failed to load: {e}");
+            }
         }
     }
 
+    // 2. Local user tap — always wins (priority -1).
     let user_tap_root = crate::paths::user_tap_dir();
     match crate::tap::load_user_tap(&user_tap_root) {
-        Ok(t) => taps.push(t),
+        Ok(t) => {
+            priorities.insert(t.metadata.id.clone(), -1);
+            taps.push(t);
+        }
         Err(crate::tap::TapError::MissingRoot { .. }) => {}
         Err(e) => {
             eprintln!("warning: user tap failed to load: {e}");
@@ -253,7 +323,9 @@ fn load_view(repo_root: &Path) -> Result<CatalogView, ()> {
     }
 
     let installs = crate::install_record::load_all(&crate::paths::installs_dir());
-    Ok(CatalogView::assemble(taps, installs))
+    Ok(CatalogView::assemble_with_priorities(
+        taps, installs, priorities,
+    ))
 }
 
 fn cmd_list(view: &CatalogView, opts: &ListOpts) -> ExitCode {
@@ -275,9 +347,19 @@ fn cmd_list(view: &CatalogView, opts: &ListOpts) -> ExitCode {
         })
         .collect();
 
+    // Default view shows only the priority winner for each game id. Entries
+    // arrive pre-sorted by (priority, tap_id, game_id), so the first time we
+    // see an id it is already the winner.
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let winners: Vec<&CatalogViewEntry> = filtered
+        .iter()
+        .copied()
+        .filter(|e| seen.insert(e.catalog.game.id.as_str()))
+        .collect();
+
     match opts.format {
-        Format::Tabular => print_tabular(&filtered),
-        Format::Json => match print_json(&filtered) {
+        Format::Tabular => print_tabular(&winners),
+        Format::Json => match print_json(&winners) {
             Ok(()) => {}
             Err(e) => {
                 eprintln!("error: failed to serialize JSON: {e}");
@@ -285,7 +367,41 @@ fn cmd_list(view: &CatalogView, opts: &ListOpts) -> ExitCode {
             }
         },
     }
+
+    if opts.show_conflicts {
+        print_conflicts(&filtered);
+    }
     ExitCode::SUCCESS
+}
+
+/// Print every game id that more than one tap provides, listing each
+/// contributing tap and its priority with the winner marked. Groups are
+/// derived from `entries` (already platform/installed-filtered).
+fn print_conflicts(entries: &[&CatalogViewEntry]) {
+    use std::collections::BTreeMap;
+    let mut by_id: BTreeMap<&str, Vec<&CatalogViewEntry>> = BTreeMap::new();
+    for e in entries {
+        by_id.entry(e.catalog.game.id.as_str()).or_default().push(e);
+    }
+    let conflicts: Vec<(&str, Vec<&CatalogViewEntry>)> = by_id
+        .into_iter()
+        .filter(|(_, taps)| taps.len() > 1)
+        .collect();
+
+    if conflicts.is_empty() {
+        println!("\nNo conflicts: every game id is provided by a single tap.");
+        return;
+    }
+
+    println!("\nConflicts (game id provided by more than one tap):");
+    for (id, mut taps) in conflicts {
+        taps.sort_by_key(|e| e.priority);
+        println!("  {id}");
+        for (rank, e) in taps.iter().enumerate() {
+            let marker = if rank == 0 { "  (winner)" } else { "" };
+            println!("    {:<20}  priority {}{marker}", e.tap_id, e.priority);
+        }
+    }
 }
 
 fn print_tabular(entries: &[&CatalogViewEntry]) {
@@ -595,21 +711,18 @@ fn prompt_yes_no(question: &str) -> bool {
     line.trim().eq_ignore_ascii_case("y")
 }
 
-fn cmd_add(
-    repo_root: &Path,
-    source: &Path,
-    yes: bool,
-    platform_override: Option<Platform>,
-) -> ExitCode {
+fn cmd_add(source: &Path, yes: bool, platform_override: Option<Platform>) -> ExitCode {
     use crate::wizard::{self, AddOptions, WizardError};
 
-    let view = match load_view(repo_root) {
+    let view = match load_view() {
         Ok(v) => v,
         Err(()) => return ExitCode::FAILURE,
     };
     let user_tap_root = crate::paths::user_tap_dir();
     let installs_dir = crate::paths::installs_dir();
 
+    // Ids already provided by a subscribed tap — a new local entry must not
+    // collide with one.
     let bundled_ids: Vec<String> = view
         .all()
         .iter()
@@ -697,9 +810,7 @@ fn cmd_add(
             ExitCode::FAILURE
         }
         Err(WizardError::BundledEntryExists(id)) => {
-            eprintln!(
-                "error: id {id:?} is already used by the bundled catalog; pick a different id."
-            );
+            eprintln!("error: id {id:?} is already used by a subscribed tap; pick a different id.");
             ExitCode::FAILURE
         }
         Err(e) => {
@@ -737,7 +848,7 @@ fn cmd_where(view: &CatalogView, id: &str) -> ExitCode {
         }
         ExitCode::SUCCESS
     } else {
-        println!("bundled entry {id} (tap={}):", entry.tap_id);
+        println!("tap entry {id} (tap={}):", entry.tap_id);
         println!("  manifest:        {}", entry.source_path.display());
         if let Some(ip) = &entry.install {
             println!(
@@ -749,7 +860,7 @@ fn cmd_where(view: &CatalogView, id: &str) -> ExitCode {
             println!("  install record:  (not installed)");
         }
         println!(
-            "  note: bundled entries are not user-owned. To customize, copy the manifest into the user tap and edit there."
+            "  note: subscribed-tap entries are not user-owned. To customize, copy the manifest into the user tap and edit there."
         );
         ExitCode::SUCCESS
     }
@@ -765,7 +876,7 @@ fn cmd_remove(view: &CatalogView, id: &str, force: bool) -> ExitCode {
     };
     if entry.tap_id != crate::tap::RESERVED_USER_TAP_ID {
         eprintln!(
-            "error: {id:?} belongs to the bundled tap ({:?}); only user-tap entries can be removed via this command.",
+            "error: {id:?} belongs to a subscribed tap ({:?}); only user-tap entries can be removed via this command.",
             entry.tap_id
         );
         return ExitCode::FAILURE;
@@ -814,7 +925,7 @@ fn cmd_submit(view: &CatalogView, id: &str, clipboard: bool) -> ExitCode {
     };
     if entry.tap_id != crate::tap::RESERVED_USER_TAP_ID {
         eprintln!(
-            "error: {id:?} belongs to the bundled tap ({:?}); only user-created entries are submission candidates.",
+            "error: {id:?} belongs to a subscribed tap ({:?}); only user-created entries are submission candidates.",
             entry.tap_id
         );
         return ExitCode::FAILURE;
@@ -832,13 +943,13 @@ fn cmd_submit(view: &CatalogView, id: &str, clipboard: bool) -> ExitCode {
     };
     println!("{}", exported.content);
     eprintln!("--- next steps ---");
-    eprintln!("target path:    tap/catalog/{platform}/{id}.toml");
+    eprintln!("target path:    catalog/{platform}/{id}.toml");
     eprintln!(
         "create file:    {}",
-        crate::export::github_new_file_url(platform, "develop")
+        crate::export::github_new_file_url(platform, "main")
     );
     eprintln!(
-        "CONTRIBUTING:   https://github.com/syraenix/reliquaint/blob/develop/CONTRIBUTING.md"
+        "CONTRIBUTING:   https://github.com/syraenix/reliquaint-core/blob/main/CONTRIBUTING.md"
     );
     if !exported.warnings.is_empty() {
         eprintln!();
@@ -896,6 +1007,10 @@ fn has_on_path(name: &str) -> bool {
 }
 
 fn cmd_doctor(view: &CatalogView) -> ExitCode {
+    match crate::tap_fetch::check_git() {
+        Ok(version) => println!("git:        ok  ({version})"),
+        Err(_) => println!("git:        MISSING  (install with: apt install git)"),
+    }
     let user_config = user_config::load_or_default(&crate::paths::user_config_path());
     let results = check_install(view, &user_config);
     let mut any_missing = false;
@@ -916,4 +1031,598 @@ fn cmd_doctor(view: &CatalogView) -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// Computed display state for one subscribed tap row.
+struct TapRow {
+    id: String,
+    priority: Option<u32>,
+    entries: usize,
+    last_synced: Option<String>,
+    status: String,
+    source: String,
+}
+
+/// Gather a subscribed tap's display state. When `check_remote` is set, the
+/// tap's remote is contacted to mark "up to date" / "out of date"; otherwise a
+/// healthy cache simply reports "ok".
+fn tap_row(sub: &crate::subscriptions::TapSubscription, check_remote: bool) -> TapRow {
+    let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
+    let cache_ok = cache_dir.join("tap.toml").exists();
+    let entries = if cache_ok {
+        crate::tap::load_tap(&cache_dir)
+            .map(|t| t.entries.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    let last_synced = cache_ok
+        .then(|| crate::tap_fetch::last_commit_date(&cache_dir))
+        .flatten();
+    let status = if !cache_ok {
+        "missing cache".to_string()
+    } else if check_remote {
+        match (
+            crate::tap_fetch::local_head(&cache_dir),
+            crate::tap_fetch::remote_head(&sub.source),
+        ) {
+            (Ok(local), Ok(remote)) if local == remote => "up to date".to_string(),
+            (Ok(_), Ok(_)) => "out of date".to_string(),
+            _ => "unknown".to_string(),
+        }
+    } else {
+        "ok".to_string()
+    };
+    TapRow {
+        id: sub.id.clone(),
+        priority: Some(sub.priority),
+        entries,
+        last_synced,
+        status,
+        source: sub.source.clone(),
+    }
+}
+
+fn cmd_tap_list(format: Format, check_remote: bool) -> ExitCode {
+    let subs_path = crate::paths::subscriptions_path();
+    let manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path)
+        .unwrap_or_else(|e| {
+            tracing::warn!("could not load subscriptions.toml: {e}");
+            crate::subscriptions::SubscriptionManifest::empty()
+        });
+
+    match format {
+        Format::Tabular => {
+            println!(
+                "{:<20}  {:<8}  {:<7}  {:<12}  {:<14}  SOURCE",
+                "ID", "PRIORITY", "ENTRIES", "LAST SYNCED", "STATUS"
+            );
+            println!(
+                "{:<20}  {:<8}  {:<7}  {:<12}  {:<14}  (your custom games)",
+                "local", "-", 0, "-", "local"
+            );
+            for sub in &manifest.taps {
+                let row = tap_row(sub, check_remote);
+                println!(
+                    "{:<20}  {:<8}  {:<7}  {:<12}  {:<14}  {}",
+                    row.id,
+                    row.priority.map(|p| p.to_string()).unwrap_or_default(),
+                    row.entries,
+                    row.last_synced.as_deref().unwrap_or("-"),
+                    row.status,
+                    row.source
+                );
+            }
+        }
+        Format::Json => {
+            #[derive(serde::Serialize)]
+            struct Row {
+                id: String,
+                priority: Option<u32>,
+                entries: usize,
+                last_synced: Option<String>,
+                status: String,
+                source: String,
+            }
+            let mut rows: Vec<Row> = vec![Row {
+                id: "local".into(),
+                priority: None,
+                entries: 0,
+                last_synced: None,
+                status: "local".into(),
+                source: "(your custom games)".into(),
+            }];
+            for sub in &manifest.taps {
+                let r = tap_row(sub, check_remote);
+                rows.push(Row {
+                    id: r.id,
+                    priority: r.priority,
+                    entries: r.entries,
+                    last_synced: r.last_synced,
+                    status: r.status,
+                    source: r.source,
+                });
+            }
+            match serde_json::to_string_pretty(&rows) {
+                Ok(s) => println!("{s}"),
+                Err(e) => {
+                    eprintln!("error: failed to serialize JSON: {e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+fn cmd_tap_add(name_or_url: &str, priority: Option<u32>) -> ExitCode {
+    if let Err(e) = crate::tap_fetch::check_git() {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    let source = crate::known_taps::resolve_tap_source(name_or_url);
+
+    let subs_path = crate::paths::subscriptions_path();
+    let mut manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let tmp = match tempfile::tempdir() {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if let Err(e) = crate::tap_fetch::clone_tap(source, tmp.path()) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    let meta = match crate::tap::validate_tap_dir(tmp.path(), None) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if manifest.taps.iter().any(|t| t.id == meta.id) {
+        eprintln!("error: already subscribed to tap {:?}", meta.id);
+        return ExitCode::FAILURE;
+    }
+
+    let cache_dest = crate::paths::tap_cache_dir_for(&meta.id);
+    if let Some(parent) = cache_dest.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    let tmp_path = tmp.keep();
+    if std::fs::rename(&tmp_path, &cache_dest).is_err() {
+        if let Err(e) = copy_dir_recursive(&tmp_path, &cache_dest) {
+            eprintln!("error: {e}");
+            let _ = std::fs::remove_dir_all(&tmp_path);
+            return ExitCode::FAILURE;
+        }
+        let _ = std::fs::remove_dir_all(&tmp_path);
+    }
+
+    let added_at = match std::str::FromStr::from_str(&crate::install_record::now_iso8601()) {
+        Ok(dt) => dt,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let tap_priority = priority.unwrap_or_else(|| manifest.next_priority());
+    manifest.taps.push(crate::subscriptions::TapSubscription {
+        id: meta.id.clone(),
+        source: source.to_string(),
+        added_at,
+        priority: tap_priority,
+    });
+
+    if let Err(e) = manifest.write(&subs_path) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    let entries = crate::tap::load_tap(&cache_dest)
+        .map(|t| t.entries.len())
+        .unwrap_or(0);
+    println!("subscribed to {:?}: {entries} catalog entries", meta.id);
+    ExitCode::SUCCESS
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), dest_path)?;
+        }
+    }
+    Ok(())
+}
+
+fn cmd_tap_remove(id: &str, force: bool) -> ExitCode {
+    if id == "local" {
+        eprintln!("error: the 'local' tap is built-in and cannot be removed");
+        return ExitCode::FAILURE;
+    }
+
+    let subs_path = crate::paths::subscriptions_path();
+    let mut manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if !manifest.taps.iter().any(|t| t.id == id) {
+        eprintln!("error: tap {id:?} is not subscribed");
+        return ExitCode::FAILURE;
+    }
+
+    if !force {
+        let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+        let orphaned: Vec<_> = installs
+            .iter()
+            .filter(|r| r.record.install.tap == id)
+            .collect();
+        if !orphaned.is_empty() {
+            eprintln!("warning: the following install records reference tap {id:?}:");
+            for r in &orphaned {
+                eprintln!("  - {}", r.record.install.catalog_id);
+            }
+            if !prompt_yes_no("Remove anyway? [y/N]") {
+                eprintln!("cancelled.");
+                return ExitCode::SUCCESS;
+            }
+        }
+    }
+
+    manifest.taps.retain(|t| t.id != id);
+    if let Err(e) = manifest.write(&subs_path) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    let cache_dir = crate::paths::tap_cache_dir_for(id);
+    if cache_dir.exists() {
+        if let Err(e) = std::fs::remove_dir_all(&cache_dir) {
+            eprintln!(
+                "warning: failed to remove cache at {}: {e}",
+                cache_dir.display()
+            );
+        }
+    }
+
+    println!("unsubscribed from {id:?}");
+    ExitCode::SUCCESS
+}
+
+fn cmd_tap_sync(id: Option<&str>) -> ExitCode {
+    let subs_path = crate::paths::subscriptions_path();
+    let manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let taps_to_sync: Vec<_> = match id {
+        Some(id) => manifest.taps.iter().filter(|t| t.id == id).collect(),
+        None => manifest.taps.iter().collect(),
+    };
+
+    if let Some(id) = id {
+        if taps_to_sync.is_empty() {
+            eprintln!("error: tap {id:?} is not subscribed");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    let mut any_failed = false;
+    for sub in taps_to_sync {
+        let cache_dir = crate::paths::tap_cache_dir_for(&sub.id);
+        if !cache_dir.join("tap.toml").exists() {
+            eprintln!(
+                "error: cache for tap {:?} is missing — run 'reliquaint tap remove {}' then 'reliquaint tap add' to re-add it",
+                sub.id, sub.id
+            );
+            any_failed = true;
+            continue;
+        }
+        match crate::tap_fetch::pull_tap(&cache_dir) {
+            Ok(result) => {
+                if result.already_up_to_date {
+                    println!("{}: up to date", sub.id);
+                } else {
+                    let before = &result.before_hash[..result.before_hash.len().min(7)];
+                    let after = &result.after_hash[..result.after_hash.len().min(7)];
+                    println!("{}: updated {before} -> {after}", sub.id);
+                }
+            }
+            Err(e) => {
+                eprintln!("error syncing {:?}: {e}", sub.id);
+                any_failed = true;
+            }
+        }
+    }
+
+    if any_failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn cmd_tap_reorder(id: Option<&str>, priority: Option<u32>, interactive: bool) -> ExitCode {
+    let subs_path = crate::paths::subscriptions_path();
+    let manifest = match crate::subscriptions::SubscriptionManifest::load_or_empty(&subs_path) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if interactive {
+        return cmd_tap_reorder_interactive(manifest, &subs_path);
+    }
+
+    match (id, priority) {
+        (Some(id), Some(priority)) => cmd_tap_reorder_direct(manifest, &subs_path, id, priority),
+        _ => {
+            eprintln!(
+                "error: provide a tap id and --priority, or use --interactive to edit the ordering"
+            );
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn cmd_tap_reorder_direct(
+    mut manifest: crate::subscriptions::SubscriptionManifest,
+    subs_path: &Path,
+    id: &str,
+    priority: u32,
+) -> ExitCode {
+    if !manifest.taps.iter().any(|t| t.id == id) {
+        eprintln!("error: tap {id:?} is not subscribed");
+        return ExitCode::FAILURE;
+    }
+
+    if let Some(conflict) = manifest
+        .taps
+        .iter()
+        .find(|t| t.id != id && t.priority == priority)
+    {
+        eprintln!(
+            "error: priority {priority} is already used by tap {:?}",
+            conflict.id
+        );
+        return ExitCode::FAILURE;
+    }
+
+    for tap in &mut manifest.taps {
+        if tap.id == id {
+            tap.priority = priority;
+            break;
+        }
+    }
+
+    if let Err(e) = manifest.write(subs_path) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    println!("{id}: priority set to {priority}");
+    ExitCode::SUCCESS
+}
+
+/// Open the current tap ordering in `$EDITOR`, then apply the edited
+/// priorities. The editable text is `<priority> <tap-id>` lines; comments and
+/// blank lines are ignored. Priorities must remain unique.
+fn cmd_tap_reorder_interactive(
+    mut manifest: crate::subscriptions::SubscriptionManifest,
+    subs_path: &Path,
+) -> ExitCode {
+    if manifest.taps.is_empty() {
+        println!("No subscribed taps to reorder.");
+        return ExitCode::SUCCESS;
+    }
+
+    // Present taps sorted by current priority for easy reordering.
+    let mut ordered = manifest.taps.clone();
+    ordered.sort_by_key(|t| t.priority);
+    let mut text = String::from(
+        "# Reliquaint tap priorities — lower number wins in conflicts.\n\
+         # Edit the priority (first column). One tap per line: <priority> <tap-id>\n\
+         # Lines starting with '#' and blank lines are ignored.\n",
+    );
+    for t in &ordered {
+        text.push_str(&format!("{} {}\n", t.priority, t.id));
+    }
+
+    let edited = match edit_in_editor(&text) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Parse "<priority> <id>" lines into id -> priority.
+    let mut new_priorities: std::collections::HashMap<String, u32> =
+        std::collections::HashMap::new();
+    for (lineno, line) in edited.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let (Some(prio_s), Some(id)) = (parts.next(), parts.next()) else {
+            eprintln!(
+                "error: line {}: expected '<priority> <tap-id>', got {line:?}",
+                lineno + 1
+            );
+            return ExitCode::FAILURE;
+        };
+        let prio: u32 = match prio_s.parse() {
+            Ok(p) => p,
+            Err(_) => {
+                eprintln!(
+                    "error: line {}: {prio_s:?} is not a valid priority",
+                    lineno + 1
+                );
+                return ExitCode::FAILURE;
+            }
+        };
+        if !manifest.taps.iter().any(|t| t.id == id) {
+            eprintln!("error: line {}: unknown tap id {id:?}", lineno + 1);
+            return ExitCode::FAILURE;
+        }
+        if new_priorities.insert(id.to_string(), prio).is_some() {
+            eprintln!("error: tap {id:?} listed more than once",);
+            return ExitCode::FAILURE;
+        }
+    }
+
+    // Apply edits over the current priorities (unedited taps keep theirs).
+    for tap in &mut manifest.taps {
+        if let Some(p) = new_priorities.get(&tap.id) {
+            tap.priority = *p;
+        }
+    }
+
+    // Priorities must be unique across all subscribed taps.
+    let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for tap in &manifest.taps {
+        if !seen.insert(tap.priority) {
+            eprintln!(
+                "error: priority {} is shared by more than one tap; no two taps may share a priority",
+                tap.priority
+            );
+            return ExitCode::FAILURE;
+        }
+    }
+
+    if let Err(e) = manifest.write(subs_path) {
+        eprintln!("error: {e}");
+        return ExitCode::FAILURE;
+    }
+    println!("updated tap priorities");
+    ExitCode::SUCCESS
+}
+
+/// Write `contents` to a temp file, open it in `$VISUAL`/`$EDITOR` (falling
+/// back to `vi`), and return the edited contents.
+fn edit_in_editor(contents: &str) -> std::io::Result<String> {
+    let editor = std::env::var("VISUAL")
+        .or_else(|_| std::env::var("EDITOR"))
+        .unwrap_or_else(|_| "vi".to_string());
+
+    let mut tmp = std::env::temp_dir();
+    tmp.push(format!("reliquaint-reorder-{}.txt", std::process::id()));
+    std::fs::write(&tmp, contents)?;
+
+    // Run through a shell so `$EDITOR` may carry arguments; the temp path is
+    // passed positionally as "$1".
+    let status = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!("{editor} \"$1\""))
+        .arg("sh")
+        .arg(&tmp)
+        .status()?;
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(std::io::Error::other(
+            "editor exited with a non-zero status",
+        ));
+    }
+
+    let edited = std::fs::read_to_string(&tmp)?;
+    let _ = std::fs::remove_file(&tmp);
+    Ok(edited)
+}
+
+fn cmd_tap_validate(path: &std::path::Path) -> ExitCode {
+    match crate::tap::validate_tap_dir(path, None) {
+        Ok(meta) => {
+            let entries = crate::tap::load_tap(path)
+                .map(|t| t.entries.len())
+                .unwrap_or(0);
+            println!(
+                "ok: tap {:?} v{} ({entries} catalog entries)",
+                meta.id, meta.version
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn cmd_upgrade() -> ExitCode {
+    let installs = crate::install_record::load_all(&crate::paths::installs_dir());
+    let manifest = crate::subscriptions::SubscriptionManifest::load_or_empty(
+        &crate::paths::subscriptions_path(),
+    )
+    .unwrap_or_else(|_| crate::subscriptions::SubscriptionManifest::empty());
+
+    // Collect tap ids referenced by install records that are known taps but
+    // not currently subscribed.
+    let missing: std::collections::BTreeSet<String> = installs
+        .iter()
+        .map(|r| r.record.install.tap.as_str())
+        .filter(|tap_id| {
+            crate::known_taps::KNOWN_TAPS
+                .iter()
+                .any(|(name, _)| name == tap_id)
+                && !manifest.taps.iter().any(|t| t.id.as_str() == *tap_id)
+        })
+        .map(|s| s.to_string())
+        .collect();
+
+    if missing.is_empty() {
+        println!("Nothing to upgrade — all install records reference subscribed taps.");
+        return ExitCode::SUCCESS;
+    }
+
+    println!(
+        "Found {} installed game(s) referencing taps you are not subscribed to.",
+        installs
+            .iter()
+            .filter(|r| missing.contains(&r.record.install.tap))
+            .count()
+    );
+    println!();
+    for tap_id in &missing {
+        let count = installs
+            .iter()
+            .filter(|r| &r.record.install.tap == tap_id)
+            .count();
+        println!("  {tap_id}: {count} game(s)");
+        println!("  → run: reliquaint tap add {tap_id}");
+    }
+    ExitCode::SUCCESS
 }

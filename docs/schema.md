@@ -1,6 +1,6 @@
 # Reliquaint Schema Design
 
-> **Status:** Draft, targets v0.1.
+> **Status:** Updated for v0.3.
 > **Related:** ADR-0001 (two-layer manifest), ADR-0002 (split DOSBox config), ADR-0003 (tap distribution).
 
 This document specifies the on-disk TOML schemas used by Reliquaint. It is the contract between the launcher and:
@@ -61,7 +61,7 @@ A tap is a versioned source of catalog entries, shipped emulator configs, and (i
 
 The launcher loads catalog entries by walking `catalog/<platform>/*.toml`. The `.conf` / `.fs-uae` files are sibling resources referenced from the catalog entry's `runtime` table.
 
-The bundled tap (named `reliquaint-core`) ships inside the launcher repository for v0.1. Its location within the repo is an implementation detail.
+The bundled tap (named `reliquaint-core`) shipped inside the launcher repository through v0.2. As of v0.3 it lives in its own repository at `https://github.com/syraenix/reliquaint-core` and is fetched via the tap subscription system described below.
 
 ### User tap (v0.2)
 
@@ -74,6 +74,62 @@ ${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/
 It uses the same layout as the bundled tap (`tap.toml` at root, `catalog/<platform>/<id>.toml`, sibling `.conf` / `.fs-uae`). The launcher creates this directory and a minimal `tap.toml` lazily on the first manifest write, so users who never add a custom game never get the directory.
 
 The user tap claims the reserved id **`local`**. The launcher refuses to load any externally supplied tap (subscribed third-party tap, copied-over bundled tap, etc.) that claims this id — the id is exclusively for the user's own writable tap. Catalog entries in the user tap follow the same schema as bundled ones.
+
+### Tap subscription cache (v0.3)
+
+Subscribed taps are git-cloned to:
+
+```
+${XDG_DATA_HOME:-$HOME/.local/share}/reliquaint/taps/<tap-id>/
+```
+
+Each is a full tap directory (same layout as above: `tap.toml`, `catalog/<platform>/*.toml`, sibling configs). The launcher reads every subscribed tap's cache alongside the user tap on every run; no daemon is required. Syncing to the latest commits is done explicitly via `reliquaint tap sync` or the Taps panel in the GUI.
+
+### Reserved tap ids
+
+The following tap ids are reserved and cannot be used by subscribed or third-party taps:
+
+| Id | Reserved for |
+|---|---|
+| `local` | The user's own writable tap at `${XDG_CONFIG_HOME}/reliquaint/tap/`. |
+
+---
+
+## `subscriptions.toml` (v0.3)
+
+Records which community taps the user is subscribed to. Written and maintained by `reliquaint tap add/remove/reorder`.
+
+**Location:** `${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/subscriptions.toml`
+
+```toml
+schema_version = 1
+
+[[tap]]
+id       = "reliquaint-core"
+source   = "https://github.com/syraenix/reliquaint-core"
+added_at = 2026-06-01T12:00:00Z
+priority = 0
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `schema_version` | integer | yes | Always `1`. |
+| `tap[].id` | string | yes | The tap's identifier. Must match the `id` in the fetched tap's `tap.toml`. Follows the identifier convention. Cannot be `local`. |
+| `tap[].source` | string | yes | URL or local path used to clone/pull the tap. HTTPS URLs are cloned via system `git`. |
+| `tap[].added_at` | datetime | yes | TOML datetime of when the subscription was created. |
+| `tap[].priority` | integer | yes | Conflict resolution priority. Lower value wins when two subscribed taps offer the same game id. The user tap (`local`) always wins at implicit priority −1, regardless of this field. |
+
+### Conflict resolution
+
+When two taps provide an entry with the same `[game].id`:
+
+1. The user tap (`local`) always wins — it takes priority over any subscribed tap.
+2. Among subscribed taps, the entry from the tap with the **lower** `priority` value is shown in the catalog.
+3. The game detail view shows a note indicating alternate versions exist in other taps.
+
+Priorities within a subscription list must be unique. `reliquaint tap reorder` reassigns priorities; gaps in the sequence are valid.
 
 ---
 
