@@ -169,4 +169,4 @@ Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/
 ## License
 
 - **Code** — [MPL-2.0](LICENSE). Weak copyleft: file-level, lets the launcher integrate with proprietary or other-licensed code while keeping modifications to Reliquaint's own files open.
-- **Catalog content** — [CC-BY-SA-4.0](LICENSE-CONTENT). Anyone can reuse the catalog entries and shipped configs with attribution; derivative tap repositories must share-alike.
+- **Catalog content** — catalog entries and shipped configs live in the [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository under [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/): reuse with attribution; derivative tap repositories must share-alike.
