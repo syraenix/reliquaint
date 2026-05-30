@@ -72,7 +72,7 @@ These are sequencing guidance, not commitments. Each phase ends in a state where
 
 ## Resolved
 
-- **License.** Code is [MPL-2.0](../LICENSE); catalog content is [CC-BY-SA-4.0](../LICENSE-CONTENT).
+- **License.** Code is [MPL-2.0](../LICENSE); catalog content (in [`reliquaint-core`](https://github.com/syraenix/reliquaint-core)) is [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 - **Default tap contents.** The bundled tap is `reliquaint-core` — a small, quality-focused starter set (the Quest for Glory, King's Quest, and Amiga starter entries).
 
 ## Open questions

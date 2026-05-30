@@ -147,4 +147,4 @@ For GUI changes, also run `pnpm tauri dev` from `launcher/` and click through wh
 By contributing, you agree that your contributions are licensed under the same terms as the project:
 
 - **Code** — [MPL-2.0](LICENSE)
-- **Catalog content** — [CC-BY-SA-4.0](LICENSE-CONTENT)
+- **Catalog content** (in [`reliquaint-core`](https://github.com/syraenix/reliquaint-core)) — [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/)

@@ -72,11 +72,10 @@ fn gather_warnings(entry: &CatalogEntry) -> Vec<String> {
     w
 }
 
-/// GitHub URL the user can open to file a PR adding the manifest to
-/// the bundled tap. `branch` is the target branch on the upstream
-/// repo (typically `develop` for v0.2).
+/// GitHub URL the user can open to file a PR adding the manifest to the
+/// community `reliquaint-core` tap. `branch` is the target branch on that repo.
 pub fn github_new_file_url(platform: &str, branch: &str) -> String {
-    format!("https://github.com/syraenix/reliquaint/new/{branch}/tap/catalog/{platform}/")
+    format!("https://github.com/syraenix/reliquaint-core/new/{branch}/catalog/{platform}/")
 }
 
 #[cfg(test)]
@@ -158,7 +157,8 @@ mod tests {
 
     #[test]
     fn github_url_uses_platform_and_branch() {
-        let url = github_new_file_url("dos", "develop");
-        assert!(url.contains("/new/develop/tap/catalog/dos/"));
+        let url = github_new_file_url("dos", "main");
+        assert!(url.contains("reliquaint-core"));
+        assert!(url.contains("/new/main/catalog/dos/"));
     }
 }

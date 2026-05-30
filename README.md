@@ -25,6 +25,15 @@ It does **not** acquire game files for you. It does **not** circumvent DRM. The 
 
 **v0.3.** Tap subscriptions are fully implemented. Subscribe to community-maintained taps via `reliquaint tap add <name>` or the Taps panel in the GUI. The CLI has `list`, `run`, `install`, `migrate-installs`, `doctor`, `add`, `tap add/remove/list/sync/reorder/validate`, and `upgrade`. The GUI supports browsing, installing, launching, tap management, and a first-run prompt for new installs. Companion content (walkthroughs, maps, hint files) remains a v0.4 goal per the [PRD](docs/prd.md).
 
+> **Upgrading from v0.2?** The `reliquaint-core` catalog that used to ship inside the launcher has **moved to its own repository** ([`syraenix/reliquaint-core`](https://github.com/syraenix/reliquaint-core)); the launcher no longer bundles any catalog content. Your existing installs keep working — just subscribe so the launcher can find their catalog entries again:
+>
+> ```bash
+> reliquaint upgrade            # detects installs whose tap is no longer subscribed and tells you what to add
+> reliquaint tap add reliquaint-core
+> ```
+>
+> See [Migrating from v0.2](#migrating-from-v02) below for the full story.
+
 The project is Linux-only by design (Flatpak DOSBox-Staging, apt-installed FluidSynth/FS-UAE). Cross-platform support is a non-goal for v0.1.
 
 ## Installing the launcher
@@ -63,7 +72,7 @@ reliquaint migrate-installs
 
 This scans for any catalog entry whose id matches a subdirectory of `~/games/` and registers each one in a single pass.
 
-### Adding a game *not* in the bundled catalog
+### Adding a game *not* in a subscribed tap
 
 For DOS or Amiga games we don't have a manifest for, point the wizard at the directory and it will inspect, propose a draft, and write it to your local tap at `${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/`:
 
@@ -75,7 +84,7 @@ reliquaint add ~/games/my-custom-game --platform amiga   # override detection
 
 Or in the GUI: click the **+ Add game** button in the header, pick the directory, review the form, save.
 
-The new entry shows up alongside bundled games with a small **CUSTOM** badge. Tweak it later via:
+The new entry shows up alongside subscribed-tap games with a small **CUSTOM** badge. Tweak it later via:
 
 ```bash
 reliquaint where my-custom-game     # print on-disk paths for hand-editing
@@ -127,6 +136,25 @@ reliquaint tap remove my-tap            # unsubscribe
 
 The Taps panel (⊞ Taps button in the GUI) provides the same controls visually.
 
+## Migrating from v0.2
+
+In v0.2 the `reliquaint-core` catalog shipped *inside* the launcher. As of v0.3 it lives in its own repository, [`syraenix/reliquaint-core`](https://github.com/syraenix/reliquaint-core), and the launcher ships no bundled catalog content — everything comes from taps you subscribe to.
+
+Nothing about your installed games changes on disk. Each install record points at the `(tap, game)` it was installed against, so the only thing missing after upgrading is the subscription that provides those catalog entries. Restore it in one step:
+
+```bash
+reliquaint upgrade
+```
+
+This scans your install records, finds any whose tap you are not subscribed to, and — when the tap is a known one like `reliquaint-core` — prints the exact `reliquaint tap add` command to run. Then:
+
+```bash
+reliquaint tap add reliquaint-core
+reliquaint list            # your games are back, now sourced from the subscribed tap
+```
+
+In the GUI, the same situation surfaces as a first-run/empty-catalog prompt offering to subscribe to `reliquaint-core`, and `⚕ Doctor` lists any orphaned installs with the suggested fix.
+
 ## Contributing a catalog entry
 
 Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository. Clone it, drop a TOML file into `catalog/<platform>/<id>.toml` matching the schema in [`docs/schema.md`](docs/schema.md), add any per-game shipped `.conf` next to it, and open a PR there. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full walkthrough.
@@ -141,4 +169,4 @@ Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/
 ## License
 
 - **Code** — [MPL-2.0](LICENSE). Weak copyleft: file-level, lets the launcher integrate with proprietary or other-licensed code while keeping modifications to Reliquaint's own files open.
-- **Catalog content** — [CC-BY-SA-4.0](LICENSE-CONTENT). Anyone can reuse the catalog entries and shipped configs with attribution; derivative tap repositories must share-alike.
+- **Catalog content** — catalog entries and shipped configs live in the [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository under [CC-BY-SA-4.0](https://creativecommons.org/licenses/by-sa/4.0/): reuse with attribution; derivative tap repositories must share-alike.
