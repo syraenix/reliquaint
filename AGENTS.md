@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository. Kept in sync with [CLAUDE
 
 ## What this repo is
 
-The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories — with the bundled `reliquaint-core` tap at `tap/` (11 entries: 5 QFG, 5 KQ, 1 Amiga).
+The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories the user subscribes to. The launcher ships **no** bundled catalog; the official `reliquaint-core` tap lives in its own repository (`syraenix/reliquaint-core`). Tests use a small fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
 
 ## Design docs
 
@@ -24,11 +24,9 @@ Read before non-trivial changes:
 
 - `README.md`, `CONTRIBUTING.md`, `docs/prerequisites.md` — front door.
 - `docs/` — design docs.
-- `config/default-dosbox-staging.conf` — reference DOSBox config used as a starting point for per-entry `.conf` files.
-- `img/` — shared screenshots referenced by the docs.
-- `tap/tap.toml` + `tap/catalog/<platform>/<id>.toml` + sibling `<id>.conf` / `<id>.fs-uae` — the bundled `reliquaint-core` tap. Tests use the smaller fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
-- `scripts/extract-installers.sh` — extracts QFG GOG installers into `~/games/`.
-- `dos/<game-collection>/`, `amiga/` — collection guide markdown + screenshots. Originally also held the pre-redesign per-game manifests and configs; those migrated into the tap in Milestone 6. The guide prose becomes companion content in v0.4 per ADR-0003. The gitignored `installers/` (QFG) and `games/` (KQ) subdirectories stay put.
+- `config/default-dosbox-staging.conf` — reference DOSBox config, embedded into the binary (`draft/dos.rs`) as the starting point for wizard-generated per-entry `.conf` files.
+- `launcher/src-tauri/tests/fixtures/tap/` — the small fixture tap used by tests. The launcher no longer ships a bundled `tap/`; catalog content (the `reliquaint-core` tap) lives in its own repository, and the collection guides/screenshots that used to live under `dos/`, `amiga/`, and `img/` moved there as companion content (ADR-0003).
+- `scripts/extract-installers.sh`, `scripts/generate-amiga-catalog.py` — helper scripts.
 - `launcher/` — Rust workspace + Svelte/Tauri frontend.
 
 ### Rust modules (`launcher/src-tauri/src/`)
@@ -40,7 +38,7 @@ Read before non-trivial changes:
 - `sidecar` — spawns the plan; SIGTERM/grace/SIGKILL sidecar shutdown; `run_plan_with_callback` streams primary stdout/stderr line-by-line (used by the GUI diagnostic panel).
 - `user_config` — `${XDG_CONFIG_HOME}/reliquaint/config.toml` with Debian-friendly defaults.
 - `doctor::check_install` — host + per-install diagnostics; reuses `ProbeKind`/`ProbeStatus`/`ProbeResult`.
-- `paths` — XDG locations and `find_repo_root` heuristic (recognizes either `tap/tap.toml` or legacy `dos/+amiga/` directory markers).
+- `paths` — XDG locations for every app-owned path: `subscriptions_path` (subscriptions manifest), `user_taps_dir`/`tap_cache_dir_for` (fetched-tap cache), `user_tap_dir` (the local user tap), `installs_dir`, `user_config_path`, `default_library_dir`. Each honors a `RELIQUAINT_*` env override for test isolation. (No repo-root/bundled-tap resolution exists post-cutover — the catalog comes from subscribed taps + the user tap.)
 - `cli` — `reliquaint list/run/install/migrate-installs/doctor`.
 - `commands` — Tauri command handlers: `list_catalog`, `install_game` (async, streams `install-output`; stages then commits, or returns `MissingFiles`), `commit_install` / `discard_install` (resolve a `MissingFiles` install anyway / cancel), `default_install_dest`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
 - `gui` — Tauri builder, `AppState`, AppHandle wiring (drives the `logging::TauriBridgeLayer` so tracing events flow to the diagnostic panel).
@@ -82,7 +80,9 @@ RUST_LOG=trace reliquaint list             # TRACE
 ```
 
 **Env vars (development / testing):**
-- `RELIQUAINT_REPO_ROOT` — override where the launcher searches for the bundled tap.
+- `RELIQUAINT_SUBSCRIPTIONS_PATH` — override `paths::subscriptions_path()` (test isolation).
+- `RELIQUAINT_TAPS_CACHE_DIR` — override `paths::user_taps_dir()` (fetched-tap cache; test isolation).
+- `RELIQUAINT_USER_TAP_DIR` — override `paths::user_tap_dir()` (local user tap; test isolation).
 - `RELIQUAINT_INSTALLS_DIR` — override `paths::installs_dir()` (test isolation).
 - `RELIQUAINT_USER_CONFIG_PATH` — override `paths::user_config_path()` (test isolation).
 - `RELIQUAINT_GAMES_DIR` — override `paths::default_library_dir()` (default `~/games`; test isolation).
@@ -90,7 +90,7 @@ RUST_LOG=trace reliquaint list             # TRACE
 ### Develop the launcher
 
 ```bash
-cd launcher && cargo test                  # 143 unit + 31 integration tests
+cd launcher && cargo test                  # 239 unit + 68 integration tests
 cd launcher && cargo build --bin reliquaint
 cd launcher && pnpm install && pnpm tauri dev   # GUI dev (Node + pnpm + Tauri system libs)
 cd launcher && pnpm tauri build            # release build
@@ -99,10 +99,10 @@ cargo install --path launcher/src-tauri    # install the binary on PATH
 
 ### Iterate on a per-game `.conf`
 
-Edit the file under `tap/catalog/<platform>/<id>.conf`, then launch DOSBox Staging directly:
+Per-game `.conf` files live in their tap repository (e.g. a clone of `reliquaint-core`), not in this repo. Edit the file under `catalog/<platform>/<id>.conf` in your tap checkout, then launch DOSBox Staging directly:
 
 ```bash
-flatpak run io.github.dosbox-staging -conf tap/catalog/dos/<id>.conf
+flatpak run io.github.dosbox-staging -conf catalog/dos/<id>.conf
 ```
 
-Once it feels right, `reliquaint run <id>` composes the launch with the user's install path and any sidecars.
+Once it feels right, `reliquaint run <id>` composes the launch with the user's install path and any sidecars. Locally-created entries live in the user tap at `${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/`.
