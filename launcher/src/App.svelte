@@ -14,6 +14,8 @@
   let filter = "all";
   let tapFilter = "all";
   let selectedId = null;
+  // When viewing a conflict alternate, pins the specific tap to show.
+  let selectedTapId = null;
   let loading = true;
   let error = null;
   let doctorOpen = false;
@@ -79,14 +81,46 @@
   });
 
   $: availableTaps = [...new Set(catalog.map((g) => g.tap_id))];
-  $: filtered = catalog.filter(
-    (g) =>
-      (filter === "all" || g.platform === filter) &&
-      (tapFilter === "all" || g.tap_id === tapFilter),
-  );
+  $: filtered = (() => {
+    const base = catalog.filter(
+      (g) =>
+        (filter === "all" || g.platform === filter) &&
+        (tapFilter === "all" || g.tap_id === tapFilter),
+    );
+    // Viewing a single tap: every id is unique within it. Viewing "all
+    // taps": collapse conflicts to the priority winner (catalog arrives
+    // sorted by priority, so the first occurrence per id wins).
+    if (tapFilter !== "all") return base;
+    const seen = new Set();
+    return base.filter((g) => (seen.has(g.id) ? false : (seen.add(g.id), true)));
+  })();
   $: selectedGame = selectedId
-    ? catalog.find((g) => g.id === selectedId) ?? null
+    ? (selectedTapId
+        ? catalog.find((g) => g.id === selectedId && g.tap_id === selectedTapId)
+        : null) ??
+      catalog.find((g) => g.id === selectedId) ??
+      null
     : null;
+  $: alternates = selectedGame
+    ? catalog.filter(
+        (g) => g.id === selectedGame.id && g.tap_id !== selectedGame.tap_id,
+      )
+    : [];
+
+  function selectGame(detail) {
+    selectedId = detail.id;
+    selectedTapId = detail.tap_id ?? null;
+  }
+
+  function viewAlternate(tapId) {
+    selectedTapId = tapId;
+  }
+
+  function onMadeDefault() {
+    // Priorities changed; reload and snap back to the (new) winner.
+    selectedTapId = null;
+    loadCatalog();
+  }
 </script>
 
 <div class="app">
@@ -128,8 +162,14 @@
   {:else if selectedGame}
     <GameDetail
       game={selectedGame}
-      on:back={() => (selectedId = null)}
+      {alternates}
+      on:back={() => {
+        selectedId = null;
+        selectedTapId = null;
+      }}
       on:installed={loadCatalog}
+      on:viewAlternate={(e) => viewAlternate(e.detail.tap_id)}
+      on:madeDefault={onMadeDefault}
     />
   {:else if loading}
     <div class="status">Loading catalog…</div>
@@ -144,7 +184,7 @@
       >
     </div>
   {:else}
-    <GameGrid games={filtered} on:select={(e) => (selectedId = e.detail.id)} />
+    <GameGrid games={filtered} on:select={(e) => selectGame(e.detail)} />
   {/if}
 </div>
 

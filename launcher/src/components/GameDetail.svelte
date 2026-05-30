@@ -6,7 +6,29 @@
   import DiagnosticPanel from "./DiagnosticPanel.svelte";
 
   export let game;
+  // Other catalog entries sharing this game's id but from a different tap
+  // (conflict alternates), supplied by App.svelte.
+  export let alternates = [];
   const dispatch = createEventDispatcher();
+
+  let makingDefault = false;
+  let makeDefaultError = null;
+
+  // The local user tap always wins, so "make default" can't override it.
+  $: canMakeDefault = game.tap_id !== "local" && alternates.some((a) => a.priority < game.priority);
+
+  async function makeDefault() {
+    makingDefault = true;
+    makeDefaultError = null;
+    try {
+      await invoke("make_tap_default", { id: game.tap_id });
+      dispatch("madeDefault");
+    } catch (e) {
+      makeDefaultError = String(e);
+    } finally {
+      makingDefault = false;
+    }
+  }
 
   let launching = false;
   let launchError = null;
@@ -296,6 +318,29 @@
         {/if}
       </dl>
 
+      {#if alternates.length > 0}
+        <section class="alternates">
+          <span class="alt-label">Also in:</span>
+          {#each alternates as alt (alt.tap_id)}
+            <button
+              class="alt-link"
+              title="View the {alt.tap_id} version"
+              on:click={() => dispatch("viewAlternate", { tap_id: alt.tap_id })}
+            >
+              {alt.tap_id}
+            </button>
+          {/each}
+          {#if canMakeDefault}
+            <button class="make-default" on:click={makeDefault} disabled={makingDefault}>
+              {makingDefault ? "Setting…" : "Make this version the default"}
+            </button>
+          {/if}
+        </section>
+        {#if makeDefaultError}
+          <p class="msg error">{makeDefaultError}</p>
+        {/if}
+      {/if}
+
       {#if game.description}
         <p class="description">{game.description}</p>
       {/if}
@@ -542,6 +587,56 @@
     font-family: monospace;
     color: var(--ink-muted);
     font-size: 0.85rem;
+  }
+
+  .alternates {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .alt-label {
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .alt-link {
+    background: transparent;
+    border: 1px solid var(--border-light);
+    color: var(--gold-bright);
+    padding: 3px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-family: monospace;
+  }
+
+  .alt-link:hover {
+    background: var(--bg-hover);
+  }
+
+  .make-default {
+    background: transparent;
+    border: 1px solid var(--gold-ink);
+    color: var(--gold-ink);
+    padding: 3px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+
+  .make-default:hover:not(:disabled) {
+    background: var(--gold-ink);
+    color: var(--bg-base);
+  }
+
+  .make-default:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .description {
