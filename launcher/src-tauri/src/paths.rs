@@ -52,6 +52,25 @@ pub fn tap_cache_dir_for(tap_id: &str) -> PathBuf {
     user_taps_dir().join(tap_id)
 }
 
+/// On-disk root for a tap by id. The local pseudo-tap
+/// (`tap::RESERVED_USER_TAP_ID`) lives at [`user_tap_dir`]; every other tap is
+/// a fetched subscription under [`tap_cache_dir_for`]. Mirrors the local-vs-
+/// cached resolution in `commands::load_catalog_view`.
+pub fn tap_root_dir(tap_id: &str) -> PathBuf {
+    if tap_id == crate::tap::RESERVED_USER_TAP_ID {
+        user_tap_dir()
+    } else {
+        tap_cache_dir_for(tap_id)
+    }
+}
+
+/// Directory holding a game's companion content within a tap:
+/// `<tap-root>/companion/<game-id>/`. Used by the `reliquaint-content://`
+/// image protocol (see `companion_protocol`) to resolve served files.
+pub fn companion_dir(tap_id: &str, game_id: &str) -> PathBuf {
+    tap_root_dir(tap_id).join("companion").join(game_id)
+}
+
 /// The subscriptions manifest — which taps the user is subscribed to.
 ///
 /// `RELIQUAINT_SUBSCRIPTIONS_PATH`, if set and non-empty, overrides the
@@ -330,6 +349,48 @@ mod tests {
         match saved {
             Some(v) => std::env::set_var("RELIQUAINT_USER_TAP_DIR", v),
             None => std::env::remove_var("RELIQUAINT_USER_TAP_DIR"),
+        }
+    }
+
+    #[test]
+    fn tap_root_dir_uses_cache_for_subscribed_tap() {
+        let saved = std::env::var("RELIQUAINT_TAPS_CACHE_DIR").ok();
+        std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", "/tmp/taps");
+        assert_eq!(
+            tap_root_dir("reliquaint-core"),
+            PathBuf::from("/tmp/taps/reliquaint-core")
+        );
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_TAPS_CACHE_DIR"),
+        }
+    }
+
+    #[test]
+    fn tap_root_dir_uses_user_tap_for_local_id() {
+        let saved = std::env::var("RELIQUAINT_USER_TAP_DIR").ok();
+        std::env::set_var("RELIQUAINT_USER_TAP_DIR", "/tmp/custom-user-tap");
+        assert_eq!(
+            tap_root_dir(crate::tap::RESERVED_USER_TAP_ID),
+            PathBuf::from("/tmp/custom-user-tap")
+        );
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_USER_TAP_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_USER_TAP_DIR"),
+        }
+    }
+
+    #[test]
+    fn companion_dir_appends_companion_and_game_id() {
+        let saved = std::env::var("RELIQUAINT_TAPS_CACHE_DIR").ok();
+        std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", "/tmp/taps");
+        assert_eq!(
+            companion_dir("core", "qfg1-ega"),
+            PathBuf::from("/tmp/taps/core/companion/qfg1-ega")
+        );
+        match saved {
+            Some(v) => std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", v),
+            None => std::env::remove_var("RELIQUAINT_TAPS_CACHE_DIR"),
         }
     }
 }

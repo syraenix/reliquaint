@@ -29,6 +29,8 @@ tempfile            = "3.10"
 tauri               = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 dialoguer           = { version = "0.11", default-features = false }
+pulldown-cmark      = { version = "0.13", default-features = false, features = ["html"] }
+ammonia             = "4.1"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
