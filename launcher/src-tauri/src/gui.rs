@@ -22,6 +22,8 @@ pub fn run_gui() {
         })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_catalog,
+            crate::commands::list_companion,
+            crate::commands::render_companion,
             crate::commands::install_game,
             crate::commands::commit_install,
             crate::commands::discard_install,

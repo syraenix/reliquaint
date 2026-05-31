@@ -4,6 +4,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import DiagnosticPanel from "./DiagnosticPanel.svelte";
+  import CompanionGuides from "./CompanionGuides.svelte";
 
   export let game;
   // Other catalog entries sharing this game's id but from a different tap
@@ -401,6 +402,8 @@
       {/if}
     </div>
   </div>
+
+  <CompanionGuides {game} />
 
   {#if showInstallModal}
     <div class="modal-overlay" on:click={closeInstallModal}>

@@ -17,7 +17,7 @@
 //! The disk-facing logic lives in [`resolve_image_in`], which takes the base
 //! directory explicitly so it is unit-testable without touching XDG paths.
 
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 /// Why a companion image request was refused. The protocol handler maps these
 /// to HTTP-equivalent status codes.
@@ -87,16 +87,18 @@ pub fn resolve_image(
     resolve_image_in(&base, rel_path)
 }
 
-/// Disk-facing core of [`resolve_image`], with the companion base directory
-/// passed explicitly so it can be tested in isolation.
-pub fn resolve_image_in(
-    base: &Path,
-    rel_path: &str,
-) -> Result<(Vec<u8>, &'static str), ImageError> {
+/// Resolve `rel_path` to a real file inside `base`, enforcing the boundary:
+/// the requested path may contain only plain segments (no `..`, no absolute
+/// root), and after symlink resolution the file must still live within `base`.
+/// Returns the canonical path on success.
+///
+/// Shared by image serving and Markdown reading so both honor identical
+/// traversal/symlink-escape protection.
+pub fn resolve_within(base: &Path, rel_path: &str) -> Result<PathBuf, ImageError> {
     let rel = Path::new(rel_path);
 
-    // 1. Reject traversal in the *requested* path before touching disk: only
-    //    plain path segments (and `.`) are allowed — no `..`, no absolute root.
+    // Reject traversal in the *requested* path before touching disk: only
+    // plain path segments (and `.`) are allowed — no `..`, no absolute root.
     for component in rel.components() {
         match component {
             Component::Normal(_) | Component::CurDir => {}
@@ -104,22 +106,15 @@ pub fn resolve_image_in(
                 tracing::warn!(
                     base = %base.display(),
                     rel = %rel_path,
-                    "rejected companion image request with traversal/absolute path"
+                    "rejected companion request with traversal/absolute path"
                 );
                 return Err(ImageError::OutsideBoundary);
             }
         }
     }
 
-    // 2. The extension must name an allowed image format (rejects `.svg`, etc.).
-    let format = rel
-        .extension()
-        .and_then(|e| e.to_str())
-        .and_then(Format::from_ext)
-        .ok_or(ImageError::BadFormat)?;
-
-    // 3. Canonicalize (following symlinks) and require containment within the
-    //    canonical base — defeats symlinks that point outside the boundary.
+    // Canonicalize (following symlinks) and require containment within the
+    // canonical base — defeats symlinks that point outside the boundary.
     let canon = std::fs::canonicalize(base.join(rel)).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => ImageError::NotFound,
         _ => ImageError::Io,
@@ -133,12 +128,30 @@ pub fn resolve_image_in(
             base = %base.display(),
             rel = %rel_path,
             resolved = %canon.display(),
-            "companion image request escaped its boundary"
+            "companion request escaped its boundary"
         );
         return Err(ImageError::OutsideBoundary);
     }
 
-    // 4. Read the file and require its magic bytes to match the extension.
+    Ok(canon)
+}
+
+/// Disk-facing core of [`resolve_image`], with the companion base directory
+/// passed explicitly so it can be tested in isolation.
+pub fn resolve_image_in(
+    base: &Path,
+    rel_path: &str,
+) -> Result<(Vec<u8>, &'static str), ImageError> {
+    // The extension must name an allowed image format (rejects `.svg`, etc.).
+    let format = Path::new(rel_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .and_then(Format::from_ext)
+        .ok_or(ImageError::BadFormat)?;
+
+    let canon = resolve_within(base, rel_path)?;
+
+    // Read the file and require its magic bytes to match the extension.
     let bytes = std::fs::read(&canon).map_err(|_| ImageError::Io)?;
     if !format.matches_magic(&bytes) {
         tracing::warn!(
@@ -150,6 +163,28 @@ pub fn resolve_image_in(
     }
 
     Ok((bytes, format.mime()))
+}
+
+/// Read a companion Markdown document for `(tap_id, game_id)`. The path must
+/// have a `.md` extension and resolve within the game's companion directory
+/// (same boundary protection as image serving). Returns the file's text.
+pub fn read_markdown(tap_id: &str, game_id: &str, rel_path: &str) -> Result<String, ImageError> {
+    let base = crate::paths::companion_dir(tap_id, game_id);
+    read_markdown_in(&base, rel_path)
+}
+
+/// Disk-facing core of [`read_markdown`], with the companion base directory
+/// passed explicitly so it can be tested without touching XDG paths.
+pub fn read_markdown_in(base: &Path, rel_path: &str) -> Result<String, ImageError> {
+    let is_md = Path::new(rel_path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("md"));
+    if !is_md {
+        return Err(ImageError::BadFormat);
+    }
+    let canon = resolve_within(base, rel_path)?;
+    std::fs::read_to_string(&canon).map_err(|_| ImageError::Io)
 }
 
 #[cfg(test)]
@@ -248,6 +283,52 @@ mod tests {
         assert_eq!(
             resolve_image_in(dir.path(), "nope.png"),
             Err(ImageError::NotFound)
+        );
+    }
+
+    // ---- resolve_within / read_markdown ----------------------------------
+
+    #[test]
+    fn resolve_within_accepts_contained_path_and_rejects_escape() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "sub/guide.md", b"# hi");
+        assert!(resolve_within(dir.path(), "sub/guide.md").is_ok());
+        assert_eq!(
+            resolve_within(dir.path(), "../escape.md"),
+            Err(ImageError::OutsideBoundary)
+        );
+        assert_eq!(
+            resolve_within(dir.path(), "/etc/passwd"),
+            Err(ImageError::OutsideBoundary)
+        );
+    }
+
+    #[test]
+    fn read_markdown_reads_contained_md() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "01-overview.md", b"# Overview\n");
+        assert_eq!(
+            read_markdown_in(dir.path(), "01-overview.md").as_deref(),
+            Ok("# Overview\n")
+        );
+    }
+
+    #[test]
+    fn read_markdown_rejects_non_md_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "maps/spielburg.png", PNG_MAGIC);
+        assert_eq!(
+            read_markdown_in(dir.path(), "maps/spielburg.png"),
+            Err(ImageError::BadFormat)
+        );
+    }
+
+    #[test]
+    fn read_markdown_rejects_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            read_markdown_in(dir.path(), "../escape.md"),
+            Err(ImageError::OutsideBoundary)
         );
     }
 }

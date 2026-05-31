@@ -185,6 +185,65 @@ pub fn list_catalog(_state: State<'_, AppState>) -> Result<Vec<CatalogEntryDto>,
     Ok(view.all().iter().map(entry_to_dto).collect())
 }
 
+/// One companion-content item as the frontend consumes it. `kind` is
+/// `"markdown"` or `"image"`; `section` is the subdirectory grouping (e.g.
+/// `"maps"`) or `null` for game-root items.
+#[derive(Serialize, Clone)]
+pub struct CompanionItemDto {
+    pub tap_id: String,
+    pub game_id: String,
+    pub rel_path: String,
+    pub title: String,
+    pub kind: String,
+    pub section: Option<String>,
+}
+
+pub fn companion_to_dto(item: &crate::companion::CompanionItem) -> CompanionItemDto {
+    CompanionItemDto {
+        tap_id: item.tap_id.clone(),
+        game_id: item.game_id.clone(),
+        rel_path: item.rel_path.clone(),
+        title: item.title.clone(),
+        kind: match item.kind {
+            crate::companion::CompanionKind::Markdown => "markdown".to_string(),
+            crate::companion::CompanionKind::Image => "image".to_string(),
+        },
+        section: item.section.clone(),
+    }
+}
+
+/// Companion content for `game_id`, aggregated across every subscribed tap that
+/// ships it (and the local tap), in tap-priority then file order.
+#[tauri::command]
+pub fn list_companion(
+    game_id: String,
+    _state: State<'_, AppState>,
+) -> Result<Vec<CompanionItemDto>, String> {
+    let view = load_catalog_view()?;
+    Ok(view
+        .companion_for(&game_id)
+        .into_iter()
+        .map(companion_to_dto)
+        .collect())
+}
+
+/// Render a companion Markdown document to sanitized, webview-safe HTML.
+/// `rel_path` is resolved within `<tap-root>/companion/<game-id>/` with the
+/// same traversal protection as the image protocol.
+#[tauri::command]
+pub fn render_companion(
+    tap_id: String,
+    game_id: String,
+    rel_path: String,
+    _state: State<'_, AppState>,
+) -> Result<String, String> {
+    let md = crate::companion_protocol::read_markdown(&tap_id, &game_id, &rel_path)
+        .map_err(|e| format!("could not read companion content: {e:?}"))?;
+    Ok(crate::companion_render::render_markdown(
+        &md, &tap_id, &game_id,
+    ))
+}
+
 /// Result payload for `install_game`. Serializes as a tagged JSON object
 /// the Svelte side can `switch` on. `install_path` is where the game will
 /// live once committed; on `MissingFiles` the staged copy is held and the
@@ -1188,5 +1247,33 @@ mod tests {
         ] {
             assert!(validate_external_url(url).is_err(), "should reject {url:?}");
         }
+    }
+
+    #[test]
+    fn companion_to_dto_maps_kind_and_section() {
+        let md = crate::companion::CompanionItem {
+            tap_id: "core".into(),
+            game_id: "qfg1-ega".into(),
+            rel_path: "maps/spielburg.png".into(),
+            title: "Spielburg".into(),
+            kind: crate::companion::CompanionKind::Image,
+            section: Some("maps".into()),
+        };
+        let dto = companion_to_dto(&md);
+        assert_eq!(dto.kind, "image");
+        assert_eq!(dto.section.as_deref(), Some("maps"));
+        assert_eq!(dto.rel_path, "maps/spielburg.png");
+
+        let root_md = crate::companion::CompanionItem {
+            tap_id: "core".into(),
+            game_id: "qfg1-ega".into(),
+            rel_path: "01-overview.md".into(),
+            title: "Overview".into(),
+            kind: crate::companion::CompanionKind::Markdown,
+            section: None,
+        };
+        let dto = companion_to_dto(&root_md);
+        assert_eq!(dto.kind, "markdown");
+        assert_eq!(dto.section, None);
     }
 }
