@@ -2,6 +2,7 @@ pub mod catalog;
 pub mod catalog_view;
 pub mod cli;
 pub mod commands;
+pub mod companion;
 pub mod doctor;
 pub mod draft;
 pub mod error;
