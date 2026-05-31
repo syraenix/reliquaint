@@ -219,6 +219,13 @@ impl CatalogView {
             .filter(|c| c.game_id == game_id)
             .collect()
     }
+
+    /// Every companion item across all taps, in aggregation order. Unlike
+    /// [`Self::companion_for`], this includes items whose `game_id` matches no
+    /// catalog entry — used by the doctor to flag stray companion directories.
+    pub fn all_companion(&self) -> &[CompanionItem] {
+        &self.companion
+    }
 }
 
 #[cfg(test)]
@@ -680,6 +687,29 @@ mod tests {
         let view = CatalogView::assemble(vec![tap], vec![]);
         assert!(view.companion_for("qfg1-ega").is_empty());
         assert!(view.companion_for("no-such-game").is_empty());
+    }
+
+    #[test]
+    fn all_companion_includes_items_for_games_without_catalog_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        // Companion content for a game in the catalog AND one that isn't.
+        write_companion(dir.path(), "qfg1-ega", "guide.md", "# g");
+        write_companion(dir.path(), "ghost-game", "notes.md", "# n");
+
+        // Catalog only knows qfg1-ega.
+        let tap = loaded_tap_at(dir.path(), "core", vec![dos_entry("qfg1-ega")]);
+        let view = CatalogView::assemble(vec![tap], vec![]);
+
+        let game_ids: Vec<&str> = view
+            .all_companion()
+            .iter()
+            .map(|c| c.game_id.as_str())
+            .collect();
+        assert!(game_ids.contains(&"qfg1-ega"));
+        assert!(
+            game_ids.contains(&"ghost-game"),
+            "all_companion must surface content for games absent from the catalog: {game_ids:?}"
+        );
     }
 
     #[test]

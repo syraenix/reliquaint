@@ -28,6 +28,11 @@ use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag};
 /// `tap_id` and `game_id` scope the rewriting of relative image and link
 /// targets to the document's owning tap and game.
 pub fn render_markdown(md: &str, tap_id: &str, game_id: &str) -> String {
+    // Span for profiling the render pipeline (ADR-0004); zero-cost when no
+    // subscriber is attached. `RUST_LOG=reliquaint=debug` surfaces timings.
+    let _span =
+        tracing::info_span!("companion_render", tap_id, game_id, in_bytes = md.len()).entered();
+
     let options = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
@@ -64,7 +69,45 @@ pub fn render_markdown(md: &str, tap_id: &str, game_id: &str) -> String {
 
     let mut html_out = String::new();
     html::push_html(&mut html_out, events);
-    sanitize(&html_out)
+    let cleaned = sanitize(&html_out);
+    tracing::debug!(out_bytes = cleaned.len(), "rendered companion markdown");
+    cleaned
+}
+
+/// Relative image references in `md` (image `src`s with no URL scheme, i.e.
+/// tap-local files like `maps/x.png`). Used by the doctor to flag references
+/// that point at files that don't exist. Scheme'd sources (remote/`data:`) are
+/// skipped — they're handled by the renderer/sanitizer, not on-disk files.
+pub fn relative_image_refs(md: &str) -> Vec<String> {
+    let options = Options::ENABLE_TABLES
+        | Options::ENABLE_FOOTNOTES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS;
+    let mut refs = Vec::new();
+    for event in Parser::new_ext(md, options) {
+        if let Event::Start(Tag::Image { dest_url, .. }) = event {
+            if !has_scheme(&dest_url) {
+                refs.push(dest_url.trim_start_matches("./").to_string());
+            }
+        }
+    }
+    refs
+}
+
+/// Total bytes of raw HTML in `md` (the `Html`/`InlineHtml` events the renderer
+/// escapes rather than emits). A non-trivial count means a tap submitted HTML
+/// expecting it to render — the doctor warns so users know it was neutralized.
+pub fn raw_html_byte_count(md: &str) -> usize {
+    let options = Options::ENABLE_TABLES
+        | Options::ENABLE_FOOTNOTES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS;
+    Parser::new_ext(md, options)
+        .map(|event| match event {
+            Event::Html(h) | Event::InlineHtml(h) => h.len(),
+            _ => 0,
+        })
+        .sum()
 }
 
 /// Rewrite an image `src`. Relative paths resolve to the tap-local image
@@ -194,6 +237,34 @@ mod tests {
 
     fn render(md: &str) -> String {
         render_markdown(md, "core", "qfg1-ega")
+    }
+
+    // ---- doctor helpers (Milestone 4) ------------------------------------
+
+    #[test]
+    fn relative_image_refs_collects_only_local_paths() {
+        let md = "![a](maps/x.png) ![b](./sub/y.gif) ![c](https://e/p.png) ![d](data:image/png;base64,AA)";
+        let refs = relative_image_refs(md);
+        assert_eq!(
+            refs,
+            vec!["maps/x.png".to_string(), "sub/y.gif".to_string()]
+        );
+    }
+
+    #[test]
+    fn relative_image_refs_empty_without_images() {
+        assert!(relative_image_refs("# just text\n\n[a link](other.md)").is_empty());
+    }
+
+    #[test]
+    fn raw_html_byte_count_counts_raw_html_only() {
+        assert_eq!(
+            raw_html_byte_count("# clean\n\nplain **markdown** only\n"),
+            0
+        );
+        // Block and inline raw HTML are both counted.
+        let n = raw_html_byte_count("text <span>x</span> more\n\n<div>block</div>\n");
+        assert!(n > 0, "expected raw HTML to be counted, got {n}");
     }
 
     // ---- scheme / target classification ----------------------------------

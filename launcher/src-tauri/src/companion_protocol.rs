@@ -142,6 +142,10 @@ pub fn resolve_image_in(
     base: &Path,
     rel_path: &str,
 ) -> Result<(Vec<u8>, &'static str), ImageError> {
+    // Span for profiling image serving (ADR-0004); zero-cost without a
+    // subscriber. `RUST_LOG=reliquaint=debug` surfaces timings.
+    let _span = tracing::info_span!("companion_image", rel = rel_path).entered();
+
     // The extension must name an allowed image format (rejects `.svg`, etc.).
     let format = Path::new(rel_path)
         .extension()

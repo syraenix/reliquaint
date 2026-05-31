@@ -123,6 +123,10 @@ fn file_sort_key(filename: &str) -> (bool, u32, String) {
 /// Errors reading individual files or directories are logged at WARN and the
 /// offending entry is skipped — a single bad file never fails the indexer.
 pub fn index_companion(tap_root: &Path, tap_id: &str) -> Vec<CompanionItem> {
+    // Span for profiling companion discovery (ADR-0004); zero-cost without a
+    // subscriber. `RUST_LOG=reliquaint=debug` surfaces timings.
+    let _span = tracing::info_span!("companion_index", tap_id).entered();
+
     let companion_root = tap_root.join("companion");
     let game_dirs = match std::fs::read_dir(&companion_root) {
         Ok(rd) => rd,
@@ -148,6 +152,7 @@ pub fn index_companion(tap_root: &Path, tap_id: &str) -> Vec<CompanionItem> {
         let game_id = game_entry.file_name().to_string_lossy().into_owned();
         index_game_dir(&game_path, tap_id, &game_id, &mut items);
     }
+    tracing::debug!(items = items.len(), "indexed companion content");
     items
 }
 

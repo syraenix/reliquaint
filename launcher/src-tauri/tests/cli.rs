@@ -713,6 +713,60 @@ fn doctor_reports_orphan_install_records() {
     );
 }
 
+#[test]
+fn doctor_flags_companion_content_issues_as_warnings() {
+    let installs = tempfile::tempdir().unwrap();
+    // Build the command first so the fixture tap is seeded into the cache,
+    // then drop companion content into that same tap cache.
+    let mut cmd = launcher(installs.path());
+    let companion = installs.path().join("taps-cache/reliquaint-core/companion");
+
+    // qfg1-ega is installed and clean (expects_files present) so the only
+    // findings are the companion warnings — exit code stays 0.
+    let game = tempfile::tempdir().unwrap();
+    std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
+    std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
+    write_install_record(installs.path(), "qfg1-ega", game.path().to_str().unwrap());
+
+    // Its companion Markdown has a broken image ref and raw HTML.
+    let qfg_dir = companion.join("qfg1-ega");
+    std::fs::create_dir_all(&qfg_dir).unwrap();
+    std::fs::write(
+        qfg_dir.join("01-overview.md"),
+        "# Overview\n\n![map](maps/missing.png)\n\n<div style=\"color:red\">raw HTML that should be stripped by the sanitizer</div>\n",
+    )
+    .unwrap();
+
+    // A stray companion dir for a game with no catalog entry in this tap.
+    let ghost_dir = companion.join("ghost-game");
+    std::fs::create_dir_all(&ghost_dir).unwrap();
+    std::fs::write(ghost_dir.join("notes.md"), "# stray\n").unwrap();
+
+    let output = cmd.arg("doctor").output().unwrap();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    assert!(
+        stdout.contains("broken image in reliquaint-core/qfg1-ega/01-overview.md"),
+        "broken image warning missing: {stdout}"
+    );
+    assert!(stdout.contains("missing.png"), "missing ref name: {stdout}");
+    assert!(
+        stdout.contains("raw HTML stripped in reliquaint-core/qfg1-ega/01-overview.md"),
+        "raw HTML warning missing: {stdout}"
+    );
+    assert!(
+        stdout.contains("companion content for reliquaint-core/ghost-game"),
+        "stray companion dir warning missing: {stdout}"
+    );
+    assert!(stdout.contains("warn"), "no warn label: {stdout}");
+    // Advisory only — companion issues must not fail doctor.
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "companion warnings should not change the exit code: {stdout}"
+    );
+}
+
 // --- list tests (continued) ----------------------------------------------
 
 #[test]

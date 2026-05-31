@@ -23,6 +23,7 @@ pub fn kind_tag(kind: &ProbeKind) -> String {
         ProbeKind::FsUae => "fs-uae".into(),
         ProbeKind::Unzip => "unzip".into(),
         ProbeKind::GameInstallDir(id) => format!("game-install-dir:{id}"),
+        ProbeKind::Companion(id) => format!("companion:{id}"),
     }
 }
 
@@ -513,6 +514,7 @@ pub fn run_doctor(_state: State<'_, AppState>) -> Result<Vec<DoctorResult>, Stri
                 ProbeStatus::Ok => "ok".into(),
                 ProbeStatus::Missing => "missing".into(),
                 ProbeStatus::Unknown => "unknown".into(),
+                ProbeStatus::Warn => "warn".into(),
             },
             detail: r.detail,
             kind: kind_tag(&r.kind),

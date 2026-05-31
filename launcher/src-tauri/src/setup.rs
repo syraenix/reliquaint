@@ -59,7 +59,7 @@ pub fn action_for(kind: &ProbeKind, distro: Distro) -> Option<InstallAction> {
             remote_url: "https://flathub.org/repo/flathub.flatpakrepo",
             app_id: "io.github.dosbox-staging",
         }),
-        ProbeKind::GameInstallDir(_) => None,
+        ProbeKind::GameInstallDir(_) | ProbeKind::Companion(_) => None,
         ProbeKind::Fluidsynth => apt_if_debian(distro, vec!["fluidsynth"]),
         ProbeKind::Soundfont => apt_if_debian(distro, vec!["fluid-soundfont-gm"]),
         ProbeKind::Innoextract => apt_if_debian(distro, vec!["innoextract"]),

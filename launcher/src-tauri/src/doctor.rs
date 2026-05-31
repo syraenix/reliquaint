@@ -9,6 +9,10 @@ pub enum ProbeStatus {
     Ok,
     Missing,
     Unknown,
+    /// Advisory issue — surfaced to the user but not a host failure, so it does
+    /// not flip `reliquaint doctor`'s exit code. Used for companion-content
+    /// quality problems (broken refs, stray dirs, stripped raw HTML).
+    Warn,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +24,8 @@ pub enum ProbeKind {
     FsUae,
     Unzip,
     GameInstallDir(String),
+    /// A companion-content health issue, tagged with `"<tap>/<game>"`.
+    Companion(String),
 }
 
 pub struct ProbeResult {
@@ -145,8 +151,97 @@ pub fn check_install(view: &CatalogView, user_config: &UserConfig) -> Vec<ProbeR
         });
     }
 
+    results.extend(check_companion(view));
+
     results
 }
+
+/// Companion-content health checks (Milestone 4, Task 4.2). All findings are
+/// advisory [`ProbeStatus::Warn`] — tap-content quality issues, not host
+/// failures. Three checks:
+///
+/// 1. **Broken image references** — relative images in installed games'
+///    companion Markdown that point at files that don't exist on disk.
+/// 2. **Stray companion directories** — `companion/<game-id>/` content for a
+///    game with no catalog entry in that tap (likely a maintainer typo).
+/// 3. **Stripped raw HTML** — Markdown carrying raw HTML the sanitizer drops,
+///    so the author's intended output won't render.
+pub fn check_companion(view: &CatalogView) -> Vec<ProbeResult> {
+    let mut results = Vec::new();
+
+    // 1 & 3: per installed game, inspect its companion Markdown.
+    for entry in view.installed_only() {
+        let game_id = &entry.catalog.game.id;
+        for item in view.companion_for(game_id) {
+            if item.kind != crate::companion::CompanionKind::Markdown {
+                continue;
+            }
+            let md = match crate::companion_protocol::read_markdown(
+                &item.tap_id,
+                &item.game_id,
+                &item.rel_path,
+            ) {
+                Ok(md) => md,
+                // Unreadable Markdown is reported by the image/render paths; the
+                // doctor focuses on content quality, so skip rather than error.
+                Err(_) => continue,
+            };
+            let where_ = format!("{}/{}/{}", item.tap_id, item.game_id, item.rel_path);
+
+            // Check 1: broken relative image references.
+            let companion_dir = crate::paths::companion_dir(&item.tap_id, &item.game_id);
+            for img in crate::companion_render::relative_image_refs(&md) {
+                if !companion_dir.join(&img).exists() {
+                    results.push(ProbeResult {
+                        name: format!("broken image in {where_}"),
+                        status: ProbeStatus::Warn,
+                        detail: Some(format!("references missing file: {img}")),
+                        kind: ProbeKind::Companion(format!("{}/{}", item.tap_id, item.game_id)),
+                    });
+                }
+            }
+
+            // Check 3: raw HTML the sanitizer will strip.
+            let raw = crate::companion_render::raw_html_byte_count(&md);
+            if raw > RAW_HTML_WARN_THRESHOLD {
+                results.push(ProbeResult {
+                    name: format!("raw HTML stripped in {where_}"),
+                    status: ProbeStatus::Warn,
+                    detail: Some(format!(
+                        "{raw} bytes of raw HTML were neutralized — they won't render"
+                    )),
+                    kind: ProbeKind::Companion(format!("{}/{}", item.tap_id, item.game_id)),
+                });
+            }
+        }
+    }
+
+    // 2: companion directories for games not in the owning tap's catalog.
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for item in view.all_companion() {
+        let key = (item.tap_id.clone(), item.game_id.clone());
+        if seen.contains(&key) {
+            continue;
+        }
+        seen.push(key);
+        if view.by_tap_and_id(&item.tap_id, &item.game_id).is_none() {
+            results.push(ProbeResult {
+                name: format!("companion content for {}/{}", item.tap_id, item.game_id),
+                status: ProbeStatus::Warn,
+                detail: Some(
+                    "no catalog entry for this game in that tap — maintainer typo?".to_string(),
+                ),
+                kind: ProbeKind::Companion(format!("{}/{}", item.tap_id, item.game_id)),
+            });
+        }
+    }
+
+    results
+}
+
+/// Raw-HTML byte count above which the doctor warns. A handful of bytes can
+/// arise from incidental angle brackets; this catches deliberate HTML blocks.
+const RAW_HTML_WARN_THRESHOLD: usize = 32;
 
 fn probe_emulator_command(name: &str, command: &str, kind: ProbeKind) -> ProbeResult {
     let mut tokens = command.split_whitespace();
