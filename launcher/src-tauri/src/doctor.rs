@@ -188,14 +188,29 @@ pub fn check_companion(view: &CatalogView) -> Vec<ProbeResult> {
             };
             let where_ = format!("{}/{}/{}", item.tap_id, item.game_id, item.rel_path);
 
-            // Check 1: broken relative image references.
+            // Check 1: image references that won't render. Validate through the
+            // same resolver the viewer uses, so doctor's verdict matches what
+            // actually happens — a plain `exists()` would accept traversal-like
+            // refs, symlink escapes, and wrong-format files that the protocol
+            // rejects at serve time.
             let companion_dir = crate::paths::companion_dir(&item.tap_id, &item.game_id);
             for img in crate::companion_render::relative_image_refs(&md) {
-                if !companion_dir.join(&img).exists() {
+                if let Err(e) = crate::companion_protocol::resolve_image_in(&companion_dir, &img) {
+                    use crate::companion_protocol::ImageError;
+                    let reason = match e {
+                        ImageError::NotFound => format!("references missing file: {img}"),
+                        ImageError::OutsideBoundary => {
+                            format!("reference escapes the companion directory: {img}")
+                        }
+                        ImageError::BadFormat => {
+                            format!("not a renderable image (bad extension or contents): {img}")
+                        }
+                        ImageError::Io => format!("could not read image: {img}"),
+                    };
                     results.push(ProbeResult {
                         name: format!("broken image in {where_}"),
                         status: ProbeStatus::Warn,
-                        detail: Some(format!("references missing file: {img}")),
+                        detail: Some(reason),
                         kind: ProbeKind::Companion(format!("{}/{}", item.tap_id, item.game_id)),
                     });
                 }

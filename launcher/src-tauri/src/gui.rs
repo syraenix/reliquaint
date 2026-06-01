@@ -56,10 +56,11 @@ pub fn run_gui() {
 fn serve_companion_image(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     let uri = request.uri();
     let tap_id = uri.host().unwrap_or_default().to_string();
-    let path = uri.path().trim_start_matches('/');
-    let (game_id, rel_path) = path.split_once('/').unwrap_or((path, ""));
+    // The path segments are percent-encoded; decode each exactly once so the
+    // real on-disk path reaches the resolver (which re-checks the boundary).
+    let (game_id, rel_path) = crate::companion_render::split_and_decode_content_path(uri.path());
 
-    match resolve_image(&tap_id, game_id, rel_path) {
+    match resolve_image(&tap_id, &game_id, &rel_path) {
         Ok((bytes, mime)) => Response::builder()
             .header(header::CONTENT_TYPE, mime)
             .body(bytes)

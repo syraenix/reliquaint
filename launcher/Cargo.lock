@@ -2947,6 +2947,7 @@ dependencies = [
  "clap",
  "dialoguer",
  "libc",
+ "percent-encoding",
  "predicates",
  "pulldown-cmark",
  "serde",

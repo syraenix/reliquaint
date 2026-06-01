@@ -730,14 +730,17 @@ fn doctor_flags_companion_content_issues_as_warnings() {
     std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
     write_install_record(installs.path(), "qfg1-ega", game.path().to_str().unwrap());
 
-    // Its companion Markdown has a broken image ref and raw HTML.
+    // Its companion Markdown has a missing image ref, a wrong-format image ref
+    // (file present but not a real image — only the resolver catches this, not
+    // a bare exists() check), and raw HTML.
     let qfg_dir = companion.join("qfg1-ega");
     std::fs::create_dir_all(&qfg_dir).unwrap();
     std::fs::write(
         qfg_dir.join("01-overview.md"),
-        "# Overview\n\n![map](maps/missing.png)\n\n<div style=\"color:red\">raw HTML that should be stripped by the sanitizer</div>\n",
+        "# Overview\n\n![map](maps/missing.png)\n\n![bad](bad.png)\n\n<div style=\"color:red\">raw HTML that should be stripped by the sanitizer</div>\n",
     )
     .unwrap();
+    std::fs::write(qfg_dir.join("bad.png"), b"not actually a png").unwrap();
 
     // A stray companion dir for a game with no catalog entry in this tap.
     let ghost_dir = companion.join("ghost-game");
@@ -761,6 +764,12 @@ fn doctor_flags_companion_content_issues_as_warnings() {
     assert!(
         warn_line("broken image in reliquaint-core/qfg1-ega/01-overview.md").contains("[ warn"),
         "broken image should be a warning: {stdout}"
+    );
+    // The wrong-format image (present on disk but invalid) is flagged too —
+    // proving doctor validates with the real resolver, not bare existence.
+    assert!(
+        stdout.contains("not a renderable image"),
+        "wrong-format image should be reported: {stdout}"
     );
     assert!(
         stdout.contains("missing.png"),

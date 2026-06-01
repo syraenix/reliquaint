@@ -44,7 +44,10 @@
   }
 
   function imageUrl(item) {
-    return `reliquaint-content://${item.tap_id}/${item.game_id}/${item.rel_path}`;
+    // Percent-encode each path segment so spaces/special chars survive the URL
+    // (the backend protocol handler decodes once before resolving the file).
+    const rel = item.rel_path.split("/").map(encodeURIComponent).join("/");
+    return `reliquaint-content://${item.tap_id}/${item.game_id}/${rel}`;
   }
 
   // Group items by tap_id, preserving the backend's priority-then-file order.

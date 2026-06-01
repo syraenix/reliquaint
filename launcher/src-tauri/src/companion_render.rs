@@ -21,7 +21,17 @@
 
 use std::collections::{HashMap, HashSet};
 
+use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use pulldown_cmark::{html, CowStr, Event, Options, Parser, Tag};
+
+/// Characters left un-encoded in a URL path segment: the unreserved set
+/// (`A–Z a–z 0–9 - _ . ~`). Everything else — spaces, `%`, `#`, etc. — is
+/// percent-encoded so companion paths survive the round trip through the URL.
+const SEGMENT: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 /// Render a companion Markdown document to sanitized, webview-safe HTML.
 ///
@@ -118,7 +128,7 @@ fn rewrite_image_dest<'a>(dest: CowStr<'a>, tap_id: &str, game_id: &str) -> CowS
     if has_scheme(&dest) {
         CowStr::from("")
     } else {
-        let rel = dest.trim_start_matches("./");
+        let rel = encode_rel_path(dest.trim_start_matches("./"));
         CowStr::from(format!("reliquaint-content://{tap_id}/{game_id}/{rel}"))
     }
 }
@@ -132,11 +142,40 @@ fn rewrite_link_dest<'a>(dest: CowStr<'a>, tap_id: &str, game_id: &str) -> CowSt
     if has_scheme(&dest) {
         dest
     } else if is_markdown_target(&dest) {
-        let rel = dest.trim_start_matches("./");
+        let rel = encode_rel_path(dest.trim_start_matches("./"));
         CowStr::from(format!("reliquaint-nav://{tap_id}/{game_id}/{rel}"))
     } else {
         dest
     }
+}
+
+/// Percent-encode each `/`-separated segment of a relative path so the result
+/// is a valid URL path that round-trips back to the original on-disk path.
+/// Segment separators (`/`) are preserved; everything non-unreserved within a
+/// segment (spaces, `#`, `%`, …) is escaped. Inverse: [`split_and_decode_content_path`].
+fn encode_rel_path(rel: &str) -> String {
+    rel.split('/')
+        .map(|seg| utf8_percent_encode(seg, SEGMENT).to_string())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// Split a `reliquaint-content://`/`reliquaint-nav://` URL *path* (the part
+/// after the `<tap-id>` authority, e.g. `/qfg1-ega/maps/boss%20fight.png`) into
+/// its decoded `(game_id, rel_path)`. Each segment is percent-decoded exactly
+/// once, so the returned `rel_path` is the real on-disk relative path.
+///
+/// Decoding here (not deeper) keeps the filesystem boundary check in
+/// `companion_protocol::resolve_within` working on real path components — an
+/// encoded `..` decodes back to `..` and is still rejected there.
+pub fn split_and_decode_content_path(path: &str) -> (String, String) {
+    let mut segments = path
+        .trim_start_matches('/')
+        .split('/')
+        .map(|seg| percent_decode_str(seg).decode_utf8_lossy().into_owned());
+    let game_id = segments.next().unwrap_or_default();
+    let rel_path = segments.collect::<Vec<_>>().join("/");
+    (game_id, rel_path)
 }
 
 /// Does `url` begin with a URL scheme (`scheme:`)? A leading ASCII letter
@@ -240,6 +279,62 @@ mod tests {
     }
 
     // ---- doctor helpers (Milestone 4) ------------------------------------
+
+    // ---- URL segment encoding round-trip (PR #36 review) -----------------
+
+    #[test]
+    fn encode_rel_path_escapes_segments_and_keeps_separators() {
+        assert_eq!(
+            encode_rel_path("maps/boss fight.png"),
+            "maps/boss%20fight.png"
+        );
+        // Unreserved chars pass through; `/` separators are kept.
+        assert_eq!(encode_rel_path("01-a_b.c~/x.png"), "01-a_b.c~/x.png");
+        // A `#` inside a segment is escaped so it can't be read as a fragment.
+        assert_eq!(encode_rel_path("a#b.png"), "a%23b.png");
+    }
+
+    #[test]
+    fn spaced_image_and_link_round_trip_through_url() {
+        // A spaced filename is referenced with Markdown's angle-bracket form.
+        let img = render("![m](<maps/boss fight.png>)\n");
+        assert!(
+            img.contains("src=\"reliquaint-content://core/qfg1-ega/maps/boss%20fight.png\""),
+            "{img}"
+        );
+        let link = render("[next](<mid game.md>)\n");
+        assert!(
+            link.contains("href=\"reliquaint-nav://core/qfg1-ega/mid%20game.md\""),
+            "{link}"
+        );
+
+        // The receiving side decodes back to the real on-disk path.
+        let (game, rel) = split_and_decode_content_path("/qfg1-ega/maps/boss%20fight.png");
+        assert_eq!(game, "qfg1-ega");
+        assert_eq!(rel, "maps/boss fight.png");
+    }
+
+    #[test]
+    fn encoding_covers_url_chars_pulldown_leaves_live() {
+        // pulldown's own href-escaping leaves `#`/`?` intact (it treats them as
+        // URL-safe), which would read as a fragment/query. encode_rel_path
+        // escapes them so they round-trip as filename characters.
+        let img = render("![m](<a#b.png>)\n");
+        assert!(
+            img.contains("src=\"reliquaint-content://core/qfg1-ega/a%23b.png\""),
+            "{img}"
+        );
+        let (_, rel) = split_and_decode_content_path("/qfg1-ega/a%23b.png");
+        assert_eq!(rel, "a#b.png");
+    }
+
+    #[test]
+    fn decode_restores_dotdot_so_boundary_check_still_rejects() {
+        // An encoded `..` must decode back to a literal `..` component, so
+        // resolve_within rejects it rather than being fooled by `%2E%2E`.
+        let (_, rel) = split_and_decode_content_path("/game/%2E%2E/secret.png");
+        assert_eq!(rel, "../secret.png");
+    }
 
     #[test]
     fn relative_image_refs_collects_only_local_paths() {

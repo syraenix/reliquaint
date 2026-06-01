@@ -22,7 +22,12 @@
       if (href.startsWith("reliquaint-nav://")) {
         try {
           const url = new URL(href);
-          const [game_id, ...rest] = url.pathname.replace(/^\//, "").split("/");
+          // Decode each path segment once to recover the real on-disk path.
+          const segments = url.pathname
+            .replace(/^\//, "")
+            .split("/")
+            .map(decodeURIComponent);
+          const [game_id, ...rest] = segments;
           dispatch("navigate", {
             tap_id: url.host,
             game_id,
