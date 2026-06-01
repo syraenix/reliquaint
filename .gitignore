@@ -8,6 +8,10 @@
 
 # Superpowers brainstorm sessions
 .superpowers/
+**/superpowers/
+
+# ADRs 
+**/adrs/
 
 # Rust build output
 /launcher/target

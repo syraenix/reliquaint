@@ -431,7 +431,7 @@ FluidSynth in particular needs both a command and a soundfont; both come from us
 
 ## Companion content
 
-Added in v0.4. A tap may ship per-game supplementary material — walkthroughs, maps, hints, install notes — under `companion/<game-id>/`, alongside `catalog/`. The security model for rendering this content is [ADR-0006](adr-0006-companion-content-rendering.md); this section documents only the on-disk layout the launcher discovers.
+Added in v0.4. A tap may ship per-game supplementary material — walkthroughs, maps, hints, install notes — under `companion/<game-id>/`, alongside `catalog/`. The security model for rendering this content is ADR-0006; this section documents only the on-disk layout the launcher discovers.
 
 ```
 <tap-root>/
@@ -451,7 +451,7 @@ There is **no `companion.toml` index file** in v0.4 — directory walking plus t
 
 - `.md` — Markdown (walkthroughs, hints, install notes, overviews).
 - `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` — images referenced from Markdown.
-- **SVG is excluded** — it is structured XML that can carry `<script>` and event handlers. Rasterize maps/diagrams to PNG or WebP. See [ADR-0006](adr-0006-companion-content-rendering.md).
+- **SVG is excluded** — it is structured XML that can carry `<script>` and event handlers. Rasterize maps/diagrams to PNG or WebP. See ADR-0006.
 
 Files with any other extension are ignored.
 

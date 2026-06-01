@@ -1,5 +1,5 @@
 //! Catalog entry types and parser. See `docs/schema.md` §"Catalog entry"
-//! and `docs/adr-0001-two-layer-manifest-model.md`.
+//! and ADR-0001.
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
