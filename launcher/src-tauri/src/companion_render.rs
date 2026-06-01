@@ -133,20 +133,43 @@ fn rewrite_image_dest<'a>(dest: CowStr<'a>, tap_id: &str, game_id: &str) -> CowS
     }
 }
 
-/// Rewrite a link `href`. `http(s)` URLs pass through (the GUI opens them in
-/// the system browser); relative links to other `.md` files in the same
-/// companion directory become internal-navigation markers; everything else is
-/// left untouched for the sanitizer's scheme allowlist / relative-URL policy to
-/// strip (`javascript:`, `data:`, `mailto:`, bare relative paths, …).
+/// Rewrite a link `href`:
+/// - `http(s)` URLs pass through (the GUI opens them in the system browser).
+/// - Any *other* scheme is dropped to an empty href. This crucially includes
+///   the launcher's own `reliquaint-nav:`/`reliquaint-content:` schemes: the
+///   renderer is their **sole legitimate emitter**, so a tap that writes one
+///   directly is forging an internal-navigation link (e.g. into the `local`
+///   tap) — exactly the cross-scope phishing ADR-0006 forbids. (`javascript:`,
+///   `data:`, `mailto:`, … are dropped here too.)
+/// - A relative link to another `.md` file in this game's companion directory
+///   becomes a `reliquaint-nav://` marker. Any `#fragment`/`?query` is split
+///   off before encoding so it isn't folded into the filename — in-page
+///   scrolling isn't supported yet (heading ids are sanitized away), so the
+///   fragment is dropped during navigation.
+/// - Anything else (bare relative paths) is left for the sanitizer's
+///   relative-URL policy to strip.
 fn rewrite_link_dest<'a>(dest: CowStr<'a>, tap_id: &str, game_id: &str) -> CowStr<'a> {
     if has_scheme(&dest) {
-        dest
+        if is_external_web(&dest) {
+            dest
+        } else {
+            CowStr::from("")
+        }
     } else if is_markdown_target(&dest) {
-        let rel = encode_rel_path(dest.trim_start_matches("./"));
+        let path = dest.trim_start_matches("./");
+        let path = path.split(['#', '?']).next().unwrap_or(path);
+        let rel = encode_rel_path(path);
         CowStr::from(format!("reliquaint-nav://{tap_id}/{game_id}/{rel}"))
     } else {
         dest
     }
+}
+
+/// Is `url` an external web link (`http`/`https`)? The only scheme'd link the
+/// renderer trusts to pass through to the system browser.
+fn is_external_web(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://")
 }
 
 /// Percent-encode each `/`-separated segment of a relative path so the result
@@ -312,6 +335,50 @@ mod tests {
         let (game, rel) = split_and_decode_content_path("/qfg1-ega/maps/boss%20fight.png");
         assert_eq!(game, "qfg1-ega");
         assert_eq!(rel, "maps/boss fight.png");
+    }
+
+    #[test]
+    fn link_with_fragment_resolves_to_the_file() {
+        // `[s](guide.md#boss)` must resolve to `guide.md`, not a file literally
+        // named `guide.md#boss`. The fragment is split off before encoding.
+        let out = render("[section](guide.md#boss)\n");
+        assert!(
+            out.contains("href=\"reliquaint-nav://core/qfg1-ega/guide.md\""),
+            "{out}"
+        );
+        assert!(
+            !out.contains("%23"),
+            "fragment must not become a filename: {out}"
+        );
+
+        let q = render("[x](guide.md?v=1)\n");
+        assert!(
+            q.contains("href=\"reliquaint-nav://core/qfg1-ega/guide.md\""),
+            "{q}"
+        );
+    }
+
+    #[test]
+    fn tap_forged_internal_scheme_links_are_dropped() {
+        // A tap is not allowed to emit our own navigation/content schemes — only
+        // the renderer may. A forged link into another tap (e.g. `local`) must
+        // not survive, or it becomes a cross-tap phishing primitive (ADR-0006).
+        let nav = render("[go](reliquaint-nav://local/anything/secret.md)\n");
+        assert!(
+            !nav.contains("reliquaint-nav://local"),
+            "forged nav link leaked: {nav}"
+        );
+        assert!(!nav.contains("secret.md"), "{nav}");
+
+        let content = render("[img](reliquaint-content://other-tap/g/x.png)\n");
+        assert!(
+            !content.contains("reliquaint-content://other-tap"),
+            "forged content link leaked: {content}"
+        );
+
+        // A legitimate external link still passes through.
+        let ext = render("[site](https://example.com/p)\n");
+        assert!(ext.contains("href=\"https://example.com/p\""), "{ext}");
     }
 
     #[test]
