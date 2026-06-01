@@ -52,6 +52,25 @@ pub fn tap_cache_dir_for(tap_id: &str) -> PathBuf {
     user_taps_dir().join(tap_id)
 }
 
+/// On-disk root for a tap by id. The local pseudo-tap
+/// (`tap::RESERVED_USER_TAP_ID`) lives at [`user_tap_dir`]; every other tap is
+/// a fetched subscription under [`tap_cache_dir_for`]. Mirrors the local-vs-
+/// cached resolution in `commands::load_catalog_view`.
+pub fn tap_root_dir(tap_id: &str) -> PathBuf {
+    if tap_id == crate::tap::RESERVED_USER_TAP_ID {
+        user_tap_dir()
+    } else {
+        tap_cache_dir_for(tap_id)
+    }
+}
+
+/// Directory holding a game's companion content within a tap:
+/// `<tap-root>/companion/<game-id>/`. Used by the `reliquaint-content://`
+/// image protocol (see `companion_protocol`) to resolve served files.
+pub fn companion_dir(tap_id: &str, game_id: &str) -> PathBuf {
+    tap_root_dir(tap_id).join("companion").join(game_id)
+}
+
 /// The subscriptions manifest — which taps the user is subscribed to.
 ///
 /// `RELIQUAINT_SUBSCRIPTIONS_PATH`, if set and non-empty, overrides the
@@ -331,5 +350,32 @@ mod tests {
             Some(v) => std::env::set_var("RELIQUAINT_USER_TAP_DIR", v),
             None => std::env::remove_var("RELIQUAINT_USER_TAP_DIR"),
         }
+    }
+
+    // These assert routing/composition relationships rather than concrete
+    // paths, so they need not mutate the shared `RELIQUAINT_*` env vars (which
+    // would race against the other env-driven tests under parallel execution).
+
+    #[test]
+    fn tap_root_dir_uses_cache_for_subscribed_tap() {
+        // A non-local tap routes through the fetched-cache dir, which appends
+        // the tap id as the final segment (true under any cache-dir override —
+        // a single env read, so no race with the other env-driven tests).
+        assert!(tap_root_dir("reliquaint-core").ends_with("reliquaint-core"));
+    }
+
+    #[test]
+    fn tap_root_dir_uses_user_tap_for_local_id() {
+        // The reserved local id routes to the user tap, which does NOT append
+        // the id — so the path never ends in `local` (it would if it had wrongly
+        // gone through the cache dir). Single env read; race-immune.
+        assert!(!tap_root_dir(crate::tap::RESERVED_USER_TAP_ID).ends_with("local"));
+    }
+
+    #[test]
+    fn companion_dir_appends_companion_and_game_id() {
+        // Independent of the (overridable) cache prefix: the trailing segments
+        // are always `<tap-id>/companion/<game-id>`.
+        assert!(companion_dir("core", "qfg1-ega").ends_with("core/companion/qfg1-ega"));
     }
 }

@@ -45,7 +45,7 @@ Schema changes that add optional fields do not bump the version. Schema changes 
 
 ## Tap layout
 
-A tap is a versioned source of catalog entries, shipped emulator configs, and (in future) companion content.
+A tap is a versioned source of catalog entries, shipped emulator configs, and companion content.
 
 ```
 <tap-root>/
@@ -55,7 +55,7 @@ A tap is a versioned source of catalog entries, shipped emulator configs, and (i
     dos/<id>.conf                       # shipped DOSBox-Staging config (no autoexec)
     amiga/<id>.toml                     # catalog entry
     amiga/<id>.fs-uae                   # shipped FS-UAE config (optional; falls back to model template)
-  companion/                            # v0.4+, see roadmap
+  companion/                            # v0.4+, see "Companion content" below
     <id>/...
 ```
 
@@ -429,11 +429,45 @@ FluidSynth in particular needs both a command and a soundfont; both come from us
 
 ---
 
+## Companion content
+
+Added in v0.4. A tap may ship per-game supplementary material — walkthroughs, maps, hints, install notes — under `companion/<game-id>/`, alongside `catalog/`. The security model for rendering this content is [ADR-0006](adr-0006-companion-content-rendering.md); this section documents only the on-disk layout the launcher discovers.
+
+```
+<tap-root>/
+  companion/
+    <game-id>/
+      01-overview.md                    # Markdown content
+      02-walkthrough.md
+      maps/                             # a subdirectory is a named section
+        spielburg.png                   # image referenced from Markdown
+      hints/
+        boss-fight-tips.md
+```
+
+There is **no `companion.toml` index file** in v0.4 — directory walking plus the conventions below is sufficient. Revisit only if explicit ordering or title overrides become necessary.
+
+**Recognized file types**
+
+- `.md` — Markdown (walkthroughs, hints, install notes, overviews).
+- `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` — images referenced from Markdown.
+- **SVG is excluded** — it is structured XML that can carry `<script>` and event handlers. Rasterize maps/diagrams to PNG or WebP. See [ADR-0006](adr-0006-companion-content-rendering.md).
+
+Files with any other extension are ignored.
+
+**Titles** are derived from filenames: drop the extension, strip a leading numeric sort prefix (`NN-` / `NN_`), turn `-`/`_` into spaces, and capitalize each word. `01-walkthrough.md` → "Walkthrough"; `boss-fight-tips.md` → "Boss Fight Tips". (Digits not followed by a separator, e.g. `1992.md`, are kept verbatim — not treated as a prefix.)
+
+**Ordering** within a directory: numeric-prefixed files first, by numeric value (`01-` before `02-`); non-prefixed files follow, alphabetically.
+
+**Sections:** one level of subdirectory under `<game-id>/` is a first-class grouping; the subdirectory name (`maps`, `hints`) is the section label. Root-level files appear first, then each section in alphabetical order. Deeper nesting is not indexed.
+
+**Across taps:** when more than one subscribed tap ships companion content for the same game, the items aggregate (they are not conflicts). The launcher groups them by tap in subscription-priority order, preserving each tap's internal ordering, and each item keeps its tap-of-origin for attribution.
+
+---
+
 ## Future schema concerns
 
 These are explicitly **out of scope for v0.1** and noted here so the v1 schema does not paint into a corner.
-
-- **Companion content** (v0.4): a `companion/<id>/` tree alongside `catalog/`. Schema for `companion.toml` or equivalent index files TBD.
 - **WHDLoad and hard-drive Amiga installs**: needs its own ADR. Expected to live as additional `[runtime.fs_uae]` fields or a new subtable.
 - **ScummVM backend**: would introduce `platform = "scummvm"` and a `[runtime.scummvm]` subtable. Not in v0.1.
 - **Per-game save state location**: most current targets save inside the install path, which works. If a game saves outside its install dir, a future `[saves]` table can capture it.

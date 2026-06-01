@@ -219,6 +219,7 @@
 
   .status-ok .dot { background: var(--status-installed); }
   .status-missing .dot { background: var(--status-error); }
+  .status-warn .dot { background: var(--status-warn); }
   .status-unknown .dot { background: var(--ink-muted); }
 
   .text { min-width: 0; }
