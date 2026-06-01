@@ -722,7 +722,9 @@ fn doctor_flags_companion_content_issues_as_warnings() {
     let companion = installs.path().join("taps-cache/reliquaint-core/companion");
 
     // qfg1-ega is installed and clean (expects_files present) so the only
-    // findings are the companion warnings — exit code stays 0.
+    // findings against it are the companion warnings. The process exit code is
+    // not asserted: it also reflects host emulator probes, which are Missing on
+    // machines without dosbox-staging/fs-uae (e.g. CI) and set exit code 2.
     let game = tempfile::tempdir().unwrap();
     std::fs::write(game.path().join("SIERRA.BAT"), b"").unwrap();
     std::fs::write(game.path().join("RESOURCE.000"), b"").unwrap();
@@ -745,25 +747,33 @@ fn doctor_flags_companion_content_issues_as_warnings() {
     let output = cmd.arg("doctor").output().unwrap();
     let stdout = String::from_utf8(output.stdout).unwrap();
 
+    // Each companion finding must appear on a line carrying the advisory
+    // `warn` label (match `[ warn` rather than bare "warn"/"missing" — the
+    // broken-image detail legitimately contains the word "missing"). This is
+    // the real M4 guarantee: companion issues are warnings, not failures, and
+    // it holds regardless of host emulator availability.
+    let warn_line = |needle: &str| -> &str {
+        stdout
+            .lines()
+            .find(|l| l.contains(needle))
+            .unwrap_or_else(|| panic!("no doctor line for {needle:?}: {stdout}"))
+    };
     assert!(
-        stdout.contains("broken image in reliquaint-core/qfg1-ega/01-overview.md"),
-        "broken image warning missing: {stdout}"
-    );
-    assert!(stdout.contains("missing.png"), "missing ref name: {stdout}");
-    assert!(
-        stdout.contains("raw HTML stripped in reliquaint-core/qfg1-ega/01-overview.md"),
-        "raw HTML warning missing: {stdout}"
+        warn_line("broken image in reliquaint-core/qfg1-ega/01-overview.md").contains("[ warn"),
+        "broken image should be a warning: {stdout}"
     );
     assert!(
-        stdout.contains("companion content for reliquaint-core/ghost-game"),
-        "stray companion dir warning missing: {stdout}"
+        stdout.contains("missing.png"),
+        "broken image should name the missing ref: {stdout}"
     );
-    assert!(stdout.contains("warn"), "no warn label: {stdout}");
-    // Advisory only — companion issues must not fail doctor.
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "companion warnings should not change the exit code: {stdout}"
+    assert!(
+        warn_line("raw HTML stripped in reliquaint-core/qfg1-ega/01-overview.md")
+            .contains("[ warn"),
+        "raw HTML should be a warning: {stdout}"
+    );
+    assert!(
+        warn_line("companion content for reliquaint-core/ghost-game").contains("[ warn"),
+        "stray companion dir should be a warning: {stdout}"
     );
 }
 
