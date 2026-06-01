@@ -1,8 +1,7 @@
 //! Companion content discovery and indexing (v0.4).
 //!
 //! Taps carry per-game companion content — walkthroughs, maps, hints,
-//! install notes — under `<tap-root>/companion/<game-id>/`. See
-//! `docs/v0.4-tasks.md` Milestone 1 and `docs/adr-0006-companion-content-rendering.md`.
+//! install notes — under `<tap-root>/companion/<game-id>/`. See ADR-0006.
 //!
 //! This module is pure discovery: it walks the on-disk layout and builds an
 //! in-memory index. Rendering (Markdown → sanitized HTML) and image serving

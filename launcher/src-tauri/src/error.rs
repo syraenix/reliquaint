@@ -1,4 +1,4 @@
-//! Error-handling foundation. See `docs/adr-0005-error-handling-strategy.md`.
+//! Error-handling foundation. See ADR-0005.
 //!
 //! Conventions:
 //!

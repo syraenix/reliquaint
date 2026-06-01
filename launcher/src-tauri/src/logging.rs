@@ -1,4 +1,4 @@
-//! Tracing subscriber setup. See `docs/adr-0004-logging-strategy.md`.
+//! Tracing subscriber setup. See ADR-0004.
 //!
 //! Conventions for instrumenting code:
 //!

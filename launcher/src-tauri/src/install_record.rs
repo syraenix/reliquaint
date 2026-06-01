@@ -1,5 +1,5 @@
 //! Installation record types and parser. See `docs/schema.md`
-//! §"Installation record" and `docs/adr-0001-two-layer-manifest-model.md`.
+//! §"Installation record" and ADR-0001.
 //!
 //! Per-user, per-machine state. Written by the install flow, read at every
 //! launch. Lives under `${XDG_DATA_HOME}/reliquaint/installs/<id>.toml`.

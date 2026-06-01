@@ -2,7 +2,7 @@
 //!
 //! Tap maintainers ship walkthroughs/hints as Markdown (see [`crate::companion`]).
 //! This module turns that Markdown into HTML that is safe to drop into the
-//! webview. The security model is `docs/adr-0006-companion-content-rendering.md`;
+//! webview. The security model is ADR-0006;
 //! the short version: arbitrary tap content must not be able to run scripts,
 //! reach the network, or escape the rendering boundary.
 //!

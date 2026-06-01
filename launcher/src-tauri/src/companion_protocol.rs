@@ -7,7 +7,7 @@
 //! [`resolve_image`], which serves a file **only** from within the requested
 //! game's companion directory.
 //!
-//! Two defenses, per `docs/adr-0006-companion-content-rendering.md`:
+//! Two defenses, per ADR-0006:
 //! - **Path-traversal / symlink-escape protection** — the resolved, symlink-
 //!   followed path must stay within `<tap-root>/companion/<game-id>/`.
 //! - **Format check** — the extension must be one of PNG/JPEG/GIF/WebP *and*

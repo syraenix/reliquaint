@@ -10,15 +10,12 @@ The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, i
 
 Read before non-trivial changes:
 
-- `docs/prd.md` — product vision, problem, goals/non-goals, users, scope phases
 - `docs/schema.md` — TOML schemas for catalog entries, install records, tap metadata, user config
-- `docs/adr-0001-two-layer-manifest-model.md` — shippable catalog vs per-user install records
-- `docs/adr-0002-split-dosbox-config-model.md` — shipped `.conf` carries no `[autoexec]`; composed at launch
-- `docs/adr-0003-tap-based-distribution.md` — community-maintainable tap repos
-- `docs/adr-0004-logging-strategy.md` — `tracing` ecosystem; CLI + GUI share one instrumentation API
-- `docs/adr-0005-error-handling-strategy.md` — `thiserror` in library, `anyhow` in binaries
-
-`docs/v0.1-tasks.md` is the historical roadmap kept for context; all v0.1 tasks have shipped.
+- ADR-0001 (two-layer manifest model) — shippable catalog vs per-user install records
+- ADR-0002 (split DOSBox config) — shipped `.conf` carries no `[autoexec]`; composed at launch
+- ADR-0003 (tap-based distribution) — community-maintainable tap repos
+- ADR-0004 (logging strategy) — `tracing` ecosystem; CLI + GUI share one instrumentation API
+- ADR-0005 (error-handling strategy) — `thiserror` in library, `anyhow` in binaries
 
 ## Repository layout
 
