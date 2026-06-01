@@ -80,6 +80,46 @@ Each entry is one TOML file. Copy a nearby example as a starting point, or gener
 
 Game ids must be globally unique within your tap. Duplicates cause a validation error.
 
+## Companion content
+
+A tap can ship per-game **companion content** — walkthroughs, maps, hint sheets, install notes — that the launcher renders alongside the catalog entry in the GUI's "Guides" section. It lives in a `companion/` tree beside `catalog/`:
+
+```
+<tap-root>/
+  catalog/dos/qfg1-ega.toml
+  companion/
+    qfg1-ega/
+      01-overview.md
+      02-walkthrough.md
+      maps/
+        spielburg.png
+      hints/
+        boss-fight-tips.md
+```
+
+The directory name under `companion/` is the game `id`. Full conventions are in [`docs/schema.md`](schema.md#companion-content); the essentials:
+
+- **Files.** Markdown (`.md`) plus images (`.png`, `.jpg`/`.jpeg`, `.gif`, `.webp`). One level of subdirectory (e.g. `maps/`, `hints/`) becomes a named section in the UI.
+- **Ordering and titles.** A numeric prefix sorts a file first (`01-overview.md` before `02-walkthrough.md`); un-prefixed files follow alphabetically. The display title derives from the filename: the prefix is dropped and `-`/`_` become spaces, so `02-mid-game.md` → "Mid Game".
+
+### Authoring Markdown
+
+Write **plain Markdown** — paragraphs, headings, lists, tables, code blocks, footnotes, and task lists all render. Two linking rules:
+
+- **Link to another guide** with a relative path to its `.md` file (`[next](02-mid-game.md)`); the launcher navigates to it inside the viewer.
+- **External links** (`http://`, `https://`) open in the user's system browser.
+
+### Images
+
+Images are **tap-local only** — reference them with a relative path (`![map](maps/spielburg.png)`) and ship the file in the tap. The launcher serves them through an internal protocol scoped to the game's companion directory.
+
+- **No remote image URLs.** `http(s)`, `data:`, and `file:` image sources are stripped (privacy and security — see [ADR-0006](adr-0006-companion-content-rendering.md)). A tracking-pixel image would leak the user's activity; tap-local images can't.
+- **No SVG.** SVG is structured XML that can carry scripts, so it's excluded. Rasterize maps and diagrams to PNG or WebP. Aim for reasonable file sizes (a few hundred KB per image is plenty).
+
+### The sanitizer: don't submit raw HTML
+
+Companion Markdown is rendered server-side and run through a strict HTML sanitizer before it reaches the webview ([ADR-0006](adr-0006-companion-content-rendering.md)). **Raw HTML is stripped** — a `<div>`, `<style>`, `<script>`, or inline `<span style=…>` in your source will not render, and the result will surprise both you and the user. Stick to Markdown. `reliquaint doctor` warns when a companion file contains a significant amount of raw HTML (and when an image reference points at a missing file, or a `companion/<id>/` directory has no matching catalog entry), so run it after editing.
+
 ## Conflict resolution across taps
 
 When a user subscribes to multiple taps and two of them provide the same game id, the launcher resolves the conflict by **priority**: the tap with the lower integer priority wins. The user tap (`local`) always wins at implicit priority −1.

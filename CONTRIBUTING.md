@@ -110,6 +110,27 @@ One catalog entry per commit. Subject line: `feat(<collection>): add <title> man
 - Whether you've tested a live launch (or only `--dry-run`)
 - Anything unusual about the config (non-standard `cycles`, MIDI quirks, etc.)
 
+## Contributing companion content
+
+**Companion content** — per-game walkthroughs, maps, and hint sheets — is a separate contributor flow from catalog entries, but it also lives in [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) (or your own tap), not this repo. It's authored as Markdown and images under `companion/<game-id>/`, beside `catalog/`:
+
+```
+companion/
+  qfg1-ega/
+    01-overview.md
+    02-walkthrough.md
+    maps/spielburg.png
+```
+
+The launcher renders it in the GUI's "Guides" panel. A few rules to author against:
+
+- **Plain Markdown only.** Tables, footnotes, and task lists render; **raw HTML is stripped** by the sanitizer and won't appear. Link to other guides with relative `.md` paths; external `http(s)` links open in the browser.
+- **Tap-local images.** Reference images with relative paths and ship the file. No remote/`data:` image URLs (stripped), and **no SVG** (rasterize to PNG/WebP) — see [ADR-0006](docs/adr-0006-companion-content-rendering.md).
+- **No game binaries**, same as catalog entries.
+- Run `reliquaint doctor` after editing — it warns about broken image references, stray `companion/<id>/` directories, and raw HTML that got stripped.
+
+The full conventions are in the [Tap Maintainer Guide](docs/tap-maintainer-guide.md#companion-content) and [`docs/schema.md`](docs/schema.md#companion-content). Open the PR against [`reliquaint-core`](https://github.com/syraenix/reliquaint-core).
+
 ## Style conventions
 
 - **TOML keys**: snake_case (`expects_files`, `kickstart_path`, `runtime.fs_uae`).
