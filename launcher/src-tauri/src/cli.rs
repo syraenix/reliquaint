@@ -1019,9 +1019,11 @@ fn cmd_doctor(view: &CatalogView) -> ExitCode {
             ProbeStatus::Ok => "ok     ",
             ProbeStatus::Missing => "missing",
             ProbeStatus::Unknown => "unknown",
+            ProbeStatus::Warn => "warn   ",
         };
         let detail = r.detail.as_deref().unwrap_or("");
         println!("[ {label} ] {}  {}", r.name, detail);
+        // Only host/install failures affect the exit code; Warn is advisory.
         if r.status == ProbeStatus::Missing {
             any_missing = true;
         }

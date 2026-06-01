@@ -7,7 +7,7 @@
 [![Latest release](https://img.shields.io/github/v/release/syraenix/reliquaint)](https://github.com/syraenix/reliquaint/releases/latest)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](LICENSE)
 
-A preservation hub for classic DOS and Amiga games that happens to launch. One catalog, one install command, one launch button — plus the future scaffolding for the maps, hint sheets, and manuals that gave these games their flavour.
+A preservation hub for classic DOS and Amiga games that happens to launch. One catalog, one install command, one launch button — plus the maps, hint sheets, and walkthroughs that gave these games their flavour, rendered right alongside each game.
 
 <p align="center">
   <img src="launcher/src-tauri/icons/icon.png" alt="Reliquaint" />
@@ -17,13 +17,15 @@ A preservation hub for classic DOS and Amiga games that happens to launch. One c
 
 Reliquaint is a Linux launcher built on top of [DOSBox-Staging](https://www.dosbox-staging.org/) (DOS) and [FS-UAE](https://fs-uae.net/) (Amiga). You bring your own legally-acquired game files; Reliquaint handles the configuration, mounting, sidecars (FluidSynth for MIDI), and a small catalog of curated metadata.
 
-Subscribe to the official [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) tap to get a curated starter set of classic DOS and Amiga titles — Quest for Glory I–IV, King's Quest I–V, Space Quest I–VI, Police Quest 1–4, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per [ADR-0003](docs/adr-0003-tap-based-distribution.md)) supports multiple community-maintained taps with priority-based conflict resolution.
+Subscribe to the official [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) tap to get a curated starter set of classic DOS and Amiga titles — Quest for Glory I–IV, King's Quest I–V, Space Quest I–VI, Police Quest 1–4, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per ADR-0003) supports multiple community-maintained taps with priority-based conflict resolution.
+
+Taps can also ship **companion content** — per-game walkthroughs, maps, and hint sheets, written in Markdown and browsable in a "Guides" panel on each game's page. It renders entirely offline through a strict, sandboxed pipeline (no remote resources, no scripts; see ADR-0006).
 
 It does **not** acquire game files for you. It does **not** circumvent DRM. The user provides their own copies; the launcher tells them where to put them.
 
 ## Status
 
-**v0.3.** Tap subscriptions are fully implemented. Subscribe to community-maintained taps via `reliquaint tap add <name>` or the Taps panel in the GUI. The CLI has `list`, `run`, `install`, `migrate-installs`, `doctor`, `add`, `tap add/remove/list/sync/reorder/validate`, and `upgrade`. The GUI supports browsing, installing, launching, tap management, and a first-run prompt for new installs. Companion content (walkthroughs, maps, hint files) remains a v0.4 goal per the [PRD](docs/prd.md).
+**v0.3.** Tap subscriptions are fully implemented. Subscribe to community-maintained taps via `reliquaint tap add <name>` or the Taps panel in the GUI. The CLI has `list`, `run`, `install`, `migrate-installs`, `doctor`, `add`, `tap add/remove/list/sync/reorder/validate`, and `upgrade`. The GUI supports browsing, installing, launching, tap management, and a first-run prompt for new installs. Companion content (walkthroughs, maps, hint files) is implemented and lands in v0.4 — taps ship Markdown + images under `companion/<id>/`, and the launcher renders them per-game in the GUI's "Guides" panel.
 
 > **Upgrading from v0.2?** The `reliquaint-core` catalog that used to ship inside the launcher has **moved to its own repository** ([`syraenix/reliquaint-core`](https://github.com/syraenix/reliquaint-core)); the launcher no longer bundles any catalog content. Your existing installs keep working — just subscribe so the launcher can find their catalog entries again:
 >
@@ -161,10 +163,8 @@ Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/
 
 ## Further reading
 
-- [`docs/prd.md`](docs/prd.md) — product vision and scope
 - [`docs/schema.md`](docs/schema.md) — TOML schemas (catalog entries, install records, tap metadata, user config)
-- [`docs/v0.1-tasks.md`](docs/v0.1-tasks.md) — the v0.1 task list (kept for historical reference)
-- ADRs in [`docs/`](docs/): two-layer manifest model (0001), split DOSBox config (0002), tap-based distribution (0003), logging (0004), error handling (0005)
+- ADRs: two-layer manifest model (0001), split DOSBox config (0002), tap-based distribution (0003), logging (0004), error handling (0005)
 
 ## License
 

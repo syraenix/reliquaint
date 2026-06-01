@@ -1,5 +1,4 @@
-//! Tap metadata types and parser. See `docs/schema.md` §"tap.toml" and
-//! `docs/adr-0003-tap-based-distribution.md`.
+//! Tap metadata types and parser. See `docs/schema.md` §"tap.toml" and ADR-0003.
 //!
 //! A tap is a versioned source of catalog entries and (in future)
 //! companion content. This module only parses the tap's metadata file;

@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::catalog::{CatalogEntry, Platform};
+use crate::companion::{self, CompanionItem};
 use crate::install_record::{InstallRecord, LoadedInstallRecord};
 use crate::tap::LoadedTap;
 
@@ -25,6 +26,11 @@ use crate::tap::LoadedTap;
 pub struct CatalogView {
     entries: Vec<CatalogViewEntry>,
     orphans: Vec<LoadedInstallRecord>,
+    /// Companion content (walkthroughs, maps, hints) discovered across all
+    /// taps, in aggregation order: grouped by tap in `(priority, tap_id)`
+    /// order, each tap's items in `companion::index_companion` discovery
+    /// order. Queried via [`Self::companion_for`].
+    companion: Vec<CompanionItem>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,10 +82,18 @@ impl CatalogView {
         }
 
         let mut entries: Vec<CatalogViewEntry> = Vec::new();
+        // Per-tap companion groups, tagged with the tap's sort key so the
+        // flattened view is grouped by tap in (priority, tap_id) order while
+        // preserving each tap's internal discovery order.
+        let mut companion_groups: Vec<(i32, String, Vec<CompanionItem>)> = Vec::new();
 
         for tap in taps {
             let tap_id = tap.metadata.id.clone();
             let priority = priorities.get(&tap_id).copied().unwrap_or(i32::MAX);
+            let companion_items = companion::index_companion(&tap.root, &tap_id);
+            if !companion_items.is_empty() {
+                companion_groups.push((priority, tap_id.clone(), companion_items));
+            }
             for (game_id, loaded_entry) in tap.entries {
                 let key = (tap_id.clone(), game_id.clone());
                 let install = install_by_key.remove(&key).map(|li| li.record);
@@ -93,6 +107,14 @@ impl CatalogView {
             }
         }
 
+        // Group companion content by tap in (priority, tap_id) order (Task 1.3),
+        // then flatten while keeping each tap's discovery order intact.
+        companion_groups.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+        let companion: Vec<CompanionItem> = companion_groups
+            .into_iter()
+            .flat_map(|(_, _, items)| items)
+            .collect();
+
         // Stable order: by (priority, tap_id, game_id).
         entries.sort_by(|a, b| {
             a.priority
@@ -104,7 +126,11 @@ impl CatalogView {
         let mut orphans: Vec<LoadedInstallRecord> = install_by_key.into_values().collect();
         orphans.sort_by(|a, b| a.source_path.cmp(&b.source_path));
 
-        Self { entries, orphans }
+        Self {
+            entries,
+            orphans,
+            companion,
+        }
     }
 
     /// Build a view by joining loaded taps and install records on
@@ -181,6 +207,24 @@ impl CatalogView {
     /// removed."
     pub fn orphans(&self) -> &[LoadedInstallRecord] {
         &self.orphans
+    }
+
+    /// Companion content for `game_id`, aggregated across every tap that
+    /// ships it. Items are returned in `(tap-priority, tap-file)` order and
+    /// each retains its `tap_id` for attribution. Empty when no tap carries
+    /// companion content for the game.
+    pub fn companion_for(&self, game_id: &str) -> Vec<&CompanionItem> {
+        self.companion
+            .iter()
+            .filter(|c| c.game_id == game_id)
+            .collect()
+    }
+
+    /// Every companion item across all taps, in aggregation order. Unlike
+    /// [`Self::companion_for`], this includes items whose `game_id` matches no
+    /// catalog entry — used by the doctor to flag stray companion directories.
+    pub fn all_companion(&self) -> &[CompanionItem] {
+        &self.companion
     }
 }
 
@@ -554,6 +598,118 @@ mod tests {
 
         assert_eq!(view.by_platform(Platform::Dos).count(), 2);
         assert_eq!(view.by_platform(Platform::Amiga).count(), 1);
+    }
+
+    // ---------------------------------------------------------------------------
+    // companion content aggregation (v0.4 Milestone 1, Tasks 1.2 + 1.3)
+    // ---------------------------------------------------------------------------
+
+    /// Build a `LoadedTap` rooted at a real on-disk path so `index_companion`
+    /// (which walks `<root>/companion/`) sees actual files.
+    fn loaded_tap_at(
+        root: &std::path::Path,
+        tap_id: &str,
+        entries: Vec<CatalogEntry>,
+    ) -> LoadedTap {
+        let mut map = BTreeMap::new();
+        for entry in entries {
+            let game_id = entry.game.id.clone();
+            map.insert(
+                game_id.clone(),
+                LoadedEntry {
+                    source_path: root.join(format!("catalog/{game_id}.toml")),
+                    entry,
+                },
+            );
+        }
+        LoadedTap {
+            metadata: tap_metadata(tap_id),
+            root: root.to_path_buf(),
+            entries: map,
+        }
+    }
+
+    /// Write a companion file under `<root>/companion/<game_id>/<rel>`.
+    fn write_companion(root: &std::path::Path, game_id: &str, rel: &str, contents: &str) {
+        let path = root.join("companion").join(game_id).join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    }
+
+    #[test]
+    fn companion_for_aggregates_across_taps_in_priority_order() {
+        let dir_a = tempfile::tempdir().unwrap();
+        let dir_b = tempfile::tempdir().unwrap();
+        write_companion(dir_a.path(), "qfg1-ega", "guide.md", "# a");
+        write_companion(dir_b.path(), "qfg1-ega", "guide.md", "# b");
+
+        let tap_a = loaded_tap_at(dir_a.path(), "tap-a", vec![dos_entry("qfg1-ega")]);
+        let tap_b = loaded_tap_at(dir_b.path(), "tap-b", vec![dos_entry("qfg1-ega")]);
+
+        let mut priorities = HashMap::new();
+        priorities.insert("tap-a".to_string(), 0_i32);
+        priorities.insert("tap-b".to_string(), 1_i32);
+
+        let view = CatalogView::assemble_with_priorities(vec![tap_b, tap_a], vec![], priorities);
+
+        let items = view.companion_for("qfg1-ega");
+        assert_eq!(items.len(), 2, "both taps contribute: {items:?}");
+        // priority 0 (tap-a) groups first, regardless of tap order passed in.
+        assert_eq!(items[0].tap_id, "tap-a");
+        assert_eq!(items[1].tap_id, "tap-b");
+        // Each item retains correct attribution.
+        assert!(items.iter().all(|i| i.game_id == "qfg1-ega"));
+    }
+
+    #[test]
+    fn companion_for_preserves_within_tap_file_order() {
+        let dir = tempfile::tempdir().unwrap();
+        write_companion(dir.path(), "qfg1-ega", "02-walkthrough.md", "# wt");
+        write_companion(dir.path(), "qfg1-ega", "01-overview.md", "# ov");
+        write_companion(dir.path(), "qfg1-ega", "appendix.md", "# ap");
+
+        let tap = loaded_tap_at(dir.path(), "core", vec![dos_entry("qfg1-ega")]);
+        let view = CatalogView::assemble(vec![tap], vec![]);
+
+        let titles: Vec<&str> = view
+            .companion_for("qfg1-ega")
+            .iter()
+            .map(|i| i.title.as_str())
+            .collect();
+        // Numeric-prefixed first (01, 02), then alpha — discovery order preserved.
+        assert_eq!(titles, vec!["Overview", "Walkthrough", "Appendix"]);
+    }
+
+    #[test]
+    fn companion_for_is_empty_when_no_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let tap = loaded_tap_at(dir.path(), "core", vec![dos_entry("qfg1-ega")]);
+        let view = CatalogView::assemble(vec![tap], vec![]);
+        assert!(view.companion_for("qfg1-ega").is_empty());
+        assert!(view.companion_for("no-such-game").is_empty());
+    }
+
+    #[test]
+    fn all_companion_includes_items_for_games_without_catalog_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        // Companion content for a game in the catalog AND one that isn't.
+        write_companion(dir.path(), "qfg1-ega", "guide.md", "# g");
+        write_companion(dir.path(), "ghost-game", "notes.md", "# n");
+
+        // Catalog only knows qfg1-ega.
+        let tap = loaded_tap_at(dir.path(), "core", vec![dos_entry("qfg1-ega")]);
+        let view = CatalogView::assemble(vec![tap], vec![]);
+
+        let game_ids: Vec<&str> = view
+            .all_companion()
+            .iter()
+            .map(|c| c.game_id.as_str())
+            .collect();
+        assert!(game_ids.contains(&"qfg1-ega"));
+        assert!(
+            game_ids.contains(&"ghost-game"),
+            "all_companion must surface content for games absent from the catalog: {game_ids:?}"
+        );
     }
 
     #[test]
