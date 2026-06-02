@@ -1,6 +1,7 @@
 <script>
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import { getVersion } from "@tauri-apps/api/app";
     import iconSrc from "./assets/icon.png";
     import FilterBar from "./components/FilterBar.svelte";
     import GameGrid from "./components/GameGrid.svelte";
@@ -26,6 +27,8 @@
     let hasSubs = false;
     let addingCore = false;
     let addCoreError = null;
+    // Cosmetic only: blank if getVersion() ever fails, so the badge just hides.
+    let appVersion = "";
 
     const FIRST_RUN_DISMISSED_KEY = "reliquaint:first-run-dismissed";
     let firstRunDismissed = (() => {
@@ -118,6 +121,9 @@
 
     onMount(() => {
         loadCatalog();
+        getVersion()
+            .then((v) => (appVersion = v))
+            .catch(() => {});
     });
 
     $: availableTaps = [...new Set(catalog.map((g) => g.tap_id))];
@@ -173,6 +179,9 @@
         <div class="app-title">
             <img src={iconSrc} alt="" aria-hidden="true" class="app-icon" />
             <h1>Reliquaint</h1>
+            {#if appVersion}
+                <span class="app-version">v{appVersion}</span>
+            {/if}
         </div>
         <div class="header-actions">
             <FilterBar bind:filter bind:tapFilter {availableTaps} />
@@ -376,6 +385,14 @@
         font-weight: 600;
         color: var(--gold);
         letter-spacing: 0.03em;
+    }
+
+    .app-version {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        align-self: flex-end;
+        margin-bottom: 2px;
+        letter-spacing: 0.02em;
     }
 
     .header-actions {
