@@ -40,3 +40,4 @@ tauri-build = { version = "2", features = [] }
 assert_cmd  = "2.0"
 predicates  = "3.1"
 anyhow      = "1.0"
+serial_test = "3"
