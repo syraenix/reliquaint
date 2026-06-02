@@ -83,8 +83,10 @@ fn shell_split(s: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn resolve_editor_prefers_env() {
         let saved = std::env::var("EDITOR").ok();
         std::env::set_var("EDITOR", "my-favourite-editor");
@@ -96,6 +98,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn resolve_editor_empty_env_falls_through_to_fallbacks() {
         let saved_editor = std::env::var("EDITOR").ok();
         let saved_visual = std::env::var("VISUAL").ok();

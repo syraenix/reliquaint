@@ -145,6 +145,7 @@ fn config_home_from_env(env: Option<&str>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn tilde_expands_to_home() {
@@ -243,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn default_library_dir_env_overrides() {
         // Save/restore the env var so we don't leak state to other tests.
         let saved = std::env::var("RELIQUAINT_GAMES_DIR").ok();
@@ -255,6 +257,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn default_library_dir_falls_back_to_games_under_home() {
         let saved = std::env::var("RELIQUAINT_GAMES_DIR").ok();
         std::env::remove_var("RELIQUAINT_GAMES_DIR");
@@ -271,6 +274,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn user_taps_dir_ends_with_reliquaint_taps() {
         let saved = std::env::var("RELIQUAINT_TAPS_CACHE_DIR").ok();
         std::env::remove_var("RELIQUAINT_TAPS_CACHE_DIR");
@@ -287,6 +291,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn tap_cache_dir_for_appends_tap_id() {
         let saved = std::env::var("RELIQUAINT_TAPS_CACHE_DIR").ok();
         std::env::set_var("RELIQUAINT_TAPS_CACHE_DIR", "/tmp/taps");
@@ -299,6 +304,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn subscriptions_path_ends_with_subscriptions_toml() {
         let saved = std::env::var("RELIQUAINT_SUBSCRIPTIONS_PATH").ok();
         std::env::remove_var("RELIQUAINT_SUBSCRIPTIONS_PATH");
@@ -315,6 +321,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn subscriptions_path_env_overrides() {
         let saved = std::env::var("RELIQUAINT_SUBSCRIPTIONS_PATH").ok();
         std::env::set_var("RELIQUAINT_SUBSCRIPTIONS_PATH", "/tmp/custom-subs.toml");
@@ -326,6 +333,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn user_tap_dir_ends_with_reliquaint_tap() {
         let saved = std::env::var("RELIQUAINT_USER_TAP_DIR").ok();
         std::env::remove_var("RELIQUAINT_USER_TAP_DIR");
@@ -342,6 +350,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn user_tap_dir_env_overrides() {
         let saved = std::env::var("RELIQUAINT_USER_TAP_DIR").ok();
         std::env::set_var("RELIQUAINT_USER_TAP_DIR", "/tmp/custom-user-tap");
