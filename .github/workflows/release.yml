@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 concurrency:
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write   # create tags + releases, upload assets
+  contents: write # create tags + releases, upload assets
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,21 +26,28 @@ jobs:
       - name: Determine version and whether to release
         id: gate
         run: |
-          PKG=$(jq -r .version launcher/package.json)
-          CONF=$(jq -r .version launcher/src-tauri/tauri.conf.json)
+          # Cargo.toml is the single source of truth for the app version (see #44);
+          # release-please bumps it and pushes the matching v<version> tag.
           CARGO=$(grep -m1 '^version = ' launcher/src-tauri/Cargo.toml | cut -d'"' -f2)
-          echo "package.json=$PKG  tauri.conf.json=$CONF  Cargo.toml=$CARGO"
-          if [ "$PKG" != "$CONF" ] || [ "$PKG" != "$CARGO" ]; then
-            echo "::error::Version mismatch across package.json / tauri.conf.json / Cargo.toml"
-            exit 1
-          fi
-          echo "version=$PKG" >> "$GITHUB_OUTPUT"
-          if git rev-parse "v$PKG" >/dev/null 2>&1; then
-            echo "Tag v$PKG already exists — skipping release."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
+          echo "Cargo.toml=$CARGO  ref=$GITHUB_REF"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$VERSION" != "$CARGO" ]; then
+              echo "::error::Tag v$VERSION does not match Cargo.toml version $CARGO"
+              exit 1
+            fi
             echo "should_release=true" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch: release the current Cargo.toml version unless already tagged.
+            VERSION="$CARGO"
+            if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+              echo "Tag v$VERSION already exists — skipping release."
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@v3
         if: steps.gate.outputs.should_release == 'true'
@@ -75,22 +82,8 @@ jobs:
         if: steps.gate.outputs.should_release == 'true'
         working-directory: launcher
 
-      - name: Generate release notes
-        id: notes
-        if: steps.gate.outputs.should_release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          NOTES=$(gh api "repos/${{ github.repository }}/releases/generate-notes" \
-            -f tag_name="v${{ steps.gate.outputs.version }}" \
-            -f target_commitish="${{ github.sha }}" \
-            --jq .body)
-          {
-            echo "body<<__NOTES_EOF__"
-            echo "$NOTES"
-            echo "__NOTES_EOF__"
-          } >> "$GITHUB_OUTPUT"
-
+      # release-please already created the GitHub Release (with changelog body) when it
+      # pushed the tag; tauri-action attaches the built bundles to that existing release.
       - name: Build and publish release
         if: steps.gate.outputs.should_release == 'true'
         uses: tauri-apps/tauri-action@v0
@@ -99,8 +92,6 @@ jobs:
         with:
           projectPath: launcher
           tagName: v${{ steps.gate.outputs.version }}
-          releaseName: Reliquaint v${{ steps.gate.outputs.version }}
-          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: --bundles deb,appimage
