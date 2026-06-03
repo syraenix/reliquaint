@@ -229,6 +229,14 @@ All fields optional but strongly recommended for discovery. Empty `[meta]` is al
 | `genre` | array of string | Coarse classification. Suggested set: `adventure`, `rpg`, `action`, `arcade`, `strategy`, `simulation`, `puzzle`, `platformer`, `shooter`, `fighting`, `racing`, `sports`, `educational`. |
 | `tags` | array of string | Free-form tags for finer filtering. |
 | `description` | string | One paragraph for the catalog browser. Plain text; Markdown is not interpreted here. |
+| `artwork` | string | Optional display image for the game, as a path **relative to the tap root** (e.g. `art/qfg1-ega.png`). Shown on the game card and detail header. Served read-only over the asset protocol. An image auto-detected in the install directory takes precedence over this (see below). |
+
+**Icon resolution.** The launcher shows one image per game, resolved in this order:
+
+1. **Install directory** — for an installed game, the first match in `~/games/<id>/`: `cover.png`, `cover.jpg`, `icon.png`, `icon.jpg`, `box.png`, `box.jpg`, then the alphabetically-first loose `.png`/`.jpg`/`.bmp` in the directory root.
+2. **Tap-provided** — the `[meta] artwork` path above.
+
+If neither resolves, the UI falls back to a colored platform header.
 
 ### `[acquisition]`
 

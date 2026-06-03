@@ -1,3 +1,4 @@
+pub mod artwork;
 pub mod catalog;
 pub mod catalog_view;
 pub mod cli;

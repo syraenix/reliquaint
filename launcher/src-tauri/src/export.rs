@@ -146,6 +146,7 @@ mod tests {
             genre: vec!["adventure".to_string()],
             tags: vec![],
             description: Some("desc".to_string()),
+            artwork: None,
         };
         entry.acquisition = Acquisition {
             gog: Some("https://gog".to_string()),
