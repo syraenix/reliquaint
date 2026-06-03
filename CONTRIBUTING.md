@@ -163,6 +163,19 @@ For GUI changes, also run `pnpm tauri dev` from `launcher/` and click through wh
 - PRs describe what changed, what you tested, and link any related issue.
 - Screenshots only when GUI behaviour visibly changes.
 
+### PR titles and releases
+
+All PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) — the `pr-title` CI check enforces this, and [release-please](https://github.com/googleapis/release-please) reads the merged title to decide the next version:
+
+| Title prefix | Release effect |
+| --- | --- |
+| `feat:` | minor bump (`0.4.0` → `0.5.0`) |
+| `fix:` | patch bump (`0.4.0` → `0.4.1`) |
+| `feat!:` / `fix!:`, or a `BREAKING CHANGE:` footer | major bump (`0.4.0` → `1.0.0`) |
+| `chore:`, `docs:`, `refactor:`, `test:`, etc. | no release on their own |
+
+release-please owns versioning: it maintains a release PR on `main` that bumps `launcher/src-tauri/Cargo.toml` (the single source of truth) and the changelog, then tags the release on merge. Don't hand-edit version numbers, and don't push to `main` directly — branch off `main` and open a PR.
+
 ## License
 
 By contributing, you agree that your contributions are licensed under the same terms as the project:

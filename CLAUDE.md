@@ -58,6 +58,16 @@ Read before non-trivial changes:
 - The repo is Linux-only (Flatpak DOSBox Staging, apt-installed FluidSynth/FS-UAE). Don't add Windows/macOS branches unless asked.
 - Per-entry `.conf` files in the tap diverge from `config/default-dosbox-staging.conf` deliberately (cycles, MIDI routing, scalers). Don't normalize them to the default.
 
+## Releases and versioning
+
+[release-please](https://github.com/googleapis/release-please) owns versioning. It watches `main`, maintains a release PR that bumps `launcher/src-tauri/Cargo.toml` (the single source of truth — `package.json` and `tauri.conf.json` inherit it) and the changelog, and tags `v<version>` on merge. The next version is derived from PR titles, which must be [Conventional Commits](https://www.conventionalcommits.org/) (enforced by the `pr-title` CI check):
+
+- `feat:` → minor bump; `fix:` → patch bump.
+- `feat!:` / `fix!:`, or a `BREAKING CHANGE:` footer → major bump.
+- `chore:`, `docs:`, `refactor:`, `test:`, etc. → no release on their own.
+
+**Agents:** branch off `main`, open a PR, and title it conventionally. Never push to `main`, and never hand-edit version numbers (in `Cargo.toml` or anywhere else) — release-please does that.
+
 ## Common operations
 
 ### CLI
