@@ -1,6 +1,6 @@
 <script>
   import { createEventDispatcher, onMount, onDestroy } from "svelte";
-  import { invoke } from "@tauri-apps/api/core";
+  import { invoke, convertFileSrc } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import DiagnosticPanel from "./DiagnosticPanel.svelte";
@@ -11,6 +11,10 @@
   // (conflict alternates), supplied by App.svelte.
   export let alternates = [];
   const dispatch = createEventDispatcher();
+
+  // Display icon: backend-resolved absolute path (install-dir art, tap art
+  // fallback), served via the asset protocol. Null → colored platform header.
+  $: iconUrl = game.icon_path ? convertFileSrc(game.icon_path) : null;
 
   let makingDefault = false;
   let makeDefaultError = null;
@@ -286,8 +290,12 @@
   <button class="back" on:click={() => dispatch("back")}>← Back</button>
 
   <div class="layout">
-    <div class="header platform-{game.platform}">
-      <span class="platform-label">{game.platform.toUpperCase()}</span>
+    <div class="header platform-{game.platform}" class:has-art={iconUrl}>
+      {#if iconUrl}
+        <img class="art" src={iconUrl} alt="" />
+      {:else}
+        <span class="platform-label">{game.platform.toUpperCase()}</span>
+      {/if}
       {#if game.installed}
         <span class="installed-badge">INSTALLED</span>
       {/if}
@@ -514,6 +522,8 @@
   }
 
   .header {
+    position: relative;
+    overflow: hidden;
     width: 240px;
     flex-shrink: 0;
     aspect-ratio: 4 / 3;
@@ -525,6 +535,20 @@
     gap: 12px;
   }
 
+  .header.has-art {
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding: 10px;
+  }
+
+  .art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
   .platform-label {
     font-size: 1.1rem;
     font-weight: 700;
@@ -533,6 +557,9 @@
   }
 
   .installed-badge {
+    /* position/z-index keep it above the artwork when art fills the header. */
+    position: relative;
+    z-index: 1;
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.1em;

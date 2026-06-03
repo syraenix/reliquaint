@@ -51,6 +51,11 @@ pub struct Meta {
     pub tags: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Optional tap-provided display art, as a path relative to the tap root
+    /// (e.g. `art/qfg1-ega.png`). Served read-only via the asset protocol. An
+    /// image auto-detected in the install directory takes precedence over this.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artwork: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]

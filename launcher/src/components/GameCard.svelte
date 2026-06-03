@@ -1,8 +1,14 @@
 <script>
   import { createEventDispatcher } from "svelte";
+  import { convertFileSrc } from "@tauri-apps/api/core";
 
   export let game;
   const dispatch = createEventDispatcher();
+
+  // Display icon: the backend resolves an absolute path (install-dir art, with
+  // tap-provided art as fallback); convertFileSrc serves it over the asset
+  // protocol. Null → fall back to the colored platform header.
+  $: iconUrl = game.icon_path ? convertFileSrc(game.icon_path) : null;
 
   // Short, glanceable tap-of-origin label. reliquaint-core → "core";
   // anything else is shown as its id, truncated if long.
@@ -13,8 +19,12 @@
 </script>
 
 <button class="card" on:click={() => dispatch("click")}>
-  <div class="header platform-{game.platform}">
-    <span class="platform-label">{game.platform.toUpperCase()}</span>
+  <div class="header platform-{game.platform}" class:has-art={iconUrl}>
+    {#if iconUrl}
+      <img class="art" src={iconUrl} alt="" />
+    {:else}
+      <span class="platform-label">{game.platform.toUpperCase()}</span>
+    {/if}
     <span class="badges">
       {#if game.tap_id === "local"}
         <span class="custom-badge" title="Added via the manifest wizard">CUSTOM</span>
@@ -57,11 +67,25 @@
   }
 
   .header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 14px 14px;
     aspect-ratio: 16 / 5;
+  }
+
+  .header.has-art {
+    aspect-ratio: 4 / 3;
+    padding: 8px;
+  }
+
+  .art {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .platform-label {
@@ -75,6 +99,11 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    /* Pin top-right and keep above the artwork when art fills the header. */
+    margin-left: auto;
+    align-self: flex-start;
+    position: relative;
+    z-index: 1;
   }
 
   .installed-badge {

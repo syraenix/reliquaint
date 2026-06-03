@@ -66,6 +66,10 @@ pub struct CatalogEntryDto {
     pub priority: i32,
     pub installed: bool,
     pub install_path: Option<String>,
+    /// Absolute path to a display image for this game, if one was resolved:
+    /// an image auto-detected in the install directory, else tap-provided
+    /// `[meta] artwork`. The frontend renders it via `convertFileSrc`.
+    pub icon_path: Option<String>,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -145,6 +149,24 @@ fn assemble_catalog_view(
     ))
 }
 
+/// Resolve a display image for `e`: an image auto-detected in the installed
+/// game directory wins; otherwise the tap-provided `[meta] artwork` path.
+/// Returns an absolute filesystem path (under `$HOME`, so serveable via the
+/// asset protocol), or `None`.
+fn resolve_icon(e: &crate::catalog_view::CatalogViewEntry) -> Option<String> {
+    if let Some(install) = e.install.as_ref() {
+        if let Some(p) = crate::artwork::detect_in_dir(&install.install.install_path) {
+            return Some(p.to_string_lossy().into_owned());
+        }
+    }
+    e.catalog
+        .meta
+        .artwork
+        .as_deref()
+        .and_then(|art| crate::artwork::resolve_tap_art(&e.tap_id, art))
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
 pub fn entry_to_dto(e: &crate::catalog_view::CatalogViewEntry) -> CatalogEntryDto {
     let acq = &e.catalog.acquisition;
     CatalogEntryDto {
@@ -177,6 +199,7 @@ pub fn entry_to_dto(e: &crate::catalog_view::CatalogViewEntry) -> CatalogEntryDt
             .install
             .as_ref()
             .map(|i| i.install.install_path.to_string_lossy().into_owned()),
+        icon_path: resolve_icon(e),
     }
 }
 
@@ -1211,6 +1234,9 @@ mod tests {
         assert_eq!(dto.tap_id, "reliquaint-core");
         assert!(!dto.installed);
         assert!(dto.install_path.is_none());
+        // Not installed and the fixture entry ships no `[meta] artwork`, so no
+        // icon resolves (and resolution stays hermetic — no disk scan).
+        assert!(dto.icon_path.is_none());
         assert!(dto.acquisition.gog.as_deref().unwrap().contains("gog.com"));
         assert!(dto.acquisition.notes.is_some());
     }
