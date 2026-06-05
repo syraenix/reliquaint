@@ -4,6 +4,8 @@ In order to finish this guide, you will need to install several prerequisites. T
 
 > **Tip:** Once `reliquaint` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. The manual steps below remain the source of truth and the fallback for non-Debian distros.
 
+> **Architecture (arm64 / Raspberry Pi 5):** Reliquaint is published for both `amd64` and `arm64`, so it runs on a Raspberry Pi 5 under 64-bit Raspberry Pi OS / Debian arm64. The dependencies below are all available for arm64, but availability and packaging differ per project — in particular, confirm DOSBox Staging has an aarch64 Flatpak on Flathub and that `fs-uae` is in your arm64 apt repos before relying on a Pi for a given collection.
+
 ## DOSBox Staging
 
 [DOSBox Staging](https://www.dosbox-staging.org/) is a modern continuation of DOSBox. Existing DOSBox configurations will continue to work as expected.
