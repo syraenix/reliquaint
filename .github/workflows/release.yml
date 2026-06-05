@@ -17,7 +17,18 @@ env:
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
+    # Build each architecture natively (Tauri's WebKitGTK linking makes x86->ARM
+    # cross-compilation fragile). Both legs attach their bundles to the release that
+    # release-please already created when it pushed the tag.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            bundles: deb,appimage
+          - runner: ubuntu-24.04-arm
+            bundles: deb
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,4 +105,4 @@ jobs:
           tagName: v${{ steps.gate.outputs.version }}
           releaseDraft: false
           prerelease: false
-          args: --bundles deb,appimage
+          args: --bundles ${{ matrix.bundles }}
