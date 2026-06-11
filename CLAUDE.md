@@ -6,23 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The Reliquaint launcher: a Rust CLI (`reliquaint`) + Tauri 2 GUI for browsing, installing, and launching classic DOS and Amiga games on Debian-based Linux. Catalog content lives in *taps* — versioned TOML directories the user subscribes to. The launcher ships **no** bundled catalog; the official `reliquaint-core` tap lives in its own repository (`syraenix/reliquaint-core`). Tests use a small fixture tap at `launcher/src-tauri/tests/fixtures/tap/`.
 
-## Design docs
+## Design docs and key decisions
 
-Read before non-trivial changes:
+Read `docs/schema.md` before non-trivial changes — it carries the TOML schemas for catalog entries, install records, tap metadata, and user config. The architecture rests on these decisions:
 
-- `docs/schema.md` — TOML schemas for catalog entries, install records, tap metadata, user config
-- ADR-0001 (two-layer manifest model) — shippable catalog vs per-user install records
-- ADR-0002 (split DOSBox config) — shipped `.conf` carries no `[autoexec]`; composed at launch
-- ADR-0003 (tap-based distribution) — community-maintainable tap repos
-- ADR-0004 (logging strategy) — `tracing` ecosystem; CLI + GUI share one instrumentation API
-- ADR-0005 (error-handling strategy) — `thiserror` in library, `anyhow` in binaries
+- **Two-layer manifest model** — shippable catalog vs per-user install records
+- **Split DOSBox config** — shipped `.conf` carries no `[autoexec]`; composed at launch
+- **Tap-based distribution** — community-maintainable tap repos
+- **Logging strategy** — `tracing` ecosystem; CLI + GUI share one instrumentation API
+- **Error-handling strategy** — `thiserror` in library, `anyhow` in binaries
 
 ## Repository layout
 
 - `README.md`, `CONTRIBUTING.md`, `docs/prerequisites.md` — front door.
 - `docs/` — design docs.
 - `config/default-dosbox-staging.conf` — reference DOSBox config, embedded into the binary (`draft/dos.rs`) as the starting point for wizard-generated per-entry `.conf` files.
-- `launcher/src-tauri/tests/fixtures/tap/` — the small fixture tap used by tests. The launcher no longer ships a bundled `tap/`; catalog content (the `reliquaint-core` tap) lives in its own repository, and the collection guides/screenshots that used to live under `dos/`, `amiga/`, and `img/` moved there as companion content (ADR-0003).
+- `launcher/src-tauri/tests/fixtures/tap/` — the small fixture tap used by tests. The launcher no longer ships a bundled `tap/`; catalog content (the `reliquaint-core` tap) lives in its own repository, and the collection guides/screenshots that used to live under `dos/`, `amiga/`, and `img/` moved there as companion content.
 - `scripts/extract-installers.sh`, `scripts/generate-amiga-catalog.py` — helper scripts.
 - `launcher/` — Rust workspace + Svelte/Tauri frontend.
 
@@ -39,7 +38,7 @@ Read before non-trivial changes:
 - `cli` — `reliquaint list/run/install/migrate-installs/doctor`.
 - `commands` — Tauri command handlers: `list_catalog`, `install_game` (async, streams `install-output`; stages then commits, or returns `MissingFiles`), `commit_install` / `discard_install` (resolve a `MissingFiles` install anyway / cancel), `default_install_dest`, `launch_game`, `run_doctor`, `install_dependency`, `open_url`.
 - `gui` — Tauri builder, `AppState`, AppHandle wiring (drives the `logging::TauriBridgeLayer` so tracing events flow to the diagnostic panel).
-- `logging` (ADR-0004), `error` (ADR-0005).
+- `logging` (`tracing`-based instrumentation), `error` (`thiserror`/`anyhow` split).
 - `setup`, `installer` — host-dependency install actions backing the `install_dependency` Tauri command (apt + flatpak, distro-detected).
 
 ### Svelte components (`launcher/src/components/`)
@@ -52,7 +51,7 @@ Read before non-trivial changes:
 
 ## Conventions when editing
 
-- New backend code uses `tracing` per ADR-0004 and `thiserror`/`anyhow` per ADR-0005. Library modules return `thiserror` enums and don't log errors on the way up; binary entry points (`main.rs`, `gui.rs`, Tauri commands) use `anyhow::Result` and own all user-facing error formatting.
+- New backend code uses `tracing` for instrumentation and the `thiserror`/`anyhow` split for errors. Library modules return `thiserror` enums and don't log errors on the way up; binary entry points (`main.rs`, `gui.rs`, Tauri commands) use `anyhow::Result` and own all user-facing error formatting.
 - **Path resolution:** XDG resolution lives in `paths.rs` only — don't reference `.local/share` or `.config` literals from other modules. New app-owned paths get added there.
 - FluidSynth's soundfont path defaults to `/usr/share/sounds/sf2/FluidR3_GM.sf2` (Debian `fluid-soundfont-gm`). Override via `[sidecars.fluidsynth].soundfont` in the user config.
 - The repo is Linux-only (Flatpak DOSBox Staging, apt-installed FluidSynth/FS-UAE). Don't add Windows/macOS branches unless asked.
@@ -87,6 +86,7 @@ RUST_LOG=trace reliquaint list             # TRACE
 ```
 
 **Env vars (development / testing):**
+
 - `RELIQUAINT_SUBSCRIPTIONS_PATH` — override `paths::subscriptions_path()` (test isolation).
 - `RELIQUAINT_TAPS_CACHE_DIR` — override `paths::user_taps_dir()` (fetched-tap cache; test isolation).
 - `RELIQUAINT_USER_TAP_DIR` — override `paths::user_tap_dir()` (local user tap; test isolation).

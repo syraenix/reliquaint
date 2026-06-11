@@ -13,9 +13,9 @@
 - [ ] Refactor or internal cleanup
 - [ ] Other (describe below)
 
-## Related issues, ADRs, or design docs
+## Related issues or design docs
 
-<!-- e.g., "Closes #42", "Implements ADR-0003", "Per schema.md §Catalog entry" -->
+<!-- e.g., "Closes #42", "Per schema.md §Catalog entry" -->
 
 ## Testing
 

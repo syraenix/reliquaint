@@ -17,30 +17,23 @@ A preservation hub for classic DOS and Amiga games that happens to launch. One c
 
 Reliquaint is a Linux launcher built on top of [DOSBox-Staging](https://www.dosbox-staging.org/) (DOS) and [FS-UAE](https://fs-uae.net/) (Amiga). You bring your own legally-acquired game files; Reliquaint handles the configuration, mounting, sidecars (FluidSynth for MIDI), and a small catalog of curated metadata.
 
-Subscribe to the official [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) tap to get a curated starter set of classic DOS and Amiga titles — Quest for Glory I–IV, King's Quest I–V, Space Quest I–VI, Police Quest 1–4, and the Amiga single-disk *Fatman: The Caped Consumer*. The launcher's tap model (per ADR-0003) supports multiple community-maintained taps with priority-based conflict resolution.
+Subscribe to the official [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) tap to get a curated starter set of classic DOS and Amiga titles — Quest for Glory I–IV, King's Quest I–V, Space Quest I–VI, Police Quest 1–4, and the [Amiga Forever](https://www.amigaforever.com/) game collection. The launcher's tap model supports multiple community-maintained taps with priority-based conflict resolution.
 
-Taps can also ship **companion content** — per-game walkthroughs, maps, and hint sheets, written in Markdown and browsable in a "Guides" panel on each game's page. It renders entirely offline through a strict, sandboxed pipeline (no remote resources, no scripts; see ADR-0006).
+Taps can also ship **companion content** — per-game walkthroughs, maps, and hint sheets, written in Markdown and browsable in a "Guides" panel on each game's page. It renders entirely offline through a strict, sandboxed pipeline (no remote resources, no scripts).
 
 It does **not** acquire game files for you. It does **not** circumvent DRM. The user provides their own copies; the launcher tells them where to put them.
 
-## Status
-
-**v0.3.** Tap subscriptions are fully implemented. Subscribe to community-maintained taps via `reliquaint tap add <name>` or the Taps panel in the GUI. The CLI has `list`, `run`, `install`, `migrate-installs`, `doctor`, `add`, `tap add/remove/list/sync/reorder/validate`, and `upgrade`. The GUI supports browsing, installing, launching, tap management, and a first-run prompt for new installs. Companion content (walkthroughs, maps, hint files) is implemented and lands in v0.4 — taps ship Markdown + images under `companion/<id>/`, and the launcher renders them per-game in the GUI's "Guides" panel.
-
-> **Upgrading from v0.2?** The `reliquaint-core` catalog that used to ship inside the launcher has **moved to its own repository** ([`syraenix/reliquaint-core`](https://github.com/syraenix/reliquaint-core)); the launcher no longer bundles any catalog content. Your existing installs keep working — just subscribe so the launcher can find their catalog entries again:
->
-> ```bash
-> reliquaint upgrade            # detects installs whose tap is no longer subscribed and tells you what to add
-> reliquaint tap add reliquaint-core
-> ```
->
-> See [Migrating from v0.2](#migrating-from-v02) below for the full story.
-
-The project is Linux-only by design (Flatpak DOSBox-Staging, apt-installed FluidSynth/FS-UAE). Cross-platform support is a non-goal for v0.1.
-
 ## Installing the launcher
 
-Prerequisites are documented in [`docs/prerequisites.md`](docs/prerequisites.md) — DOSBox-Staging (Flatpak), FluidSynth, FS-UAE, and the Rust toolchain.
+Prerequisites are documented in [`docs/prerequisites.md`](docs/prerequisites.md) — DOSBox-Staging (Flatpak), FluidSynth, and FS-UAE.
+
+### Prebuilt packages
+
+Each [release](https://github.com/syraenix/reliquaint/releases/latest) attaches prebuilt `.deb` (Debian/Ubuntu/Raspberry Pi OS) and `.rpm` (Fedora/RHEL) packages for both x86_64 and aarch64/arm64 architectures. An AppImage for cross-distro compatibility is also attached for x86_64 only (arm64 ships as `.deb`/`.rpm`).
+
+Install with `sudo apt install ./Reliquaint_<version>_<arch>.deb` or `sudo dnf install ./Reliquaint-<version>-1.<arch>.rpm`. Note that on arm64 we only guarantee the launcher itself *builds* — actually running games still depends on the emulator stack (DOSBox-Staging, FS-UAE, FluidSynth) being available for your architecture; see [`docs/prerequisites.md`](docs/prerequisites.md).
+
+### Building from source
 
 ```bash
 git clone https://github.com/syraenix/reliquaint.git
@@ -49,21 +42,6 @@ cargo install --path launcher/src-tauri
 ```
 
 This installs the `reliquaint` binary to `~/.cargo/bin/`. Make sure that's on your `PATH`.
-
-### Prebuilt packages
-
-Each [release](https://github.com/syraenix/reliquaint/releases/latest) attaches prebuilt `.deb` (Debian/Ubuntu/Raspberry Pi OS) and `.rpm` (Fedora/RHEL) packages for both architectures, so you can skip the source build:
-
-- `Reliquaint_<version>_amd64.deb` / `Reliquaint_<version>_arm64.deb` — x86-64 and aarch64, the latter including the **Raspberry Pi 5** (64-bit Raspberry Pi OS / Debian arm64)
-- `Reliquaint-<version>-1.x86_64.rpm` / `Reliquaint-<version>-1.aarch64.rpm` — Fedora and other RPM-based distros (note the different file-naming convention)
-
-Install with `sudo apt install ./Reliquaint_<version>_<arch>.deb` or `sudo dnf install ./Reliquaint-<version>-1.<arch>.rpm`. Note that the launcher only *builds* for arm64 — actually running games still depends on the emulator stack (DOSBox-Staging, FS-UAE, FluidSynth) being available for your architecture; see [`docs/prerequisites.md`](docs/prerequisites.md).
-
-For the GUI, you'll additionally need Node.js + pnpm + GTK/webkit system libs:
-
-```bash
-cd launcher && pnpm install && pnpm tauri build
-```
 
 ## Adding a game you own
 
@@ -147,25 +125,6 @@ reliquaint tap remove my-tap            # unsubscribe
 
 The Taps panel (⊞ Taps button in the GUI) provides the same controls visually.
 
-## Migrating from v0.2
-
-In v0.2 the `reliquaint-core` catalog shipped *inside* the launcher. As of v0.3 it lives in its own repository, [`syraenix/reliquaint-core`](https://github.com/syraenix/reliquaint-core), and the launcher ships no bundled catalog content — everything comes from taps you subscribe to.
-
-Nothing about your installed games changes on disk. Each install record points at the `(tap, game)` it was installed against, so the only thing missing after upgrading is the subscription that provides those catalog entries. Restore it in one step:
-
-```bash
-reliquaint upgrade
-```
-
-This scans your install records, finds any whose tap you are not subscribed to, and — when the tap is a known one like `reliquaint-core` — prints the exact `reliquaint tap add` command to run. Then:
-
-```bash
-reliquaint tap add reliquaint-core
-reliquaint list            # your games are back, now sourced from the subscribed tap
-```
-
-In the GUI, the same situation surfaces as a first-run/empty-catalog prompt offering to subscribe to `reliquaint-core`, and `⚕ Doctor` lists any orphaned installs with the suggested fix.
-
 ## Contributing a catalog entry
 
 Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository. Clone it, drop a TOML file into `catalog/<platform>/<id>.toml` matching the schema in [`docs/schema.md`](docs/schema.md), add any per-game shipped `.conf` next to it, and open a PR there. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full walkthrough.
@@ -173,7 +132,6 @@ Catalog contributions go to the [`reliquaint-core`](https://github.com/syraenix/
 ## Further reading
 
 - [`docs/schema.md`](docs/schema.md) — TOML schemas (catalog entries, install records, tap metadata, user config)
-- ADRs: two-layer manifest model (0001), split DOSBox config (0002), tap-based distribution (0003), logging (0004), error handling (0005)
 
 ## License
 

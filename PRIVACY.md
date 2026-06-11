@@ -13,7 +13,7 @@ Reliquaint is designed to be a tool you run on your own hardware to play games y
 ## What Reliquaint does do that involves the network
 
 - **Opening acquisition links in your browser.** When you click "Get on GOG" or a similar button in the catalog browser, the launcher opens that URL in your default browser. The launcher itself does not contact those sites.
-- **Tap synchronization** (planned, v0.3+). When tap subscription lands, syncing a tap means fetching from a URL you explicitly added. The launcher will contact only those URLs, only when you ask it to.
+- **Tap synchronization.** Syncing a tap means fetching from a URL you explicitly added. The launcher contacts only those URLs, only when you ask it to.
 
 That is the full list.
 
@@ -22,7 +22,7 @@ That is the full list.
 - Your installation records (`${XDG_DATA_HOME}/reliquaint/installs/`).
 - Your launcher config (`${XDG_CONFIG_HOME}/reliquaint/config.toml`).
 - Your logs (`${XDG_STATE_HOME}/reliquaint/logs/`, if file logging is enabled).
-- Your subscribed taps (planned, v0.3+).
+- Your subscribed taps.
 - The game files themselves, wherever you chose to install them.
 
 None of this is transmitted anywhere by Reliquaint.

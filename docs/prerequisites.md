@@ -1,10 +1,10 @@
 # Prerequisites
 
-In order to finish this guide, you will need to install several prerequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
+In order to finish this guide, you will need to install several prerequisites.
 
-> **Tip:** Once `reliquaint` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. Auto-install currently only runs on Debian-based distros; on Fedora and other distros, follow the manual steps below, which remain the source of truth. Fedora `dnf` equivalents are noted alongside the `apt` commands.
+> **Tip:** Once `reliquaint` is installed — via a [prebuilt package](https://github.com/syraenix/reliquaint/releases/latest) or built from source (see the [Rust toolchain](#rust-toolchain) section below) — the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. Auto-install currently only runs on Debian-based distros; on Fedora and other distros, follow the manual steps below, which remain the source of truth. Fedora `dnf` equivalents are noted alongside the `apt` commands.
 
-> **Architecture (arm64 / Raspberry Pi 5):** Reliquaint is published for both `amd64` and `arm64`, so it runs on a Raspberry Pi 5 under 64-bit Raspberry Pi OS / Debian arm64. The dependencies below are all available for arm64, but availability and packaging differ per project — in particular, confirm DOSBox Staging has an aarch64 Flatpak on Flathub and that `fs-uae` is in your arm64 apt repos before relying on a Pi for a given collection.
+**Architecture (arm64 / Raspberry Pi 5):** Reliquaint is published for both `amd64` and `arm64`, so it runs on a Raspberry Pi 5 under 64-bit Raspberry Pi OS / Debian arm64. The dependencies below are all available for arm64, but availability and packaging differ per project — in particular, confirm DOSBox Staging has an aarch64 Flatpak on Flathub and that `fs-uae` is in your arm64 apt repos before relying on a Pi for a given collection.
 
 ## DOSBox Staging
 
@@ -15,7 +15,7 @@ In order to finish this guide, you will need to install several prerequisites. T
 Once Flatpak is configured, you can install DOSBox Staging by running the following command:
 
 ```bash
-$ flatpak install flathub io.github.dosbox-staging
+flatpak install flathub io.github.dosbox-staging
 ```
 
 ## FluidSynth
@@ -25,8 +25,8 @@ $ flatpak install flathub io.github.dosbox-staging
 FluidSynth can be installed by running the following command:
 
 ```bash
-$ sudo apt install fluidsynth                         # Debian/Ubuntu
-$ sudo dnf install fluidsynth fluid-soundfont-gm      # Fedora
+sudo apt install fluidsynth                         # Debian/Ubuntu
+sudo dnf install fluidsynth fluid-soundfont-gm      # Fedora
 ```
 
 ## innoextract
@@ -36,8 +36,8 @@ $ sudo dnf install fluidsynth fluid-soundfont-gm      # Fedora
 innoextract can be installed by running the following command:
 
 ```bash
-$ sudo apt install innoextract      # Debian/Ubuntu
-$ sudo dnf install innoextract      # Fedora
+sudo apt install innoextract      # Debian/Ubuntu
+sudo dnf install innoextract      # Fedora
 ```
 
 ## FS-UAE
@@ -47,8 +47,8 @@ $ sudo dnf install innoextract      # Fedora
 FS-UAE can be installed by running the following command:
 
 ```bash
-$ sudo apt install fs-uae unzip      # Debian/Ubuntu
-$ sudo dnf install fs-uae unzip      # Fedora (fs-uae is in RPM Fusion, not base Fedora)
+sudo apt install fs-uae unzip      # Debian/Ubuntu
+sudo dnf install fs-uae unzip      # Fedora (fs-uae is in RPM Fusion, not base Fedora)
 ```
 
 On Fedora, `fs-uae` is packaged in [RPM Fusion (free)](https://rpmfusion.org/Configuration), not the base repositories — enable RPM Fusion first if `dnf` can't find the package.
@@ -64,25 +64,25 @@ FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are 
 Install [rustup](https://rustup.rs/) (the Rust toolchain installer):
 
 ```bash
-$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 Accept the defaults. After installation, source the environment or open a new shell:
 
 ```bash
-$ source "$HOME/.cargo/env"
+source "$HOME/.cargo/env"
 ```
 
 You also need a C linker (required by the Rust compiler):
 
 ```bash
-$ sudo apt install gcc
+sudo apt install gcc
 ```
 
 Build and install `reliquaint`:
 
 ```bash
-$ cargo install --path launcher/src-tauri
+cargo install --path launcher/src-tauri
 ```
 
 This places `reliquaint` in `~/.cargo/bin/`. Ensure `~/.cargo/bin` is on your `PATH` (rustup adds this automatically when you source the env file).
@@ -94,20 +94,20 @@ Required only to build or run the `reliquaint` GUI. Skip this section if you onl
 Install Node.js (LTS) via NodeSource:
 
 ```bash
-$ curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
-$ sudo apt install nodejs
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install nodejs
 ```
 
 Install pnpm:
 
 ```bash
-$ npm install -g pnpm
+npm install -g pnpm
 ```
 
 Install Tauri's Linux system libraries (Debian 12 / Ubuntu 22.04 or later):
 
 ```bash
-$ sudo apt install pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+sudo apt install pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
 ```
 
 > **Note:** Tauri 2 requires `libwebkit2gtk-4.1-dev` (not `4.0`). Only Debian 12 (Bookworm) and Ubuntu 22.04+ ship the `4.1` version.
@@ -115,5 +115,5 @@ $ sudo apt install pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev li
 Once all dependencies are installed, run the GUI in development mode:
 
 ```bash
-$ cd launcher && pnpm install && pnpm tauri dev
+cd launcher && pnpm install && pnpm tauri dev
 ```

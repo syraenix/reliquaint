@@ -13,7 +13,7 @@ We aim to acknowledge receipt within 7 days, and to communicate a fix timeline o
 **In scope:**
 
 - The Reliquaint launcher binaries (CLI and GUI), including their handling of TOML manifests, filesystem paths, process spawning, and tap content.
-- The bundled `reliquaint-core` tap content shipped with the launcher.
+- The launcher's handling of tap content, including the official `reliquaint-core` tap (which lives in its own repository — the launcher ships no bundled catalog).
 - The launcher's IPC surface (Tauri commands).
 
 **Out of scope:**
@@ -39,6 +39,6 @@ For severe issues, this timeline may be shortened. For low-severity findings, fi
 Reliquaint is pre-1.0. Security fixes go into the latest release. Older releases are unsupported.
 
 | Version | Supported |
-|---|---|
+| --- | --- |
 | 0.x latest | Yes |
 | Older | No |
