@@ -60,6 +60,37 @@ fn configure_webkit_renderer() {
     }
 }
 
+/// Serve a `reliquaint-content://<tap-id>/<game-id>/<rel-path>` request.
+///
+/// The tap id rides in the URL authority and the game id is the first path
+/// segment (both are `^[a-z][a-z0-9-]*[a-z0-9]$`, so they survive URL
+/// normalization). All boundary/format enforcement lives in
+/// [`crate::companion_protocol::resolve_image`]; this is just request parsing
+/// and status mapping.
+fn serve_companion_image(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+    let uri = request.uri();
+    let tap_id = uri.host().unwrap_or_default().to_string();
+    // The path segments are percent-encoded; decode each exactly once so the
+    // real on-disk path reaches the resolver (which re-checks the boundary).
+    let (game_id, rel_path) = crate::companion_render::split_and_decode_content_path(uri.path());
+
+    match resolve_image(&tap_id, &game_id, &rel_path) {
+        Ok((bytes, mime)) => Response::builder()
+            .header(header::CONTENT_TYPE, mime)
+            .body(bytes)
+            .unwrap(),
+        Err(err) => {
+            let status = match err {
+                ImageError::NotFound => StatusCode::NOT_FOUND,
+                ImageError::OutsideBoundary => StatusCode::FORBIDDEN,
+                ImageError::BadFormat => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                ImageError::Io => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            Response::builder().status(status).body(Vec::new()).unwrap()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,36 +127,5 @@ mod tests {
             configure_webkit_renderer();
             assert_eq!(std::env::var(VAR).as_deref(), Ok("0"));
         });
-    }
-}
-
-/// Serve a `reliquaint-content://<tap-id>/<game-id>/<rel-path>` request.
-///
-/// The tap id rides in the URL authority and the game id is the first path
-/// segment (both are `^[a-z][a-z0-9-]*[a-z0-9]$`, so they survive URL
-/// normalization). All boundary/format enforcement lives in
-/// [`crate::companion_protocol::resolve_image`]; this is just request parsing
-/// and status mapping.
-fn serve_companion_image(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
-    let uri = request.uri();
-    let tap_id = uri.host().unwrap_or_default().to_string();
-    // The path segments are percent-encoded; decode each exactly once so the
-    // real on-disk path reaches the resolver (which re-checks the boundary).
-    let (game_id, rel_path) = crate::companion_render::split_and_decode_content_path(uri.path());
-
-    match resolve_image(&tap_id, &game_id, &rel_path) {
-        Ok((bytes, mime)) => Response::builder()
-            .header(header::CONTENT_TYPE, mime)
-            .body(bytes)
-            .unwrap(),
-        Err(err) => {
-            let status = match err {
-                ImageError::NotFound => StatusCode::NOT_FOUND,
-                ImageError::OutsideBoundary => StatusCode::FORBIDDEN,
-                ImageError::BadFormat => StatusCode::UNSUPPORTED_MEDIA_TYPE,
-                ImageError::Io => StatusCode::INTERNAL_SERVER_ERROR,
-            };
-            Response::builder().status(status).body(Vec::new()).unwrap()
-        }
     }
 }
