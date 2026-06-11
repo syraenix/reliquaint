@@ -1,10 +1,10 @@
 # Prerequisites
 
-In order to finish this guide, you will need to install several prerequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
+In order to finish this guide, you will need to install several prerequisites.
 
-> **Tip:** Once `reliquaint` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. Auto-install currently only runs on Debian-based distros; on Fedora and other distros, follow the manual steps below, which remain the source of truth. Fedora `dnf` equivalents are noted alongside the `apt` commands.
+> **Tip:** Once `reliquaint` is installed — via a [prebuilt package](https://github.com/syraenix/reliquaint/releases/latest) or built from source (see the [Rust toolchain](#rust-toolchain) section below) — the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. Auto-install currently only runs on Debian-based distros; on Fedora and other distros, follow the manual steps below, which remain the source of truth. Fedora `dnf` equivalents are noted alongside the `apt` commands.
 
-> **Architecture (arm64 / Raspberry Pi 5):** Reliquaint is published for both `amd64` and `arm64`, so it runs on a Raspberry Pi 5 under 64-bit Raspberry Pi OS / Debian arm64. The dependencies below are all available for arm64, but availability and packaging differ per project — in particular, confirm DOSBox Staging has an aarch64 Flatpak on Flathub and that `fs-uae` is in your arm64 apt repos before relying on a Pi for a given collection.
+**Architecture (arm64 / Raspberry Pi 5):** Reliquaint is published for both `amd64` and `arm64`, so it runs on a Raspberry Pi 5 under 64-bit Raspberry Pi OS / Debian arm64. The dependencies below are all available for arm64, but availability and packaging differ per project — in particular, confirm DOSBox Staging has an aarch64 Flatpak on Flathub and that `fs-uae` is in your arm64 apt repos before relying on a Pi for a given collection.
 
 ## DOSBox Staging
 

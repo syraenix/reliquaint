@@ -4,7 +4,7 @@ A **tap** is a versioned directory of catalog entries (TOML files) and shipped e
 
 ## Tap anatomy
 
-```
+```plaintext
 <tap-root>/
   tap.toml                          # tap metadata (id, title, version, …)
   catalog/
@@ -114,12 +114,12 @@ Write **plain Markdown** — paragraphs, headings, lists, tables, code blocks, f
 
 Images are **tap-local only** — reference them with a relative path (`![map](maps/spielburg.png)`) and ship the file in the tap. The launcher serves them through an internal protocol scoped to the game's companion directory.
 
-- **No remote image URLs.** `http(s)`, `data:`, and `file:` image sources are stripped (privacy and security — see ADR-0006). A tracking-pixel image would leak the user's activity; tap-local images can't.
+- **No remote image URLs.** `http(s)`, `data:`, and `file:` image sources are stripped (privacy and security). A tracking-pixel image would leak the user's activity; tap-local images can't.
 - **No SVG.** SVG is structured XML that can carry scripts, so it's excluded. Rasterize maps and diagrams to PNG or WebP. Aim for reasonable file sizes (a few hundred KB per image is plenty).
 
 ### The sanitizer: don't submit raw HTML
 
-Companion Markdown is rendered server-side and run through a strict HTML sanitizer before it reaches the webview (ADR-0006). **Raw HTML is stripped** — a `<div>`, `<style>`, `<script>`, or inline `<span style=…>` in your source will not render, and the result will surprise both you and the user. Stick to Markdown. `reliquaint doctor` warns when a companion file contains a significant amount of raw HTML (and when an image reference points at a missing file, or a `companion/<id>/` directory has no matching catalog entry), so run it after editing.
+Companion Markdown is rendered server-side and run through a strict HTML sanitizer before it reaches the webview. **Raw HTML is stripped** — a `<div>`, `<style>`, `<script>`, or inline `<span style=…>` in your source will not render, and the result will surprise both you and the user. Stick to Markdown. `reliquaint doctor` warns when a companion file contains a significant amount of raw HTML (and when an image reference points at a missing file, or a `companion/<id>/` directory has no matching catalog entry), so run it after editing.
 
 ## Conflict resolution across taps
 

@@ -1,8 +1,5 @@
 # Reliquaint Schema Design
 
-> **Status:** Updated for v0.3.
-> **Related:** ADR-0001 (two-layer manifest), ADR-0002 (split DOSBox config), ADR-0003 (tap distribution).
-
 This document specifies the on-disk TOML schemas used by Reliquaint. It is the contract between the launcher and:
 
 - **Tap maintainers**, who write catalog entries and shipped emulator configs.
@@ -439,7 +436,7 @@ FluidSynth in particular needs both a command and a soundfont; both come from us
 
 ## Companion content
 
-Added in v0.4. A tap may ship per-game supplementary material — walkthroughs, maps, hints, install notes — under `companion/<game-id>/`, alongside `catalog/`. The security model for rendering this content is ADR-0006; this section documents only the on-disk layout the launcher discovers.
+Added in v0.4. A tap may ship per-game supplementary material — walkthroughs, maps, hints, install notes — under `companion/<game-id>/`, alongside `catalog/`. Rendering is sandboxed — Markdown only, with raw HTML and remote resources stripped; this section documents only the on-disk layout the launcher discovers.
 
 ```plaintext
 <tap-root>/
@@ -459,7 +456,7 @@ There is **no `companion.toml` index file** in v0.4 — directory walking plus t
 
 - `.md` — Markdown (walkthroughs, hints, install notes, overviews).
 - `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` — images referenced from Markdown.
-- **SVG is excluded** — it is structured XML that can carry `<script>` and event handlers. Rasterize maps/diagrams to PNG or WebP. See ADR-0006.
+- **SVG is excluded** — it is structured XML that can carry `<script>` and event handlers. Rasterize maps/diagrams to PNG or WebP.
 
 Files with any other extension are ignored.
 

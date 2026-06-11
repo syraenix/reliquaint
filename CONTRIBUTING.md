@@ -4,21 +4,21 @@ Thanks for your interest. There are two distinct contribution tracks depending o
 
 ## Catalog entries vs. launcher code
 
-**Catalog entries** (new game manifests, shipped `.conf` / `.fs-uae` configs) go to the **[`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository**, not this one. As of v0.3, the bundled tap is an independent repository. Follow the contributing guide there.
+**Catalog entries** (new game manifests, shipped `.conf` / `.fs-uae` configs) go to the **[`reliquaint-core`](https://github.com/syraenix/reliquaint-core) repository**, not this one. The launcher ships no bundled catalog — it lives in that independent tap repository. Follow the contributing guide there.
 
 **Launcher code** (new features, bug fixes, CLI commands, Svelte components, Tauri commands) lives here in this repository.
 
 ## What we accept here
 
 - **Launcher code changes** — bug fixes, ergonomics, new features that align with the project's goals.
-- **Documentation** — fixes to guide text, the README, ADRs.
+- **Documentation** — fixes to guide text, the README, the design docs.
 - **Schema changes** — additions to `docs/schema.md` that are backwards-compatible or come with a version bump plan.
 
 ## What we don't accept
 
 - **Game binaries or installers.** Reliquaint is a launcher; it doesn't host or distribute game files. Catalog entries link out to legitimate sources (GOG, Steam, developer site, Internet Archive). They do not include or link to abandonware mirrors that distribute proprietary game files without permission.
 - **DRM circumvention.** Not a goal of the project.
-- **Cross-platform branches** (Windows/macOS). Linux-only by design for v0.1.
+- **Cross-platform branches** (Windows/macOS). Linux-only by design.
 
 If you have a great Windows/macOS port plan, open an issue first to discuss.
 
@@ -79,7 +79,7 @@ For Amiga, use `runtime.fs_uae` with `model` (`a500`/`a600`/`a1200`/`a4000`), op
 
 ### 3. Ship a `.conf` (DOS)
 
-Drop the DOSBox-Staging config next to your `.toml` at `catalog/dos/<id>.conf` in the `reliquaint-core` repository. Do **not** include an `[autoexec]` section — the launcher composes that at runtime from `runtime.dosbox.entry` and the user's install path. See ADR-0002 for the rationale.
+Drop the DOSBox-Staging config next to your `.toml` at `catalog/dos/<id>.conf` in the `reliquaint-core` repository. Do **not** include an `[autoexec]` section — the launcher composes that at runtime from `runtime.dosbox.entry` and the user's install path.
 
 A reasonable starting point is `config/default-dosbox-staging.conf` at the launcher repo root.
 
@@ -125,7 +125,7 @@ companion/
 The launcher renders it in the GUI's "Guides" panel. A few rules to author against:
 
 - **Plain Markdown only.** Tables, footnotes, and task lists render; **raw HTML is stripped** by the sanitizer and won't appear. Link to other guides with relative `.md` paths; external `http(s)` links open in the browser.
-- **Tap-local images.** Reference images with relative paths and ship the file. No remote/`data:` image URLs (stripped), and **no SVG** (rasterize to PNG/WebP) — see ADR-0006.
+- **Tap-local images.** Reference images with relative paths and ship the file. No remote/`data:` image URLs (stripped), and **no SVG** (rasterize to PNG/WebP), since SVG can carry scripts.
 - **No game binaries**, same as catalog entries.
 - Run `reliquaint doctor` after editing — it warns about broken image references, stray `companion/<id>/` directories, and raw HTML that got stripped.
 
@@ -149,8 +149,8 @@ cd launcher && cargo test
 
 New backend code follows two conventions:
 
-- **Logging** — ADR-0004. Use `tracing` for instrumentation. Spans for user-meaningful operations (`launch_game`, `load_tap`, ...). Structured fields, not interpolated strings.
-- **Errors** — ADR-0005. Library code returns `thiserror`-derived enums; binary/Tauri layers use `anyhow::Result`. Library code does not log errors — it returns them.
+- **Logging.** Use `tracing` for instrumentation. Spans for user-meaningful operations (`launch_game`, `load_tap`, ...). Structured fields, not interpolated strings.
+- **Errors.** Library code returns `thiserror`-derived enums; binary/Tauri layers use `anyhow::Result`. Library code does not log errors — it returns them.
 
 Run `cargo check --all-targets` before committing to make sure the GUI side compiles too.
 
