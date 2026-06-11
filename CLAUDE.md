@@ -87,6 +87,7 @@ RUST_LOG=trace reliquaint list             # TRACE
 ```
 
 **Env vars (development / testing):**
+
 - `RELIQUAINT_SUBSCRIPTIONS_PATH` — override `paths::subscriptions_path()` (test isolation).
 - `RELIQUAINT_TAPS_CACHE_DIR` — override `paths::user_taps_dir()` (fetched-tap cache; test isolation).
 - `RELIQUAINT_USER_TAP_DIR` — override `paths::user_tap_dir()` (local user tap; test isolation).

@@ -62,6 +62,7 @@ jobs:
 ```
 
 `tap validate` checks:
+
 - `tap.toml` is present and parses against the schema.
 - Every `catalog/<platform>/*.toml` file parses without errors.
 - Bad entries are reported by filename; the command exits non-zero if any fail.

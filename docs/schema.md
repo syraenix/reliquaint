@@ -476,6 +476,7 @@ Files with any other extension are ignored.
 ## Future schema concerns
 
 These are explicitly **out of scope for v0.1** and noted here so the v1 schema does not paint into a corner.
+
 - **WHDLoad and hard-drive Amiga installs**: needs its own ADR. Expected to live as additional `[runtime.fs_uae]` fields or a new subtable.
 - **ScummVM backend**: would introduce `platform = "scummvm"` and a `[runtime.scummvm]` subtable. Not in v0.1.
 - **Per-game save state location**: most current targets save inside the install path, which works. If a game saves outside its install dir, a future `[saves]` table can capture it.
