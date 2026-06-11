@@ -39,6 +39,6 @@ For severe issues, this timeline may be shortened. For low-severity findings, fi
 Reliquaint is pre-1.0. Security fixes go into the latest release. Older releases are unsupported.
 
 | Version | Supported |
-|---|---|
+| --- | --- |
 | 0.x latest | Yes |
 | Older | No |

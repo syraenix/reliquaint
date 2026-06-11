@@ -114,7 +114,7 @@ One catalog entry per commit. Subject line: `feat(<collection>): add <title> man
 
 **Companion content** — per-game walkthroughs, maps, and hint sheets — is a separate contributor flow from catalog entries, but it also lives in [`reliquaint-core`](https://github.com/syraenix/reliquaint-core) (or your own tap), not this repo. It's authored as Markdown and images under `companion/<game-id>/`, beside `catalog/`:
 
-```
+```plaintext
 companion/
   qfg1-ega/
     01-overview.md

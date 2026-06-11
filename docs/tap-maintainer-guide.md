@@ -71,7 +71,7 @@ jobs:
 Each entry is one TOML file. Copy a nearby example as a starting point, or generate a draft with the Reliquaint wizard (`reliquaint add <game-dir>`). Required top-level tables:
 
 | Table | Purpose |
-|---|---|
+| --- | --- |
 | `[game]` | `id`, `title`, `platform`. |
 | `[meta]` | `year`, `developer`, `genre`, `description` (all optional but strongly recommended). |
 | `[acquisition]` | Links to legitimate purchase/download sources (`gog`, `steam`, `archive`, etc.). |
@@ -84,7 +84,7 @@ Game ids must be globally unique within your tap. Duplicates cause a validation 
 
 A tap can ship per-game **companion content** — walkthroughs, maps, hint sheets, install notes — that the launcher renders alongside the catalog entry in the GUI's "Guides" section. It lives in a `companion/` tree beside `catalog/`:
 
-```
+```plaintext
 <tap-root>/
   catalog/dos/qfg1-ega.toml
   companion/

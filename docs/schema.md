@@ -47,7 +47,7 @@ Schema changes that add optional fields do not bump the version. Schema changes 
 
 A tap is a versioned source of catalog entries, shipped emulator configs, and companion content.
 
-```
+```plaintext
 <tap-root>/
   tap.toml                              # tap metadata
   catalog/
@@ -67,7 +67,7 @@ The bundled tap (named `reliquaint-core`) shipped inside the launcher repository
 
 User-created catalog entries — the ones produced by the `reliquaint add <path>` wizard and the GUI "Add game" flow — live in a local pseudo-tap at:
 
-```
+```bash
 ${XDG_CONFIG_HOME:-$HOME/.config}/reliquaint/tap/
 ```
 
@@ -79,7 +79,7 @@ The user tap claims the reserved id **`local`**. The launcher refuses to load an
 
 Subscribed taps are git-cloned to:
 
-```
+```bash
 ${XDG_DATA_HOME:-$HOME/.local/share}/reliquaint/taps/<tap-id>/
 ```
 
@@ -90,7 +90,7 @@ Each is a full tap directory (same layout as above: `tap.toml`, `catalog/<platfo
 The following tap ids are reserved and cannot be used by subscribed or third-party taps:
 
 | Id | Reserved for |
-|---|---|
+| --- | --- |
 | `local` | The user's own writable tap at `${XDG_CONFIG_HOME}/reliquaint/tap/`. |
 
 ---
@@ -114,7 +114,7 @@ priority = 0
 ### Fields
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `schema_version` | integer | yes | Always `1`. |
 | `tap[].id` | string | yes | The tap's identifier. Must match the `id` in the fetched tap's `tap.toml`. Follows the identifier convention. Cannot be `local`. |
 | `tap[].source` | string | yes | URL or local path used to clone/pull the tap. HTTPS URLs are cloned via system `git`. |
@@ -152,7 +152,7 @@ license     = "CC-BY-SA-4.0"
 ### Fields
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `schema_version` | integer | yes | Always `1` for files conforming to this document. |
 | `id` | string | yes | Unique tap identifier. Follows the identifier convention. |
 | `title` | string | yes | Human-readable tap name. |
@@ -210,7 +210,7 @@ mount  = "c"
 ### `[game]`
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `id` | string | yes | Game id. Matches the filename (without `.toml`). |
 | `title` | string | yes | Human-readable title as it should appear in the UI. |
 | `platform` | string | yes | One of `dos`, `amiga`. Determines which `runtime.*` subtable is consulted. |
@@ -222,7 +222,7 @@ mount  = "c"
 All fields optional but strongly recommended for discovery. Empty `[meta]` is allowed.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `year` | integer | Release year. |
 | `developer` | string | Studio that built it. |
 | `publisher` | string | Company that released it. |
@@ -243,7 +243,7 @@ If neither resolves, the UI falls back to a colored platform header.
 How a user can legally obtain the game. All fields optional; include what applies.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `gog` | string | URL to the GOG listing. |
 | `steam` | string | URL to the Steam listing. |
 | `developer_site` | string | URL where the developer / rights holder offers the game. |
@@ -258,7 +258,7 @@ The launcher surfaces these as labelled buttons in the GUI ("Get on GOG", etc.).
 Hints for the install flow and the `doctor` command.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `expects_files` | array of string | Filenames (no paths) the launcher expects to find in `install_path` after the game is installed. Used to validate that the source held the right files. Case-insensitive matching. |
 | `subdir` | string | Optional. A single subfolder *within* the copied/extracted destination that actually holds the game; the recorded `install_path` becomes `<dest>/<subdir>`. Used when one installer ships multiple editions — e.g. the GOG QFG1 `.exe` puts the EGA edition under `EGA/`. Bare filename, no path components. |
 
@@ -267,14 +267,14 @@ The install flow copies/extracts the chosen source into the managed library (def
 ### `[runtime]`
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- |
 | `emulator` | string | yes | Either `dosbox-staging` or `fs-uae`. Must match `[game].platform`. |
 | `sidecars` | array of string | no | Auxiliary processes to launch alongside the emulator. v0.1 supports `fluidsynth`. |
 
 ### `[runtime.dosbox]` — DOS games only
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- |
 | `config` | string | yes | Filename of the sibling `.conf` file in `catalog/dos/`. Relative to tap, no path components. |
 | `entry` | string | yes | The file inside the mounted drive that launches the game. Typically a `.BAT` or `.EXE`. |
 | `mount` | string | no | Drive letter to mount the install path as. Default `c`. Single ASCII letter. |
@@ -290,7 +290,7 @@ hard_drives = ["system.hdf"]    # filenames inside install_path, mounted as HD0.
 ```
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- |
 | `model` | string | yes | Amiga model: `a500`, `a600`, `a1200`, `a4000`. Determines the model template if no `config` is specified. |
 | `config` | string | no | Filename of a sibling `.fs-uae` config in `catalog/amiga/`. If absent, the launcher uses a model template. |
 | `floppies` | array of string | no | Filenames (no paths) of `.adf` disk images inside the install path, in disk-swap order. The launcher emulates a single internal drive like a real A500: disk 1 boots in DF0 and all disks form the FS-UAE swap list (`--floppy_image_N`), cycled via the disk menu when the game prompts. |
@@ -328,7 +328,7 @@ midiconfig = 128:0
 
 The launcher composes the final config by appending an `[autoexec]` block of the form:
 
-```
+```plaintext
 [autoexec]
 MOUNT <mount> "<install_path>"
 <mount>:
@@ -365,7 +365,7 @@ installed_at = 2026-05-23T14:32:00Z
 ### Fields
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- |
 | `catalog_id` | string | yes | The `[game].id` of the matching catalog entry. |
 | `tap` | string | yes | The `id` of the tap the catalog entry came from. Disambiguates when multiple taps offer the same game. |
 | `install_path` | string | yes | Absolute path to the directory containing the game's files on this machine. The install flow copies/extracts the game here (default `~/games/<id>`, or `<chosen-library>/<id>`; `+ <subdir>` when the entry declares one). |
@@ -407,7 +407,7 @@ soundfont = "/usr/share/sounds/sf2/FluidR3_GM.sf2"
 All fields under `[emulators.*]` and `[sidecars.*]` are optional. Reasonable Debian defaults are baked into the launcher; the user's config overrides them.
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `emulators.dosbox-staging.command` | string | Invocation prefix for DOSBox-Staging. May be a multi-word command. |
 | `emulators.fs-uae.command` | string | Invocation prefix for FS-UAE. |
 | `emulators.fs-uae.kickstart_path` | string | Directory containing the user's Amiga Kickstart ROMs. |
@@ -441,7 +441,7 @@ FluidSynth in particular needs both a command and a soundfont; both come from us
 
 Added in v0.4. A tap may ship per-game supplementary material — walkthroughs, maps, hints, install notes — under `companion/<game-id>/`, alongside `catalog/`. The security model for rendering this content is ADR-0006; this section documents only the on-disk layout the launcher discovers.
 
-```
+```plaintext
 <tap-root>/
   companion/
     <game-id>/
