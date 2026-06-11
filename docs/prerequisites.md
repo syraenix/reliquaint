@@ -2,7 +2,7 @@
 
 In order to finish this guide, you will need to install several prerequisites. This guide assumes you will be using a Debian-based Linux distro. If you are using a different distro, change the listed commands, as necessary.
 
-> **Tip:** Once `reliquaint` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. The manual steps below remain the source of truth and the fallback for non-Debian distros.
+> **Tip:** Once `reliquaint` is installed (see the [Rust toolchain](#rust-toolchain) section below), the GUI's **Setup** panel can install most of the dependencies on this page for you — one **Fix this** button per dependency. Auto-install currently only runs on Debian-based distros; on Fedora and other distros, follow the manual steps below, which remain the source of truth. Fedora `dnf` equivalents are noted alongside the `apt` commands.
 
 > **Architecture (arm64 / Raspberry Pi 5):** Reliquaint is published for both `amd64` and `arm64`, so it runs on a Raspberry Pi 5 under 64-bit Raspberry Pi OS / Debian arm64. The dependencies below are all available for arm64, but availability and packaging differ per project — in particular, confirm DOSBox Staging has an aarch64 Flatpak on Flathub and that `fs-uae` is in your arm64 apt repos before relying on a Pi for a given collection.
 
@@ -10,7 +10,7 @@ In order to finish this guide, you will need to install several prerequisites. T
 
 [DOSBox Staging](https://www.dosbox-staging.org/) is a modern continuation of DOSBox. Existing DOSBox configurations will continue to work as expected.
 
-[Flatpak](https://flatpak.org/setup/Debian) is the easiest way to install DOSBox Staging. If you do not have Flatpak setup, follow the [Debian quick setup guide](https://flatpak.org/setup/Debian).
+[Flatpak](https://flatpak.org/setup/Debian) is the easiest way to install DOSBox Staging. If you do not have Flatpak setup, follow the quick setup guide for your distro ([Debian](https://flatpak.org/setup/Debian), [Fedora](https://flatpak.org/setup/Fedora)). The `flatpak install` command below is the same on every distro.
 
 Once Flatpak is configured, you can install DOSBox Staging by running the following command:
 
@@ -25,7 +25,8 @@ $ flatpak install flathub io.github.dosbox-staging
 FluidSynth can be installed by running the following command:
 
 ```bash
-$ sudo apt install fluidsynth
+$ sudo apt install fluidsynth                         # Debian/Ubuntu
+$ sudo dnf install fluidsynth fluid-soundfont-gm      # Fedora
 ```
 
 ## innoextract
@@ -35,7 +36,8 @@ $ sudo apt install fluidsynth
 innoextract can be installed by running the following command:
 
 ```bash
-$ sudo apt install innoextract
+$ sudo apt install innoextract      # Debian/Ubuntu
+$ sudo dnf install innoextract      # Fedora
 ```
 
 ## FS-UAE
@@ -45,10 +47,13 @@ $ sudo apt install innoextract
 FS-UAE can be installed by running the following command:
 
 ```bash
-$ sudo apt install fs-uae unzip
+$ sudo apt install fs-uae unzip      # Debian/Ubuntu
+$ sudo dnf install fs-uae unzip      # Fedora (fs-uae is in RPM Fusion, not base Fedora)
 ```
 
-`unzip` is used by the Amiga launcher script to read RetroPlatform `.rp9` bundles. It is preinstalled on most Debian systems; the command above is a no-op if it's already present.
+On Fedora, `fs-uae` is packaged in [RPM Fusion (free)](https://rpmfusion.org/Configuration), not the base repositories — enable RPM Fusion first if `dnf` can't find the package.
+
+`unzip` is used by the Amiga launcher script to read RetroPlatform `.rp9` bundles. It is preinstalled on most Debian and Fedora systems; the command above is a no-op if it's already present.
 
 FS-UAE itself does not include Kickstart ROMs (the Amiga's firmware), which are required to boot most Amiga software. You must supply your own legally obtained Kickstart ROMs and point FS-UAE at them (via its Kickstart settings or the `[emulators.fs-uae]` user config).
 
