@@ -50,14 +50,14 @@ cargo install --path launcher/src-tauri
 
 This installs the `reliquaint` binary to `~/.cargo/bin/`. Make sure that's on your `PATH`.
 
-### Prebuilt `.deb` packages
+### Prebuilt packages
 
-Each [release](https://github.com/syraenix/reliquaint/releases/latest) attaches prebuilt Debian packages for both architectures, so you can skip the source build:
+Each [release](https://github.com/syraenix/reliquaint/releases/latest) attaches prebuilt `.deb` (Debian/Ubuntu/Raspberry Pi OS) and `.rpm` (Fedora/RHEL) packages for both architectures, so you can skip the source build:
 
-- `Reliquaint_<version>_amd64.deb` — x86-64 desktops/laptops
-- `Reliquaint_<version>_arm64.deb` — aarch64, including the **Raspberry Pi 5** (64-bit Raspberry Pi OS / Debian arm64)
+- `Reliquaint_<version>_amd64.deb` / `Reliquaint_<version>_arm64.deb` — x86-64 and aarch64, the latter including the **Raspberry Pi 5** (64-bit Raspberry Pi OS / Debian arm64)
+- `Reliquaint-<version>-1.x86_64.rpm` / `Reliquaint-<version>-1.aarch64.rpm` — Fedora and other RPM-based distros (note the different file-naming convention)
 
-Install with `sudo apt install ./Reliquaint_<version>_<arch>.deb`. Note that the launcher only *builds* for arm64 — actually running games still depends on the emulator stack (DOSBox-Staging, FS-UAE, FluidSynth) being available for your architecture; see [`docs/prerequisites.md`](docs/prerequisites.md).
+Install with `sudo apt install ./Reliquaint_<version>_<arch>.deb` or `sudo dnf install ./Reliquaint-<version>-1.<arch>.rpm`. Note that the launcher only *builds* for arm64 — actually running games still depends on the emulator stack (DOSBox-Staging, FS-UAE, FluidSynth) being available for your architecture; see [`docs/prerequisites.md`](docs/prerequisites.md).
 
 For the GUI, you'll additionally need Node.js + pnpm + GTK/webkit system libs:
 

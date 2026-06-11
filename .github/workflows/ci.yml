@@ -128,5 +128,5 @@ jobs:
           workspaces: launcher
       - run: pnpm install --frozen-lockfile
         working-directory: launcher
-      - run: pnpm tauri build
+      - run: pnpm tauri build -- --bundles deb,rpm
         working-directory: launcher

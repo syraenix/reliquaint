@@ -25,9 +25,9 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
-            bundles: deb,appimage
+            bundles: deb,appimage,rpm
           - runner: ubuntu-24.04-arm
-            bundles: deb
+            bundles: deb,rpm
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
