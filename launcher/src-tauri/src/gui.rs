@@ -4,6 +4,7 @@ use tauri::http::{header, Request, Response, StatusCode};
 use tauri::Manager;
 
 pub fn run_gui() {
+    configure_webkit_renderer();
     crate::logging::init_gui();
     crate::error::install_panic_hook();
 
@@ -44,6 +45,58 @@ pub fn run_gui() {
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri application");
+}
+
+/// WebKitGTK's DMABUF renderer fails to create an EGL display on a number of
+/// Linux graphics stacks (Fedora's Mesa builds, some NVIDIA/VM/Wayland combos),
+/// aborting the web process with "Could not create default EGL display:
+/// EGL_BAD_PARAMETER" and leaving the window blank. Disabling it forces the SHM
+/// compositing fallback, which needs no EGL/GBM. Set only when unset so an
+/// operator can opt back in (or apply a heavier mitigation) by exporting the
+/// variable themselves.
+fn configure_webkit_renderer() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    const VAR: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
+
+    /// Run `body` with `VAR` restored to its original value afterwards, so the
+    /// process-global env stays hermetic for the rest of the suite.
+    fn with_restored_var(body: impl FnOnce()) {
+        let original = std::env::var_os(VAR);
+        body();
+        match original {
+            Some(value) => std::env::set_var(VAR, value),
+            None => std::env::remove_var(VAR),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn sets_the_var_when_unset() {
+        with_restored_var(|| {
+            std::env::remove_var(VAR);
+            configure_webkit_renderer();
+            assert_eq!(std::env::var(VAR).as_deref(), Ok("1"));
+        });
+    }
+
+    #[test]
+    #[serial]
+    fn respects_an_operator_override() {
+        with_restored_var(|| {
+            std::env::set_var(VAR, "0");
+            configure_webkit_renderer();
+            assert_eq!(std::env::var(VAR).as_deref(), Ok("0"));
+        });
+    }
 }
 
 /// Serve a `reliquaint-content://<tap-id>/<game-id>/<rel-path>` request.
