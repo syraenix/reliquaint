@@ -289,6 +289,69 @@ pub fn discard_staging(dir: &Path) -> Result<(), InstallError> {
     Ok(())
 }
 
+/// Outcome of an [`uninstall`], for caller messaging.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UninstallOutcome {
+    /// The record path that was removed (or that no longer existed).
+    pub record_path: PathBuf,
+    /// `Some(dest_dir)` iff files were deleted from disk.
+    pub deleted_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum UninstallError {
+    #[error(transparent)]
+    Record(#[from] crate::install_record::InstallError),
+    #[error(transparent)]
+    Files(#[from] InstallError),
+}
+
+/// Recover the `dest_dir` (`<library>/<id>`) from a recorded `install_path`.
+///
+/// An install record stores only the full `install_path`, which is
+/// `dest_dir[/subdir]` (see [`locations`]). When the entry declares a `subdir`
+/// and `install_path` ends with exactly that component, strip it to get
+/// `dest_dir`; otherwise the recorded path *is* the `dest_dir`. Catalog parsing
+/// rejects path separators in `subdir`, so it is always a single component and
+/// [`Path::parent`] strips it exactly. This is the inverse of [`join_subdir`].
+pub fn dest_dir_from_install_path(install_path: &Path, subdir: Option<&str>) -> PathBuf {
+    match subdir {
+        Some(s) if install_path.ends_with(s) => install_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| install_path.to_path_buf()),
+        _ => install_path.to_path_buf(),
+    }
+}
+
+/// Uninstall `catalog_id`: remove its install record (so it shows as not
+/// installed), and — when `delete_files` is true — delete `dest_dir` from disk.
+///
+/// The record is removed **first**, then the files: if file deletion fails
+/// partway, the game is already marked not-installed and the user can clean up
+/// the directory manually, rather than being left with a record pointing at a
+/// half-deleted dir. `dest_dir` must come from [`dest_dir_from_install_path`],
+/// so nothing outside the game's own directory is ever touched. Idempotent on a
+/// missing record or a missing `dest_dir`.
+pub fn uninstall(
+    catalog_id: &str,
+    dest_dir: &Path,
+    delete_files: bool,
+    installs_dir: &Path,
+) -> Result<UninstallOutcome, UninstallError> {
+    let record_path = crate::install_record::deregister(catalog_id, installs_dir)?;
+    let deleted_dir = if delete_files {
+        discard_staging(dest_dir)?;
+        Some(dest_dir.to_path_buf())
+    } else {
+        None
+    };
+    Ok(UninstallOutcome {
+        record_path,
+        deleted_dir,
+    })
+}
+
 fn classify(source: &Path, platform: Platform) -> Result<SourceKind, InstallError> {
     if source.is_dir() {
         return Ok(SourceKind::Directory);
@@ -862,5 +925,84 @@ mod tests {
     fn discard_absent_staging_is_ok() {
         let tmp = tempfile::tempdir().unwrap();
         discard_staging(&tmp.path().join(".nope.staging")).unwrap();
+    }
+
+    #[test]
+    fn dest_dir_from_install_path_strips_matching_subdir() {
+        let got = dest_dir_from_install_path(Path::new("/lib/kq5/EGA"), Some("EGA"));
+        assert_eq!(got, PathBuf::from("/lib/kq5"));
+    }
+
+    #[test]
+    fn dest_dir_from_install_path_no_subdir_is_identity() {
+        let got = dest_dir_from_install_path(Path::new("/lib/fatman"), None);
+        assert_eq!(got, PathBuf::from("/lib/fatman"));
+    }
+
+    #[test]
+    fn dest_dir_from_install_path_mismatched_subdir_is_identity() {
+        // Defensive: a recorded path that doesn't end with the declared subdir
+        // (e.g. an old record) must not have an unrelated tail stripped.
+        let got = dest_dir_from_install_path(Path::new("/lib/kq5"), Some("EGA"));
+        assert_eq!(got, PathBuf::from("/lib/kq5"));
+    }
+
+    #[test]
+    fn uninstall_removes_record_only_when_delete_files_false() {
+        let installs = tempfile::tempdir().unwrap();
+        let library = tempfile::tempdir().unwrap();
+        let game = library.path().join("kq5");
+        std::fs::create_dir(&game).unwrap();
+        std::fs::write(game.join("SIERRA.BAT"), b"").unwrap();
+        let record_path =
+            crate::install_record::register("kq5", "reliquaint-core", &game, installs.path())
+                .unwrap();
+        assert!(record_path.is_file());
+
+        let outcome = uninstall("kq5", &game, false, installs.path()).unwrap();
+        assert_eq!(outcome.deleted_dir, None);
+        assert!(!record_path.exists(), "record should be removed");
+        assert!(
+            game.exists(),
+            "files should be kept when delete_files is false"
+        );
+    }
+
+    #[test]
+    fn uninstall_removes_record_and_dir_when_delete_files_true() {
+        let installs = tempfile::tempdir().unwrap();
+        let library = tempfile::tempdir().unwrap();
+        let game = library.path().join("kq5");
+        std::fs::create_dir(&game).unwrap();
+        std::fs::write(game.join("SIERRA.BAT"), b"").unwrap();
+        let record_path =
+            crate::install_record::register("kq5", "reliquaint-core", &game, installs.path())
+                .unwrap();
+
+        let outcome = uninstall("kq5", &game, true, installs.path()).unwrap();
+        assert_eq!(outcome.deleted_dir, Some(game.clone()));
+        assert!(!record_path.exists());
+        assert!(!game.exists(), "dest_dir should be deleted");
+    }
+
+    #[test]
+    fn uninstall_missing_dir_is_ok_with_delete_files() {
+        let installs = tempfile::tempdir().unwrap();
+        let library = tempfile::tempdir().unwrap();
+        let game = library.path().join("kq5");
+        std::fs::create_dir(&game).unwrap();
+        crate::install_record::register("kq5", "reliquaint-core", &game, installs.path()).unwrap();
+        std::fs::remove_dir_all(&game).unwrap();
+
+        // dest_dir no longer exists; uninstall must still succeed (idempotent).
+        let outcome = uninstall("kq5", &game, true, installs.path()).unwrap();
+        assert_eq!(outcome.deleted_dir, Some(game));
+    }
+
+    #[test]
+    fn uninstall_missing_record_is_ok() {
+        let installs = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+        uninstall("kq5", game.path(), false, installs.path()).unwrap();
     }
 }

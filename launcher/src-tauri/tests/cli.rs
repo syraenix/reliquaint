@@ -905,6 +905,181 @@ fn declined_install_leaves_nothing_and_can_be_retried() {
     assert!(installs.path().join("qfg1-ega.toml").is_file());
 }
 
+// --- uninstall tests -----------------------------------------------------
+
+#[test]
+fn uninstall_removes_record_keeps_files_by_default() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let game = games.path().join("qfg1-ega");
+    std::fs::create_dir(&game).unwrap();
+    std::fs::write(game.join("SIERRA.BAT"), b"").unwrap();
+    write_install_record(installs.path(), "qfg1-ega", game.to_str().unwrap());
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "qfg1-ega", "--force"])
+        .assert()
+        .success()
+        .stdout(contains("kept files"));
+
+    assert!(
+        !install_record_path(installs.path(), "qfg1-ega").exists(),
+        "record should be removed"
+    );
+    assert!(game.join("SIERRA.BAT").is_file(), "files should be kept");
+
+    // The catalog now reports it as not installed.
+    let out = launcher(installs.path())
+        .args(["list", "--installed"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("qfg1-ega"));
+}
+
+#[test]
+fn uninstall_with_delete_files_removes_dir() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let game = games.path().join("qfg1-ega");
+    std::fs::create_dir(&game).unwrap();
+    std::fs::write(game.join("SIERRA.BAT"), b"").unwrap();
+    write_install_record(installs.path(), "qfg1-ega", game.to_str().unwrap());
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "qfg1-ega", "--delete-files", "--force"])
+        .assert()
+        .success()
+        .stdout(contains("deleted"));
+
+    assert!(!install_record_path(installs.path(), "qfg1-ega").exists());
+    assert!(!game.exists(), "game directory should be deleted");
+}
+
+#[test]
+fn uninstall_delete_files_with_subdir_deletes_dest_dir_not_just_subdir() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let taps_cache = installs.path().join("subdir-taps");
+    let subs = installs.path().join("subdir-subs.toml");
+    seed_subdir_subscription(&taps_cache, &subs);
+
+    // Installed at <games>/subgame/INNER, recorded against the test-tap entry.
+    let inner = games.path().join("subgame/INNER");
+    std::fs::create_dir_all(&inner).unwrap();
+    std::fs::write(inner.join("GAME.EXE"), b"x").unwrap();
+    write_install_record_for_tap(
+        installs.path(),
+        "subgame",
+        "test-tap",
+        games.path().join("subgame/INNER").to_str().unwrap(),
+    );
+
+    launcher_with_tap_env(installs.path(), &subs, &taps_cache)
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "subgame", "--delete-files", "--force"])
+        .assert()
+        .success();
+
+    assert!(
+        !games.path().join("subgame").exists(),
+        "the whole dest_dir must be removed, not just the INNER subdir"
+    );
+}
+
+#[test]
+fn uninstall_custom_dest_deletes_only_game_dir() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let custom = tempfile::tempdir().unwrap();
+    let game = custom.path().join("qfg1-ega");
+    std::fs::create_dir(&game).unwrap();
+    std::fs::write(game.join("SIERRA.BAT"), b"").unwrap();
+    // Record points into the custom location, not RELIQUAINT_GAMES_DIR.
+    write_install_record(installs.path(), "qfg1-ega", game.to_str().unwrap());
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "qfg1-ega", "--delete-files", "--force"])
+        .assert()
+        .success();
+
+    assert!(!game.exists(), "the game's own dir should be deleted");
+    assert!(
+        custom.path().exists(),
+        "the custom parent directory must be left untouched"
+    );
+}
+
+#[test]
+fn uninstall_not_installed_reports_error() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["uninstall", "qfg1-ega", "--force"])
+        .assert()
+        .failure()
+        .stderr(contains("not installed"));
+}
+
+#[test]
+fn uninstall_unknown_id_fails() {
+    let installs = tempfile::tempdir().unwrap();
+    launcher(installs.path())
+        .args(["uninstall", "nonexistent-xyz", "--force"])
+        .assert()
+        .failure()
+        .stderr(contains("no catalog entry"));
+}
+
+#[test]
+fn uninstall_is_idempotent() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let game = games.path().join("qfg1-ega");
+    std::fs::create_dir(&game).unwrap();
+    write_install_record(installs.path(), "qfg1-ega", game.to_str().unwrap());
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "qfg1-ega", "--delete-files", "--force"])
+        .assert()
+        .success();
+
+    // Re-running is safe: it cleanly reports not-installed rather than crashing.
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "qfg1-ega", "--delete-files", "--force"])
+        .assert()
+        .failure()
+        .stderr(contains("not installed"));
+}
+
+#[test]
+fn uninstall_declined_prompt_keeps_everything() {
+    let installs = tempfile::tempdir().unwrap();
+    let games = tempfile::tempdir().unwrap();
+    let game = games.path().join("qfg1-ega");
+    std::fs::create_dir(&game).unwrap();
+    std::fs::write(game.join("SIERRA.BAT"), b"").unwrap();
+    write_install_record(installs.path(), "qfg1-ega", game.to_str().unwrap());
+
+    launcher(installs.path())
+        .env("RELIQUAINT_GAMES_DIR", games.path())
+        .args(["uninstall", "qfg1-ega", "--delete-files"])
+        .write_stdin("n\n")
+        .assert()
+        .failure()
+        .stderr(contains("cancelled"));
+
+    assert!(
+        install_record_path(installs.path(), "qfg1-ega").exists(),
+        "record must survive a declined prompt"
+    );
+    assert!(game.join("SIERRA.BAT").is_file(), "files must survive");
+}
+
 /// Seed a subscribed `test-tap` with one DOS entry that requires
 /// `subdir = "INNER"`, so we can exercise the subdir commit path without
 /// touching the shared fixture tap. Writes into `<taps_cache>/test-tap` and a

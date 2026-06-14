@@ -28,6 +28,7 @@ pub fn run_gui() {
             crate::commands::install_game,
             crate::commands::commit_install,
             crate::commands::discard_install,
+            crate::commands::uninstall_game,
             crate::commands::default_install_dest,
             crate::commands::launch_game,
             crate::commands::run_doctor,

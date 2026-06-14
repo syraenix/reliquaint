@@ -59,6 +59,12 @@
   // After the backend reports MissingFiles: { install_path, missing }.
   let pendingInstall = null;
 
+  // Uninstall modal state.
+  let showUninstallModal = false;
+  let uninstalling = false;
+  let uninstallError = null;
+  let deleteFiles = false; // "also delete files" checkbox — off by default.
+
   // File-picker filters per platform — DOS installs from a GOG .exe, Amiga
   // from a disk image. Folders are pickable on either platform.
   const FILE_FILTERS = {
@@ -260,6 +266,32 @@
     }
   }
 
+  function openUninstallModal() {
+    uninstallError = null;
+    deleteFiles = false;
+    showUninstallModal = true;
+  }
+
+  function closeUninstallModal() {
+    if (uninstalling) return;
+    showUninstallModal = false;
+  }
+
+  async function confirmUninstall() {
+    uninstalling = true;
+    uninstallError = null;
+    try {
+      await invoke("uninstall_game", { id: game.id, deleteFiles });
+      showUninstallModal = false;
+      // "installed" means install-state changed; parent re-fetches the catalog.
+      dispatch("installed");
+    } catch (e) {
+      uninstallError = String(e);
+    } finally {
+      uninstalling = false;
+    }
+  }
+
   onMount(async () => {
     unlistenExit = await listen("emulator-exit", (e) => {
       const payload = e.payload || {};
@@ -377,6 +409,7 @@
           <button class="primary" on:click={handleLaunch} disabled={launching}>
             {launching ? "Launching…" : "Launch"}
           </button>
+          <button class="secondary" on:click={openUninstallModal}>Uninstall</button>
         {:else}
           <button class="primary" on:click={openInstallModal}>Install</button>
         {/if}
@@ -488,6 +521,41 @@
             </button>
           </div>
         {/if}
+      </div>
+    </div>
+  {/if}
+
+  {#if showUninstallModal}
+    <div class="modal-overlay" on:click={closeUninstallModal}>
+      <div class="modal" on:click|stopPropagation>
+        <h3>Uninstall {game.title}?</h3>
+        <p>
+          This removes {game.title}'s install record so it shows as not
+          installed. You can reinstall it later.
+        </p>
+        <label class="checkbox-field">
+          <input type="checkbox" bind:checked={deleteFiles} disabled={uninstalling} />
+          Also delete game files from disk
+        </label>
+        {#if deleteFiles}
+          <p class="msg warn">
+            Deleting files is permanent.
+            {#if game.install_path}
+              <code>{game.install_path}</code> and its folder will be removed.
+            {/if}
+          </p>
+        {/if}
+        {#if uninstallError}
+          <p class="msg error">{uninstallError}</p>
+        {/if}
+        <div class="modal-actions">
+          <button class="secondary" on:click={closeUninstallModal} disabled={uninstalling}>
+            Cancel
+          </button>
+          <button class="primary" on:click={confirmUninstall} disabled={uninstalling}>
+            {uninstalling ? "Uninstalling…" : "Uninstall"}
+          </button>
+        </div>
       </div>
     </div>
   {/if}
@@ -763,6 +831,25 @@
   .error {
     background: var(--status-error-bg);
     color: var(--status-error);
+  }
+
+  .warn {
+    background: var(--status-warn-bg);
+    color: var(--status-warn);
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    cursor: pointer;
+  }
+
+  .checkbox-field input {
+    cursor: pointer;
   }
 
   .diagnostics {
