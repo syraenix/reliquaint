@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/syraenix/reliquaint/compare/v0.6.0...v0.7.0) (2026-06-14)
+
+
+### Features
+
+* add uninstall command and GUI action ([#53](https://github.com/syraenix/reliquaint/issues/53)) ([93417bc](https://github.com/syraenix/reliquaint/commit/93417bccb551ce83b2fd9918d3d4da0b0355643e))
+
 ## [0.6.0](https://github.com/syraenix/reliquaint/compare/v0.5.0...v0.6.0) (2026-06-11)
 
 
