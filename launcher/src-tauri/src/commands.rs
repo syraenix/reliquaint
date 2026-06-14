@@ -431,6 +431,47 @@ pub fn discard_install(
     crate::game_install::discard_staging(&loc.staging_dir).map_err(|e| e.to_string())
 }
 
+/// Uninstall the catalog entry `id`: remove its install record (so it shows as
+/// not installed — reversible via `reliquaint migrate-installs`) and, when
+/// `delete_files` is true, delete the game's directory on disk (irreversible).
+///
+/// The directory to delete is derived from the *recorded* `install_path`, so a
+/// custom-`--dest` install is removed from wherever it actually lives. No-op-safe
+/// if the entry is already uninstalled.
+#[tauri::command]
+pub fn uninstall_game(
+    id: String,
+    delete_files: bool,
+    _state: State<'_, AppState>,
+) -> Result<(), String> {
+    let view = load_catalog_view()?;
+    let entry = view
+        .by_id(&id)
+        .ok_or_else(|| format!("no catalog entry for '{id}'"))?;
+    match entry.install.as_ref() {
+        Some(rec) => {
+            let dest_dir = crate::game_install::dest_dir_from_install_path(
+                &rec.install.install_path,
+                entry.catalog.install.subdir.as_deref(),
+            );
+            crate::game_install::uninstall(
+                &entry.catalog.game.id,
+                &dest_dir,
+                delete_files,
+                &crate::paths::installs_dir(),
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        None => {
+            // Already not installed: removing a missing record is idempotent,
+            // and we have no recorded path to delete files from.
+            crate::install_record::deregister(&entry.catalog.game.id, &crate::paths::installs_dir())
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 /// The default destination shown in the install dialog: `~/games/<id>`.
 #[tauri::command]
 pub fn default_install_dest(id: String) -> String {

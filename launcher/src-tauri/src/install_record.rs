@@ -141,6 +141,21 @@ pub fn register(
     Ok(record_path)
 }
 
+/// Remove the install record `installs_dir/<catalog_id>.toml`, marking the
+/// game as not installed. Idempotent: a missing record is not an error
+/// (mirrors `game_install::discard_staging`). Returns the record path that
+/// was (or would have been) removed.
+pub fn deregister(catalog_id: &str, installs_dir: &Path) -> Result<PathBuf, InstallError> {
+    let record_path = installs_dir.join(format!("{catalog_id}.toml"));
+    if record_path.exists() {
+        std::fs::remove_file(&record_path).map_err(|source| InstallError::Write {
+            path: record_path.clone(),
+            source,
+        })?;
+    }
+    Ok(record_path)
+}
+
 /// Case-insensitive check for each expected filename at the top level of
 /// `install_dir`. Returns the names that weren't found.
 pub fn missing_expects_files(install_dir: &Path, expected: &[String]) -> Vec<String> {
@@ -462,6 +477,37 @@ installed_at = 2026-05-23T14:32:00Z
         assert_eq!(r.install.catalog_id, "kq5");
         assert_eq!(r.install.tap, "reliquaint-core");
         assert_eq!(r.install.install_path, game.path().canonicalize().unwrap());
+    }
+
+    #[test]
+    fn deregister_removes_existing_record() {
+        let installs = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+        let record_path = register("kq5", "reliquaint-core", game.path(), installs.path()).unwrap();
+        assert!(record_path.is_file());
+
+        let removed = deregister("kq5", installs.path()).unwrap();
+        assert_eq!(removed, record_path);
+        assert!(!record_path.exists());
+        assert!(load_all(installs.path()).is_empty());
+    }
+
+    #[test]
+    fn deregister_missing_record_is_ok() {
+        let installs = tempfile::tempdir().unwrap();
+        let removed = deregister("kq5", installs.path()).unwrap();
+        assert_eq!(removed, installs.path().join("kq5.toml"));
+        assert!(!removed.exists());
+    }
+
+    #[test]
+    fn deregister_is_idempotent() {
+        let installs = tempfile::tempdir().unwrap();
+        let game = tempfile::tempdir().unwrap();
+        register("kq5", "reliquaint-core", game.path(), installs.path()).unwrap();
+        deregister("kq5", installs.path()).unwrap();
+        // Second call against an already-removed record must not error.
+        deregister("kq5", installs.path()).unwrap();
     }
 
     #[test]

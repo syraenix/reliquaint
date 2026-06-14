@@ -55,6 +55,21 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
+    /// Uninstall a game: remove its install record so it shows as not
+    /// installed. With `--delete-files`, also delete the game's directory
+    /// on disk (irreversible). Record removal alone is reversible via
+    /// `migrate-installs`. Distinct from `remove`, which deletes a
+    /// user-created catalog entry.
+    Uninstall {
+        /// Catalog id (run `reliquaint list --installed` to see options).
+        id: String,
+        /// Also delete the game's files from disk. Off by default.
+        #[arg(long)]
+        delete_files: bool,
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        force: bool,
+    },
     /// Scan a base directory (default `~/games`) for per-id subfolders
     /// matching catalog entries and register install records for each.
     /// Intended for users coming from the pre-redesign `~/games/<id>/`
@@ -221,6 +236,14 @@ pub fn run() -> ExitCode {
             force,
         } => match load_view() {
             Ok(view) => cmd_install(&view, &id, &source, dest.as_deref(), force),
+            Err(()) => ExitCode::FAILURE,
+        },
+        Commands::Uninstall {
+            id,
+            delete_files,
+            force,
+        } => match load_view() {
+            Ok(view) => cmd_uninstall(&view, &id, delete_files, force),
             Err(()) => ExitCode::FAILURE,
         },
         Commands::MigrateInstalls { base } => match load_view() {
@@ -696,6 +719,70 @@ fn cmd_migrate_installs(view: &CatalogView, base: &str) -> ExitCode {
         ExitCode::from(2)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+fn cmd_uninstall(view: &CatalogView, id: &str, delete_files: bool, force: bool) -> ExitCode {
+    let entry = match view.by_id(id) {
+        Some(e) => e,
+        None => {
+            eprintln!("error: no catalog entry for '{id}'");
+            eprintln!("hint: run 'reliquaint list --installed' to see installed ids.");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let install = match entry.install.as_ref() {
+        Some(i) => i,
+        None => {
+            eprintln!("error: '{id}' is not installed");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    // Derive the directory to delete from the recorded install_path so a
+    // custom-dest install is removed from wherever it actually lives.
+    let dest_dir = game_install::dest_dir_from_install_path(
+        &install.install.install_path,
+        entry.catalog.install.subdir.as_deref(),
+    );
+
+    if !force {
+        eprintln!("will remove the install record for {id}");
+        if delete_files {
+            eprintln!(
+                "will DELETE files at {} (irreversible)",
+                dest_dir.display()
+            );
+        } else {
+            eprintln!("files at {} will be kept", dest_dir.display());
+        }
+        if !prompt_yes_no("Proceed? [y/N]") {
+            eprintln!("cancelled");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    match game_install::uninstall(
+        &entry.catalog.game.id,
+        &dest_dir,
+        delete_files,
+        &crate::paths::installs_dir(),
+    ) {
+        Ok(outcome) => {
+            match outcome.deleted_dir {
+                Some(dir) => println!("uninstalled {id} (deleted {})", dir.display()),
+                None => println!(
+                    "uninstalled {id} (kept files at {})",
+                    dest_dir.display()
+                ),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
