@@ -962,7 +962,10 @@ mod tests {
         let outcome = uninstall("kq5", &game, false, installs.path()).unwrap();
         assert_eq!(outcome.deleted_dir, None);
         assert!(!record_path.exists(), "record should be removed");
-        assert!(game.exists(), "files should be kept when delete_files is false");
+        assert!(
+            game.exists(),
+            "files should be kept when delete_files is false"
+        );
     }
 
     #[test]

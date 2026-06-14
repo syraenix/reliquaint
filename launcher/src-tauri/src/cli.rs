@@ -750,10 +750,7 @@ fn cmd_uninstall(view: &CatalogView, id: &str, delete_files: bool, force: bool) 
     if !force {
         eprintln!("will remove the install record for {id}");
         if delete_files {
-            eprintln!(
-                "will DELETE files at {} (irreversible)",
-                dest_dir.display()
-            );
+            eprintln!("will DELETE files at {} (irreversible)", dest_dir.display());
         } else {
             eprintln!("files at {} will be kept", dest_dir.display());
         }
@@ -772,10 +769,7 @@ fn cmd_uninstall(view: &CatalogView, id: &str, delete_files: bool, force: bool) 
         Ok(outcome) => {
             match outcome.deleted_dir {
                 Some(dir) => println!("uninstalled {id} (deleted {})", dir.display()),
-                None => println!(
-                    "uninstalled {id} (kept files at {})",
-                    dest_dir.display()
-                ),
+                None => println!("uninstalled {id} (kept files at {})", dest_dir.display()),
             }
             ExitCode::SUCCESS
         }

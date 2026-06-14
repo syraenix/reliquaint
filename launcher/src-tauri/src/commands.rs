@@ -465,8 +465,11 @@ pub fn uninstall_game(
         None => {
             // Already not installed: removing a missing record is idempotent,
             // and we have no recorded path to delete files from.
-            crate::install_record::deregister(&entry.catalog.game.id, &crate::paths::installs_dir())
-                .map_err(|e| e.to_string())?;
+            crate::install_record::deregister(
+                &entry.catalog.game.id,
+                &crate::paths::installs_dir(),
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
     Ok(())
